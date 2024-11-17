@@ -1,15 +1,15 @@
 from binaryninja import *
 
-from .mikuWorkflow import workflow_patch_mlil
+from .mikuWorkflow import workflow_patch_llil
 from .utils import log_info
 
-# Register a new analysis setting to control whether this pass is enabled/disabled.
+# Register a new analysis setting to control whether this passes is enabled/disabled.
 Settings().register_setting(
     "analysis.plugins.MikuCffHelper",
     '{"description" : "try to solve cff", "title" : "MikuCffHelper_Setting", "default" : false, "type" : "boolean"}')
 configuration = json.dumps({
-    "name": "workflow_patch_mlil",
-    "description": "A activity to patch mlil",
+    "name": "workflow_patch_llil",
+    "description": "A activity to patch llil",
     "eligibility": {
         "predicates": [
             {
@@ -23,8 +23,8 @@ configuration = json.dumps({
 
 cffFixWorkFlow = Workflow("core.function.metaAnalysis").clone("MikuCffHelper_workflow")
 cffFixWorkFlow.register_activity(
-    Activity(configuration, action=workflow_patch_mlil)
+    Activity(configuration, action=workflow_patch_llil)
 )
-cffFixWorkFlow.insert("core.function.analyzeTailCalls", ["workflow_patch_mlil"])
+cffFixWorkFlow.insert("core.function.generateMediumLevelIL", ["workflow_patch_llil"])
 cffFixWorkFlow.register()
 log_info(f"Registered workflow: {cffFixWorkFlow.name}")
