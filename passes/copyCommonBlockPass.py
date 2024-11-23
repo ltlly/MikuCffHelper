@@ -55,5 +55,7 @@ def pass_copy_common_block(llil: LowLevelILFunction):
         if update:
             llil.finalize()
             llil.generate_ssa_form()
+        else:
+            break
     llil.finalize()
     llil.generate_ssa_form()
