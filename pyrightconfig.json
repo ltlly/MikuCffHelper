@@ -1,0 +1,8 @@
+{
+  "useLibraryCodeForTypes": true,
+  "reportGeneralDiagnostics": false,
+  "reportArgumentType": false,
+  "reportAttributeAccessIssue":false,
+  "reportOptionalMemberAccess":false,
+  "reportAssignmentType":false,
+}

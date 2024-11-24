@@ -1,6 +1,6 @@
 import networkx as nx
-from binaryninja import *
-
+from binaryninja import MediumLevelILFunction, MediumLevelILIf, MediumLevelILGoto, Function, Variable, AnalysisContext, MediumLevelILOperation,MediumLevelILSetVar,MediumLevelILVar
+from ..utils import log_error
 
 def create_cfg_graph(mlil: MediumLevelILFunction):
     G = nx.DiGraph()
@@ -56,3 +56,9 @@ def pass_deflat_hard(analysys_context: AnalysisContext):
     G = create_cfg_graph(mlil)
     state_vars = find_state_var(function)
     print(state_vars)
+    for x in state_vars:
+        paired_state_var = find_paired_stateVar(x, mlil)
+        if paired_state_var is not None:
+            state_vars.remove(paired_state_var)
+            state_vars.remove(x)
+        print(paired_state_var,x)

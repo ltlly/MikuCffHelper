@@ -1,7 +1,7 @@
 # Make sure ifInstr is a single block
 
 
-from binaryninja import *
+from binaryninja import LowLevelILIf,LowLevelILFunction,LowLevelILLabel
 
 from ..utils import get_basic_block_at, my_copy_expr, log_info
 
