@@ -6,7 +6,8 @@ from ..utils import my_copy_expr
 
 
 # sub_2e7a4
-def pass_copy_common_block(llil: LowLevelILFunction):
+def pass_copy_common_block(analysys_context: AnalysisContext):
+    llil = analysys_context.function.llil
     for _ in range(len(llil.basic_blocks)):
         update = False
         for bb in llil.basic_blocks:

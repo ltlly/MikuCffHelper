@@ -1,17 +1,18 @@
 from binaryninja import *
+from typing import Dict, Union, List
 
 mikuLogger = Logger(0, "MikuCffHelper")
 
 
-def log_info(msg:str):
+def log_info(msg: str):
     mikuLogger.log_info(msg)
 
 
-def log_warn(msg:str):
+def log_warn(msg: str):
     mikuLogger.log_warn(msg)
 
 
-def log_error(msg:str):
+def log_error(msg: str):
     mikuLogger.log_error(msg)
 
 
@@ -27,6 +28,7 @@ def get_basic_block_at(basic_blocks, index):
             high = mid - 1
         else:
             low = mid + 1
+    log_error(f"can't find basic block at {index}")
     return None
 
 
@@ -59,57 +61,81 @@ def my_copy_expr(llil: LowLevelILFunction, instr: LowLevelILInstruction):
     #                      original.raw_operands[2], original.raw_operands[3], original.size, original.flags)
 
     flags = instr.flags if instr.flags != "" else None
-    return llil.expr(instr.operation, instr.raw_operands[0], instr.raw_operands[1], instr.raw_operands[2],
-                     instr.raw_operands[3], instr.size, flags)
+    return llil.expr(
+        instr.operation,
+        instr.raw_operands[0],
+        instr.raw_operands[1],
+        instr.raw_operands[2],
+        instr.raw_operands[3],
+        instr.size,
+        flags,
+    )
 
 
-
-
-def collect_stateVar_info(func: Function):
-    potential_states = set()
+def collect_stateVar_info(func: Function, ret_int: bool = True):
     args = func.parameter_vars
     args_name = [var.name for var in args]
     mlil = func.medium_level_il
     if not mlil:
         return {}, {}
-
-    ifTable = {}
-    defineTable = {}
-
+    ifTable: Dict[
+        MediumLevelILVar, Union[List[MediumLevelILInstruction], List[int]]
+    ] = {}
+    defineTable: Dict[
+        MediumLevelILVar, Union[List[MediumLevelILInstruction], List[int]]
+    ] = {}
     def travse_if_const_compare(expr):
-        if expr.operation == MediumLevelILOperation.MLIL_IF:
-            condition = expr.condition
-            if condition.operation == MediumLevelILOperation.MLIL_VAR:
-                boolvar = condition.src
-                tDefine = mlil.get_var_definitions(boolvar)
-                if len(tDefine) != 1:
+        if not isinstance(expr, MediumLevelILIf):
+            return
+        condition = expr.condition
+        if isinstance(condition, MediumLevelILVar):
+            log_error(f"if(cond) should not appear in {expr}")
+            return
+            # boolvar = condition.src
+            # # check is bool
+            # if boolvar.type.width != 1:
+            #     return
+            # tDefine = mlil.get_var_definitions(boolvar)
+            # if len(tDefine) != 1:
+            #     return
+            # condition = tDefine[0].src
+        if not hasattr(condition, "right"):
+            return
+        if isinstance(condition.right, MediumLevelILConst):
+            left = condition.left
+            for token in left.tokens:
+                if token in args_name:
                     return
-                condition = tDefine[0].src
-            if not hasattr(condition, "right"):
+            if not isinstance(left, MediumLevelILVar):
                 return
-            if condition.right.operation == MediumLevelILOperation.MLIL_CONST:
-                left = condition.left
-                for token in left.tokens:
-                    if token in args_name:
-                        return
-                if left.operation != MediumLevelILOperation.MLIL_VAR:
-                    return
-                if left.src not in ifTable:
-                    ifTable[left.src] = []
+            if left.src not in ifTable:
+                ifTable[left.src] = []
+            if ret_int:
                 ifTable[left.src].append(condition.right.value.value)
-
-    list(mlil.traverse(travse_if_const_compare))
-
+            else:
+                # sometimes condition.instr_index != expr.instr_index 
+                ifTable[left.src].append(expr)
     def travse_define(expr):
-        if expr.operation == MediumLevelILOperation.MLIL_SET_VAR:
-            if expr.src.operation == MediumLevelILOperation.MLIL_CONST:
-                for token in expr.tokens:
-                    if token in args_name:
-                        return
-                if expr.dest not in defineTable:
-                    defineTable[expr.dest] = []
-                defineTable[expr.dest].append(expr.src.value.value)
-
+        if not isinstance(expr, MediumLevelILSetVar):
+            return
+        if not isinstance(expr.src, MediumLevelILConst):
+            return
+        for token in expr.tokens:
+            if token in args_name:
+                return
+        if expr.dest not in defineTable:
+            defineTable[expr.dest] = []
+        if ret_int:
+            defineTable[expr.dest].append(expr.src.value.value)
+        else:
+            defineTable[expr.dest].append(expr)
+    list(mlil.traverse(travse_if_const_compare))
     list(mlil.traverse(travse_define))
-
+    if not ret_int:
+        for x in ifTable:
+            ifTable[x] = [instr for instr in ifTable[x] if instr.instr_index < len(mlil)]
+        for x in defineTable:
+            defineTable[x] = [
+                instr for instr in defineTable[x] if instr.instr_index < len(mlil)
+            ]
     return ifTable, defineTable

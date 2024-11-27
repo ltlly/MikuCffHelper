@@ -1,12 +1,13 @@
 # Make sure ifInstr is a single block
 
 
-from binaryninja import LowLevelILIf,LowLevelILFunction,LowLevelILLabel
+from binaryninja import *
 
 from ..utils import get_basic_block_at, my_copy_expr, log_info
 
 
-def pass_spilt_if_block(llil: LowLevelILFunction):
+def pass_spilt_if_block(analysys_context: AnalysisContext):
+    llil = analysys_context.function.llil
     bbs = list(llil.basic_blocks)
     def traverse_if_bb(instr):
         if isinstance(instr, LowLevelILIf):

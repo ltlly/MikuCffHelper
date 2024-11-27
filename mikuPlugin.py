@@ -31,8 +31,9 @@ def suggest_stateVar(bv: BinaryView, func: Function):
         return
     from .utils import collect_stateVar_info
     # 找到所有比较var const 的if
-    ifTable,defineTable = collect_stateVar_info(func)
-
+    ifTable: Dict[MediumLevelILVar, List[int]]
+    defineTable: Dict[MediumLevelILVar,List[int]]
+    ifTable, defineTable = collect_stateVar_info(func)
     for var, values in defineTable.items():
         if var in ifTable and len(values) == len(ifTable[var]) and len(values) >= 3:
             make_stateVar(bv, func, var)
