@@ -2,8 +2,8 @@ from binaryninja import *
 from ..utils import get_basic_block_at,my_copy_expr
 
 
-def pass_inline_if_cond(analysys_context: AnalysisContext):
-    llil = analysys_context.function.llil
+def pass_inline_if_cond(analysis_context: AnalysisContext):
+    llil = analysis_context.function.llil
     for bb in llil.ssa_form.basic_blocks:
         if not isinstance(bb[-1], LowLevelILIf):
             continue

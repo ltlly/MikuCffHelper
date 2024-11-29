@@ -6,8 +6,8 @@ from binaryninja import *
 from ..utils import get_basic_block_at, my_copy_expr, log_info
 
 
-def pass_spilt_if_block(analysys_context: AnalysisContext):
-    llil = analysys_context.function.llil
+def pass_spilt_if_block(analysis_context: AnalysisContext):
+    llil = analysis_context.function.llil
     bbs = list(llil.basic_blocks)
     def traverse_if_bb(instr):
         if isinstance(instr, LowLevelILIf):

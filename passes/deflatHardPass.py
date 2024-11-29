@@ -62,8 +62,8 @@ def find_paired_stateVar(stateVar: Variable, mlil: MediumLevelILFunction):
                 return var.src
 
 
-def pass_deflat_hard(analysys_context: AnalysisContext):
-    function = analysys_context.function
+def pass_deflat_hard(analysis_context: AnalysisContext):
+    function = analysis_context.function
     mlil = function.mlil
     if mlil is None:
         log_error(f"Function {function.name} has no MLIL")

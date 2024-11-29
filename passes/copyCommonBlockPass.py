@@ -1,4 +1,3 @@
-from binaryninja import LowLevelILFunction,LowLevelILOperation,LowLevelILLabel,LowLevelILGoto,LowLevelILIf
 from binaryninja import *
 
 from ..utils import LLIL_get_incoming_blocks, log_error
@@ -6,10 +5,10 @@ from ..utils import my_copy_expr
 
 
 # sub_2e7a4
-def pass_copy_common_block(analysys_context: AnalysisContext):
-    llil = analysys_context.function.llil
+def pass_copy_common_block(analysis_context: AnalysisContext):
+    llil = analysis_context.function.llil
     for _ in range(len(llil.basic_blocks)):
-        update = False
+        updated = False
         for bb in llil.basic_blocks:
             lastInstr = llil[bb.end - 1]
             if lastInstr.operation == LowLevelILOperation.LLIL_IF:
@@ -25,7 +24,7 @@ def pass_copy_common_block(analysys_context: AnalysisContext):
             if is_cycle:
                 continue
             for j in range(1, len(preBlocks)):
-                update = True
+                updated = True
                 preBlock = preBlocks[j]
                 pre_lastInstr = llil[preBlock.end - 1]
                 copyLabel = LowLevelILLabel()
@@ -54,7 +53,7 @@ def pass_copy_common_block(analysys_context: AnalysisContext):
                         log_error("ERROR IF")
                 else:
                     log_error("ERROR")
-        if update:
+        if updated:
             llil.finalize()
             llil.generate_ssa_form()
         else:
