@@ -1,5 +1,4 @@
 from binaryninja import *
-from typing import Dict, Union, List
 
 mikuLogger = Logger(0, "MikuCffHelper")
 
@@ -48,6 +47,28 @@ def LLIL_get_incoming_blocks(llil: LowLevelILFunction, bbIndex: int):
     return bbs
 
 
+import binaryninja._binaryninjacore as core
+
+
+def ILSourceLocation(instr):
+    return {
+        "addr": instr.address,
+        "sourceOperand": instr.sourceOperand,
+        "valid": True,
+    }
+def ILSourceLocation(addr,operand):
+    return {
+        "addr": addr,
+        "sourceOperand": operand,
+        "valid": True,
+    }
+def ILSourceLocation():
+    return {
+        "addr": None,
+        "sourceOperand": None,
+        "valid": False,
+    }
+
 def my_copy_expr(llil: LowLevelILFunction, instr: LowLevelILInstruction):
     # api: LowLevelILFunction.copy_expr
     # def copy_expr(self, original: LowLevelILInstruction) -> ExpressionIndex:
@@ -59,7 +80,6 @@ def my_copy_expr(llil: LowLevelILFunction, instr: LowLevelILInstruction):
     #     """
     #     return self.expr(original.operation, original.raw_operands[0], original.raw_operands[1],
     #                      original.raw_operands[2], original.raw_operands[3], original.size, original.flags)
-
     flags = instr.flags if instr.flags != "" else None
     return llil.expr(
         instr.operation,
