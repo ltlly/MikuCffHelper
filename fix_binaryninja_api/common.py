@@ -1,6 +1,5 @@
 from  binaryninja import *
 
-
 class ILSourceLocation:
     def __init__(self, address=None, sourceOperand=None):
         self.address = address
@@ -15,7 +14,7 @@ class ILSourceLocation:
 
     @classmethod
     def from_instruction(cls, instr):
-        instance = cls(instr.address, instr.sourceOperand)
+        instance = cls(instr.address, instr.source_operand)
         instance.valid = True
         return instance
 

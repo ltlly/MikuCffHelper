@@ -10,7 +10,7 @@ from binaryninja import (
     MediumLevelILSetVar,
     MediumLevelILVar,
 )
-from ..utils import log_error, collect_stateVar_info, get_basic_block_at
+from ...utils import log_error, collect_stateVar_info, get_basic_block_at
 
 
 def create_cfg_graph(mlil: MediumLevelILFunction):

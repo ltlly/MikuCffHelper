@@ -3,15 +3,14 @@
 
 from binaryninja import *
 
-from ..utils import get_basic_block_at, my_copy_expr, log_info
+from ...utils import log_info, ILSourceLocation
 
 
 def pass_spilt_if_block(analysis_context: AnalysisContext):
     llil = analysis_context.function.llil
-    bbs = list(llil.basic_blocks)
     def traverse_if_bb(instr):
         if isinstance(instr, LowLevelILIf):
-            block = get_basic_block_at(bbs, instr.instr_index)
+            block = llil.get_basic_block_at(instr.instr_index)
             if not block:
                 return
             if block.instruction_count != 1:
@@ -25,8 +24,8 @@ def pass_spilt_if_block(analysis_context: AnalysisContext):
         log_info(f"copying [::] {ifinstr}")
         goto_label = LowLevelILLabel()
         llil.mark_label(goto_label)
-        llil.append(my_copy_expr(llil, ifinstr))
-        llil.replace_expr(ifinstr, llil.goto(goto_label))
+        llil.append(llil.copy_expr(ifinstr,ILSourceLocation.from_instruction(ifinstr)))
+        llil.replace_expr(ifinstr, llil.goto(goto_label, ILSourceLocation.from_instruction(ifinstr)))
         updated = True
     llil.finalize()
     llil.generate_ssa_form()

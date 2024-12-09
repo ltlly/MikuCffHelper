@@ -5,9 +5,9 @@ from .utils import log_error, log_info
 
 
 def workflow_patch_llil(analysis_context: AnalysisContext):
-    from .passes.spiltIfPass import pass_spilt_if_block
-    from .passes.copyCommonBlockPass import pass_copy_common_block
-    from .passes.inlineIfCondPass import pass_inline_if_cond
+    from .passes.low.spiltIfPass import pass_spilt_if_block
+    from .passes.low.copyCommonBlockPass import pass_copy_common_block
+    from .passes.low.inlineIfCondPass import pass_inline_if_cond
     function = analysis_context.function
     llil = function.llil
     if llil is None:
@@ -24,8 +24,8 @@ def workflow_patch_llil(analysis_context: AnalysisContext):
 
 
 def workflow_patch_mlil(analysis_context: AnalysisContext):
-    from .passes.reverseIfPass import pass_reverse_if
-    from .passes.deflatHardPass import pass_deflat_hard
+    from .passes.mid.reverseIfPass import pass_reverse_if
+    from .passes.mid.deflatHardPass import pass_deflat_hard
     function = analysis_context.function
     mlil = function.mlil
     if mlil is None:

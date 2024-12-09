@@ -3,6 +3,8 @@ import json
 from .mikuWorkflow import workflow_patch_llil, workflow_patch_mlil
 from .utils import log_info
 
+from .fix_binaryninja_api import lowlevelil
+
 
 def register_workflow():
     cffFixWorkFlow = Workflow("core.function.metaAnalysis").clone("MikuCffHelper_workflow")

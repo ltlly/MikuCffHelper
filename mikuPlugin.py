@@ -1,5 +1,4 @@
 from binaryninja import *
-from binaryninjaui import UIContext
 
 funDict = {}
 
@@ -17,6 +16,7 @@ def make_stateVar(bv: BinaryView, func: Function, var: Variable):
 
 
 def set_stateVar(bv: BinaryView, func: Function):
+    from binaryninjaui import UIContext
     ctx = UIContext.activeContext()
     h = ctx.contentActionHandler()
     a = h.actionContext()

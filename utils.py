@@ -2,7 +2,7 @@ from binaryninja import *
 
 mikuLogger = Logger(0, "MikuCffHelper")
 
-
+from  .fix_binaryninja_api.common import ILSourceLocation
 def log_info(msg: str):
     mikuLogger.log_info(msg)
 
@@ -46,50 +46,6 @@ def LLIL_get_incoming_blocks(llil: LowLevelILFunction, bbIndex: int):
     bbs.sort(key=lambda bb: bb.start)
     return bbs
 
-
-import binaryninja._binaryninjacore as core
-
-
-def ILSourceLocation(instr):
-    return {
-        "addr": instr.address,
-        "sourceOperand": instr.sourceOperand,
-        "valid": True,
-    }
-def ILSourceLocation(addr,operand):
-    return {
-        "addr": addr,
-        "sourceOperand": operand,
-        "valid": True,
-    }
-def ILSourceLocation():
-    return {
-        "addr": None,
-        "sourceOperand": None,
-        "valid": False,
-    }
-
-def my_copy_expr(llil: LowLevelILFunction, instr: LowLevelILInstruction):
-    # api: LowLevelILFunction.copy_expr
-    # def copy_expr(self, original: LowLevelILInstruction) -> ExpressionIndex:
-    #     """
-    #     ``copy_expr`` adds an expression to the function which is equivalent to the given expression
-    #
-    #     :param LowLevelILInstruction original: the original IL Instruction you want to copy
-    #     :return: The index of the newly copied expression
-    #     """
-    #     return self.expr(original.operation, original.raw_operands[0], original.raw_operands[1],
-    #                      original.raw_operands[2], original.raw_operands[3], original.size, original.flags)
-    flags = instr.flags if instr.flags != "" else None
-    return llil.expr(
-        instr.operation,
-        instr.raw_operands[0],
-        instr.raw_operands[1],
-        instr.raw_operands[2],
-        instr.raw_operands[3],
-        instr.size,
-        flags,
-    )
 
 
 def collect_stateVar_info(func: Function, ret_int: bool = True):

@@ -1,7 +1,7 @@
 from binaryninja import *
 
-from ..utils import LLIL_get_incoming_blocks, log_error
-from ..utils import my_copy_expr
+from ...fix_binaryninja_api.common import ILSourceLocation
+from ...utils import LLIL_get_incoming_blocks, log_error
 
 
 # sub_2e7a4
@@ -30,25 +30,40 @@ def pass_copy_common_block(analysis_context: AnalysisContext):
                 copyLabel = LowLevelILLabel()
                 llil.mark_label(copyLabel)
                 for l in range(bb.start, bb.end):
-                    llil.append(my_copy_expr(llil, llil[l]))
+                    llil.append(llil.copy_expr(llil[l], ILSourceLocation.from_instruction(llil[l])))
                 if isinstance(pre_lastInstr, LowLevelILGoto):
                     llil.replace_expr(pre_lastInstr.expr_index,
-                                      llil.goto(copyLabel))
+                                      llil.goto(copyLabel, ILSourceLocation.from_instruction(pre_lastInstr)))
+
                 elif isinstance(pre_lastInstr, LowLevelILIf):
                     trueTarget = pre_lastInstr.true
                     falseTarget = pre_lastInstr.false
                     if trueTarget == bb.start:
                         fixFalseLabel = LowLevelILLabel()
                         fixFalseLabel.operand = falseTarget
-                        llil.replace_expr(pre_lastInstr.expr_index,
-                                          llil.if_expr(my_copy_expr(llil, pre_lastInstr.condition), copyLabel,
-                                                       fixFalseLabel))
+                        llil.replace_expr(
+                            pre_lastInstr.expr_index,
+                            llil.if_expr(
+                                llil.copy_expr(pre_lastInstr.condition,
+                                               ILSourceLocation.from_instruction(pre_lastInstr)),
+                                copyLabel,
+                                fixFalseLabel,
+                                ILSourceLocation.from_instruction(pre_lastInstr)
+                            ),
+                        )
                     elif falseTarget == bb.start:
                         fixTrueLabel = LowLevelILLabel()
                         fixTrueLabel.operand = trueTarget
-                        llil.replace_expr(pre_lastInstr.expr_index,
-                                          llil.if_expr(my_copy_expr(llil, pre_lastInstr.condition), fixTrueLabel,
-                                                       copyLabel))
+                        llil.replace_expr(
+                            pre_lastInstr.expr_index,
+                            llil.if_expr(
+                                llil.copy_expr(pre_lastInstr.condition,
+                                               ILSourceLocation.from_instruction(pre_lastInstr)),
+                                fixTrueLabel,
+                                copyLabel,
+                                ILSourceLocation.from_instruction(pre_lastInstr)
+                            ),
+                        )
                     else:
                         log_error("ERROR IF")
                 else:
