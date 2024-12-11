@@ -67,14 +67,6 @@ def collect_stateVar_info(func: Function, ret_int: bool = True):
         if isinstance(condition, MediumLevelILVar):
             log_error(f"if(cond) should not appear in {expr}")
             return
-            # boolvar = condition.src
-            # # check is bool
-            # if boolvar.type.width != 1:
-            #     return
-            # tDefine = mlil.get_var_definitions(boolvar)
-            # if len(tDefine) != 1:
-            #     return
-            # condition = tDefine[0].src
         if not hasattr(condition, "right"):
             return
         if isinstance(condition.right, MediumLevelILConst):

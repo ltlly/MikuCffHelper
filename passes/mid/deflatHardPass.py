@@ -34,7 +34,7 @@ def find_state_var(func: Function):
     vars = func.vars
     vars_name = [var.name for var in vars]
     if all([not var.startswith("state-") for var in vars_name]):
-        from ..mikuPlugin import suggest_stateVar
+        from ...mikuPlugin import suggest_stateVar
 
         suggest_stateVar(func.view, func)
     state_vars = [var for var in vars if var.name.startswith("state-")]
