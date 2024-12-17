@@ -13,7 +13,8 @@ class ILSourceLocation:
         return instance
 
     @classmethod
-    def from_instruction(cls, instr):
+    def from_instruction(cls,
+                         instr: MediumLevelILInstruction | LowLevelILInstruction | HighLevelILInstruction) -> 'ILSourceLocation':
         instance = cls(instr.address, instr.source_operand)
         instance.valid = True
         return instance

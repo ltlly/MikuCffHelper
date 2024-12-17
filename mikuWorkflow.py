@@ -1,6 +1,5 @@
 from binaryninja import *
 
-
 from .utils import log_error, log_info
 
 
@@ -25,11 +24,11 @@ def workflow_patch_llil(analysis_context: AnalysisContext):
 
 def workflow_patch_mlil(analysis_context: AnalysisContext):
     from .passes.mid.reverseIfPass import pass_reverse_if
-    from .passes.mid.deflatHardPass import pass_deflat_hard
+    from .passes.mid.deflatHardPass import pass_deflate_hard
     function = analysis_context.function
     mlil = function.mlil
     if mlil is None:
         log_error(f"Function {function.name} has no MLIL")
         return
     pass_reverse_if(analysis_context)
-    pass_deflat_hard(analysis_context)
+    pass_deflate_hard(analysis_context)
