@@ -3,6 +3,7 @@ from binaryninja import *
 from .common import ILSourceLocation
 from ..utils import log_error
 
+
 def copy_expr(
         self, instr: LowLevelILInstruction, loc: ILSourceLocation = None
 ):

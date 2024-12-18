@@ -16,8 +16,12 @@ def pass_inline_if_cond(analysis_context: AnalysisContext):
         if not bb.end > int(define.instr_index) >= bb.start:
             continue
         # todo: check can inline : use-define analysis
-        ifInstr = lastInstrSSA.non_ssa_form
+
+        use = llil.ssa_form.get_ssa_flag_uses(condition.src)
+        log_info(f"use {use}")
+        ifInstr: LowLevelILIf = lastInstrSSA.non_ssa_form
         defineInstr = define.non_ssa_form
+
         newTrueLabel = LowLevelILLabel()
         newTrueLabel.operand = ifInstr.true
         newFalseLabel = LowLevelILLabel()
