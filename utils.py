@@ -46,7 +46,17 @@ def LLIL_get_incoming_blocks(llil: LowLevelILFunction, bbIndex: int):
     bbs.sort(key=lambda bb: bb.start)
     return bbs
 
+def unsigned_to_signed_32bit(n):
+    # 检查是否在无符号32位整数范围内
+    if n < 0 or n > 0xFFFFFFFF:
+        raise ValueError(
+            "Input is out of range for a 32-bit unsigned integer")
 
+    # 如果大于 0x7FFFFFFF，则减去 0x100000000
+    if n > 0x7FFFFFFF:
+        return n - 0x100000000
+    else:
+        return n
 
 def collect_stateVar_info(func: Function, ret_int: bool = True):
     args = func.parameter_vars

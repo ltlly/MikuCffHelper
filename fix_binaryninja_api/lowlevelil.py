@@ -22,9 +22,7 @@ def copy_expr(
 
 def if_expr(self, operand: ExpressionIndex, t: LowLevelILLabel, f: LowLevelILLabel,
             loc: ILSourceLocation = None) -> ExpressionIndex:
-    log_error(f"using my if_expr")
     if loc is not None and loc.valid:
-        log_error(f"using my if_expr loc {loc.address}")
         return ExpressionIndex(
             core.BNLowLevelILIfWithLocation(self.handle, operand, t.handle, f.handle, loc.address, loc.sourceOperand))
     return ExpressionIndex(core.BNLowLevelILIf(self.handle, operand, t.handle, f.handle))

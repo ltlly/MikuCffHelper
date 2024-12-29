@@ -15,18 +15,26 @@ def pass_inline_if_cond(analysis_context: AnalysisContext):
         define = llil.ssa_form.get_ssa_flag_definition(condition.src)
         if not bb.end > int(define.instr_index) >= bb.start:
             continue
-        # todo: check can inline : use-define analysis
-
+        #
+        if not isinstance(define,LowLevelILSetFlagSsa):
+            continue
         use = llil.ssa_form.get_ssa_flag_uses(condition.src)
-        log_info(f"use {use}")
+        use = [x for x in use if not isinstance(x, LowLevelILFlagPhi)]
+        if len(use) > 1:
+            continue
         ifInstr: LowLevelILIf = lastInstrSSA.non_ssa_form
-        defineInstr = define.non_ssa_form
 
+        defineInstr = define.non_ssa_form
         newTrueLabel = LowLevelILLabel()
         newTrueLabel.operand = ifInstr.true
         newFalseLabel = LowLevelILLabel()
         newFalseLabel.operand = ifInstr.false
-        newIfinstr = llil.if_expr(llil.copy_expr(defineInstr.src,ILSourceLocation.from_instruction(ifInstr)), newTrueLabel, newFalseLabel,
+
+        log_info(f"defineInstr: {defineInstr}")
+        log_info(f"ifInstr: {ifInstr}")
+        log_info(f"define {define}")
+        newIfinstr = llil.if_expr(llil.copy_expr(defineInstr.src, ILSourceLocation.from_instruction(ifInstr)),
+                                  newTrueLabel, newFalseLabel,
                                   ILSourceLocation.from_instruction(ifInstr))
         # newIfinstr = llil.if_expr(my_copy_expr(llil,defineInstr.src), newTrueLabel, newFalseLabel)
         llil.replace_expr(ifInstr.expr_index, newIfinstr)

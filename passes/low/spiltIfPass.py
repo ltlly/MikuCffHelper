@@ -21,7 +21,6 @@ def pass_spilt_if_block(analysis_context: AnalysisContext):
         ifinstr = ifbb[-1]
         if not isinstance(ifinstr, LowLevelILIf):
             continue
-        log_info(f"copying [::] {ifinstr}")
         goto_label = LowLevelILLabel()
         llil.mark_label(goto_label)
         llil.append(llil.copy_expr(ifinstr,ILSourceLocation.from_instruction(ifinstr)))

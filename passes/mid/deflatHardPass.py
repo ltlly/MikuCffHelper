@@ -1,4 +1,4 @@
-from typing import List
+from pprint import pformat
 
 import networkx as nx
 from binaryninja import (
@@ -13,7 +13,7 @@ from binaryninja import (
     MediumLevelILVar, MediumLevelILInstruction,
 )
 
-from ...utils import log_error, collect_stateVar_info
+from ...utils import log_error, collect_stateVar_info, log_info, unsigned_to_signed_32bit
 
 
 def create_cfg_graph(mlil: MediumLevelILFunction):
@@ -28,6 +28,26 @@ def create_cfg_graph(mlil: MediumLevelILFunction):
         else:
             for edge in block.outgoing_edges:
                 G.add_edge(block.start, edge.target.start, edge_label="unknown")
+    return G
+
+
+def create_full_cfg_graph(mlil: MediumLevelILFunction):
+    G = nx.DiGraph()
+    for block in mlil.basic_blocks:
+        for i in range(block.start, block.end):
+            G.add_node(i)
+        for i in range(block.start, block.end - 1):
+            G.add_edge(i, i + 1)
+    for block in mlil.basic_blocks:
+        lastInstr = block[-1]
+        if isinstance(lastInstr, MediumLevelILIf):
+            G.add_edge(lastInstr.instr_index, lastInstr.true, edge_label="true")
+            G.add_edge(lastInstr.instr_index, lastInstr.false, edge_label="false")
+        elif isinstance(lastInstr, MediumLevelILGoto):
+            G.add_edge(lastInstr.instr_index, lastInstr.dest, edge_label="goto")
+        else:
+            for edge in block.outgoing_edges:
+                G.add_edge(lastInstr.instr_index, edge.target.start, edge_label="unknown")
     return G
 
 
@@ -49,26 +69,66 @@ def find_paired_state_var(state_var: Variable, mlil: MediumLevelILFunction):
             [defi.src.operation == MediumLevelILOperation.MLIL_CONST for defi in defines]
     ):
         return None
-    else:
-        for defi in defines:
-            if not isinstance(defi, MediumLevelILSetVar):
-                continue
-            var = defi.src
-            if (
-                    isinstance(var, MediumLevelILVar)
-                    and var.src.name.startswith("state-")
-                    and var.src != state_var
-            ):
-                return var.src
+    for define in defines:
+        if not isinstance(define, MediumLevelILSetVar):
+            continue
+        var = define.src
+        if (
+                isinstance(var, MediumLevelILVar)
+                and var.src.name.startswith("state-")
+                and var.src != state_var
+        ):
+            return var.src
+
+
+from typing import List, Dict, Any
+
+
+def find_state_transition_instructions(
+        local_if_table: List[MediumLevelILIf],
+        local_define_table: List[MediumLevelILSetVar]
+) -> List[Dict[str, Any]]:
+    paired_instructions = []
+
+    for def_instr in local_define_table:
+        t_def_const = def_instr.src
+        t_def_const_width = def_instr.size
+        key_define = t_def_const.value.value & int(f"0x{'ff' * t_def_const_width}", 16)
+        for if_instr in local_if_table:
+            if_const = if_instr.condition.right
+            if_const_width = if_instr.condition.left.size
+            key_if = if_const.value.value & int(f"0x{'ff' * if_const_width}", 16)
+            if key_if == key_define:
+                paired_instructions.append({
+                    "if_instr": if_instr,
+                    "def_instr": def_instr,
+                    "def_const": def_instr.src,
+                    "if_const": if_const,
+                })
+    return paired_instructions
+
+
+def find_white_instructions(mlil: MediumLevelILFunction, possible_state_vars: List[Variable]):
+    white_instructions = []
+    for instr in mlil.instructions:
+        if instr.operation not in [MediumLevelILOperation.MLIL_GOTO, MediumLevelILOperation.MLIL_IF,
+                                   MediumLevelILOperation.MLIL_SET_VAR]:
+            continue
+        vars = instr.vars_written + instr.vars_read
+        if not all([var in possible_state_vars for var in vars]):
+            continue
+        white_instructions.append(instr)
+    return white_instructions
 
 
 def pass_deflate_hard(analysis_context: AnalysisContext):
-    function = analysis_context.function
-    mlil = function.mlil
+    function: Function = analysis_context.function
+    mlil: MediumLevelILFunction = function.mlil
     if mlil is None:
         log_error(f"Function {function.name} has no MLIL")
         return
-    G = create_cfg_graph(mlil)
+    # G = create_cfg_graph(mlil)
+    G_full = create_full_cfg_graph(mlil)
     state_vars = find_state_var(function)
     if_table, define_table = collect_stateVar_info(function, False)
     for state_var in state_vars:
@@ -78,81 +138,97 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
             state_vars.remove(paired_state_var)
             state_vars.remove(state_var)
             possible_state_vars.append(paired_state_var)
-        log_error(f"{paired_state_var},{state_var}")
-
-        if paired_state_var:
-            local_if_table = if_table.get(paired_state_var, []) + if_table.get(
-                state_var, []
-            )
-            local_define_table = define_table.get(
-                paired_state_var, []
-            ) + define_table.get(state_var, [])
+            log_info(f"{paired_state_var},{state_var}")
+            local_if_table = if_table.get(paired_state_var, []) + if_table.get(state_var, [])
+            local_define_table = define_table.get(paired_state_var, []) + define_table.get(state_var, [])
         else:
+            log_info(f"{paired_state_var},{state_var}")
             local_if_table = if_table.get(state_var, [])
             local_define_table = define_table.get(state_var, [])
-
         # filter if and define
+        # log_info(f"{local_if_table},{local_define_table}")
+        trans_dict = find_state_transition_instructions(local_if_table, local_define_table)
+        log_info(f"{pformat(trans_dict)}")
 
-        log_error(f"{local_if_table},{local_define_table}")
-        for if_instr in local_if_table:
-            if_const = if_instr.condition.right
-            if_const_width = if_instr.condition.left.size
-            def_const = None
-            def_instr = None
+        white_instructions = find_white_instructions(mlil, possible_state_vars)
+        # log_info(f"white_instructions::{pformat(white_instructions)}")
 
-            for define_instr in local_define_table:
-                t_def_const = define_instr.src
-                t_def_const_width = define_instr.size
+        for trans in trans_dict:
+            def_instr = trans["def_instr"]
+            if_instr = trans["if_instr"]
+            if_const = trans["if_const"]
+            def_const = trans["def_const"]
 
-                if (if_const.value.value & int(f"0x{'ff' * if_const_width}", 16)) == (
-                        t_def_const.value.value & int(f"0x{'ff' * t_def_const_width}", 16)
-                ):
-                    def_const = t_def_const
-                    def_instr = define_instr
-                    break
+            # path = nx.shortest_path(G, start_search, end_search)
+            path_full = nx.shortest_path(G_full, def_instr.instr_index, if_instr.instr_index)
 
-            if def_const is None:
+            cond = check_path(mlil, path_full, possible_state_vars, white_instructions)
+            if not cond:
                 continue
-
-            start_search = mlil.get_basic_block_at(def_instr.instr_index).start
-            end_search = mlil.get_basic_block_at(if_instr.instr_index).start
-
-            path = nx.shortest_path(G, start_search, end_search)
-
-            log_error(f"{def_instr}, {if_instr}")
-            log_error(f"{start_search}, {end_search}")
-            log_error(f"{path}")
-
-            check_path(mlil, path, possible_state_vars, start_search, end_search)
 
 
 def check_state_if_instr(instr: MediumLevelILInstruction):
     if not isinstance(instr, MediumLevelILIf):
         return False
     condition = instr.condition
-    #        todo
+    if "left" not in dir(condition) and "right" not in dir(condition):
+        return False
+    if condition.right.operation != MediumLevelILOperation.MLIL_CONST:
+        return False
+    return True
+
+
+def emu_if(left_const: int, if_symbol: MediumLevelILOperation, right_const: int):
+    def cmp_e(a, b): return a == b
+
+    def cmp_ne(a, b): return a != b
+
+    def cmp_ult(a, b): return a < b
+
+    def cmp_ule(a, b): return a <= b
+
+    def cmp_ugt(a, b): return a > b
+
+    def cmp_uge(a, b): return a >= b
+
+    def cmp_slt(a, b): return unsigned_to_signed_32bit(a) < unsigned_to_signed_32bit(b)
+
+    def cmp_sle(a, b): return unsigned_to_signed_32bit(a) <= unsigned_to_signed_32bit(b)
+
+    def cmp_sgt(a, b): return unsigned_to_signed_32bit(a) > unsigned_to_signed_32bit(b)
+
+    def cmp_sge(a, b): return unsigned_to_signed_32bit(a) >= unsigned_to_signed_32bit(b)
+
+    cmp_funcs = {
+        MediumLevelILOperation.MLIL_CMP_E: cmp_e,
+        MediumLevelILOperation.MLIL_CMP_NE: cmp_ne,
+        MediumLevelILOperation.MLIL_CMP_ULT: cmp_ult,
+        MediumLevelILOperation.MLIL_CMP_ULE: cmp_ule,
+        MediumLevelILOperation.MLIL_CMP_UGT: cmp_ugt,
+        MediumLevelILOperation.MLIL_CMP_UGE: cmp_uge,
+        MediumLevelILOperation.MLIL_CMP_SLT: cmp_slt,
+        MediumLevelILOperation.MLIL_CMP_SLE: cmp_sle,
+        MediumLevelILOperation.MLIL_CMP_SGT: cmp_sgt,
+        MediumLevelILOperation.MLIL_CMP_SGE: cmp_sge,
+    }
+    return cmp_funcs[if_symbol](left_const, right_const)
 
 
 def check_path(
         mlil: MediumLevelILFunction,
         path: List[int],
         state_vars: List[Variable],
-        start_search: int,
-        end_search: int,
+        white_instructions: List[MediumLevelILInstruction]
 ):
     instrs = []
-    for i in range(start_search, mlil.get_basic_block_at(path[0]).end):
-        instrs.append(mlil[i])
-    for block in path[1:]:
-        for instr in mlil.get_basic_block_at(block):
-            instrs.append(instr)
-    log_error(f"{instrs}")
-    check = True
-    vars = []
-    for instr in instrs:
-        vars += instr.vars_written
-        vars += instr.vars_read
-    if not all([var in state_vars for var in vars]):
-        check = False
-    if not check:
+    for x in path:
+        instrs.append(mlil[x])
+    if not all([instr in white_instructions for instr in instrs]):
+        # 打印不在白名单的指令
+        # todo 这里应该收集
+        log_info(
+            f"not in white instructions::{pformat([instr for instr in instrs if instr not in white_instructions])}")
         return False
+    log_info(f"[path] instructions::{pformat(instrs)}")
+    log_info(f"[path] paths::{pformat(path)}")
+    return True
