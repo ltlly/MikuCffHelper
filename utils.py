@@ -65,10 +65,10 @@ def collect_stateVar_info(func: Function, ret_int: bool = True):
     if not mlil:
         return {}, {}
     ifTable: Dict[
-        MediumLevelILVar, Union[List[MediumLevelILInstruction], List[int]]
+        MediumLevelILVar|Any, List[MediumLevelILInstruction]|List[int]|Any
     ] = {}
     defineTable: Dict[
-        MediumLevelILVar, Union[List[MediumLevelILInstruction], List[int]]
+        MediumLevelILVar|Any, List[MediumLevelILInstruction]|List[int]|Any
     ] = {}
     def travse_if_const_compare(expr):
         if not isinstance(expr, MediumLevelILIf):

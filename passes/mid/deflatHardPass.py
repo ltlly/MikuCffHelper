@@ -123,7 +123,7 @@ def find_white_instructions(mlil: MediumLevelILFunction, possible_state_vars: Li
 
 def pass_deflate_hard(analysis_context: AnalysisContext):
     function: Function = analysis_context.function
-    mlil: MediumLevelILFunction = function.mlil
+    mlil: MediumLevelILFunction | None = function.mlil
     if mlil is None:
         log_error(f"Function {function.name} has no MLIL")
         return
@@ -154,8 +154,8 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
         # log_info(f"white_instructions::{pformat(white_instructions)}")
 
         for trans in trans_dict:
-            def_instr = trans["def_instr"]
-            if_instr = trans["if_instr"]
+            def_instr:MediumLevelILInstruction|MediumLevelILSetVar = trans["def_instr"]
+            if_instr:MediumLevelILInstruction|MediumLevelILIf = trans["if_instr"]
             if_const = trans["if_const"]
             def_const = trans["def_const"]
 

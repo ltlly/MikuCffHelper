@@ -23,8 +23,8 @@ def pass_spilt_if_block(analysis_context: AnalysisContext):
             continue
         goto_label = LowLevelILLabel()
         llil.mark_label(goto_label)
-        llil.append(llil.copy_expr(ifinstr,ILSourceLocation.from_instruction(ifinstr)))
-        llil.replace_expr(ifinstr, llil.goto(goto_label, ILSourceLocation.from_instruction(ifinstr)))
+        llil.append(llil.copy_expr(ifinstr,ILSourceLocation.from_instruction(ifinstr))) # type: ignore
+        llil.replace_expr(ifinstr, llil.goto(goto_label, ILSourceLocation.from_instruction(ifinstr)))# type: ignore
         updated = True
     llil.finalize()
     llil.generate_ssa_form()
