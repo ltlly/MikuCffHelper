@@ -1,0 +1,25 @@
+# Python
+*.py[cod]
+__pycache__/
+*.so
+*.pyd
+*.pyo
+
+# Environments
+.env
+.venv
+venv/
+env/
+
+# Editor
+.vscode/
+.idea/
+
+# Binary files
+*.so
+*.elf
+*.out
+
+# System
+.DS_Store
+Thumbs.db
