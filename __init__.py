@@ -1,7 +1,5 @@
 import json
-
 from binaryninja import PluginCommand, Workflow, Activity
-
 from .mikuWorkflow import workflow_patch_llil, workflow_patch_mlil
 from .utils import log_info
 from .fix_binaryninja_api import lowlevelil
@@ -44,7 +42,7 @@ def register_workflow():
 
 
 def register_commands():
-    from .mikuPlugin import set_stateVar, suggest_stateVar, isV
+    from .utils.mikuPlugin import set_stateVar, suggest_stateVar, isV
 
     PluginCommand.register_for_function("miku\\set_state_var", "", set_stateVar, isV)
     PluginCommand.register_for_function(

@@ -1,64 +1,20 @@
-from binaryninja import *
+from typing import List, Dict, Any
+from binaryninja import (
+    Function,
+    Variable,
+    MediumLevelILFunction,
+    MediumLevelILSetVar,
+    MediumLevelILVar,
+    MediumLevelILOperation,
+    MediumLevelILIf,
+    MediumLevelILConst,
+    MediumLevelILInstruction
+)
 
-mikuLogger = Logger(0, "MikuCffHelper")
-
-from  .fix_binaryninja_api.common import ILSourceLocation
-def log_info(msg: str):
-    mikuLogger.log_info(msg)
-
-
-def log_warn(msg: str):
-    mikuLogger.log_warn(msg)
-
-
-def log_error(msg: str):
-    mikuLogger.log_error(msg)
-
-
-def get_basic_block_at(basic_blocks, index):
-    # because api:mlil.get_basic_block_at  sometimes is not correct
-    bbs = sorted(list(basic_blocks), key=lambda bb: bb.start)
-    low, high = 0, len(bbs) - 1
-    while low <= high:
-        mid = (low + high) // 2
-        if bbs[mid].start <= index < bbs[mid].end:
-            return bbs[mid]
-        elif index < bbs[mid].start:
-            high = mid - 1
-        else:
-            low = mid + 1
-    log_error(f"can't find basic block at {index}")
-    return None
-
-
-def LLIL_get_incoming_blocks(llil: LowLevelILFunction, bbIndex: int):
-    bbs = []
-    for bb in llil.basic_blocks:
-        lastInstr = llil[bb.end - 1]
-        if isinstance(lastInstr, LowLevelILGoto):
-            if lastInstr.dest == bbIndex:
-                bbs.append(bb)
-        elif isinstance(lastInstr, LowLevelILIf):
-            if lastInstr.true == bbIndex:
-                bbs.append(bb)
-            elif lastInstr.false == bbIndex:
-                bbs.append(bb)
-    bbs.sort(key=lambda bb: bb.start)
-    return bbs
-
-def unsigned_to_signed_32bit(n):
-    # 检查是否在无符号32位整数范围内
-    if n < 0 or n > 0xFFFFFFFF:
-        raise ValueError(
-            "Input is out of range for a 32-bit unsigned integer")
-
-    # 如果大于 0x7FFFFFFF，则减去 0x100000000
-    if n > 0x7FFFFFFF:
-        return n - 0x100000000
-    else:
-        return n
+from .mikuPlugin import suggest_stateVar, log_error
 
 def collect_stateVar_info(func: Function, ret_int: bool = True):
+    """Collect state variable information from function"""
     args = func.parameter_vars
     args_name = [var.name for var in args]
     mlil = func.medium_level_il
@@ -70,6 +26,7 @@ def collect_stateVar_info(func: Function, ret_int: bool = True):
     defineTable: Dict[
         MediumLevelILVar|Any, List[MediumLevelILInstruction]|List[int]|Any
     ] = {}
+    
     def travse_if_const_compare(expr):
         if not isinstance(expr, MediumLevelILIf):
             return
@@ -91,8 +48,8 @@ def collect_stateVar_info(func: Function, ret_int: bool = True):
             if ret_int:
                 ifTable[left.src].append(condition.right.value.value)
             else:
-                # sometimes condition.instr_index != expr.instr_index 
                 ifTable[left.src].append(expr)
+
     def travse_define(expr):
         if not isinstance(expr, MediumLevelILSetVar):
             return
@@ -107,8 +64,10 @@ def collect_stateVar_info(func: Function, ret_int: bool = True):
             defineTable[expr.dest].append(expr.src.value.value)
         else:
             defineTable[expr.dest].append(expr)
+
     list(mlil.traverse(travse_if_const_compare))
     list(mlil.traverse(travse_define))
+    
     if not ret_int:
         for x in ifTable:
             ifTable[x] = [instr for instr in ifTable[x] if instr.instr_index < len(mlil)]
@@ -117,3 +76,32 @@ def collect_stateVar_info(func: Function, ret_int: bool = True):
                 instr for instr in defineTable[x] if instr.instr_index < len(mlil)
             ]
     return ifTable, defineTable
+
+class StateMachine:
+    """Handles state machine analysis and state variable detection"""
+    
+    @staticmethod
+    def find_state_var(func: Function):
+        vars = func.vars
+        vars_name = [var.name for var in vars]
+        if all([not var.startswith("state-") for var in vars_name]):
+            from .mikuPlugin import suggest_stateVar
+            suggest_stateVar(func.view, func)
+        state_vars = [var for var in vars if var.name.startswith("state-")]
+        return state_vars
+
+    @staticmethod
+    def find_paired_state_var(state_var: Variable, mlil: MediumLevelILFunction):
+        if not state_var.name.startswith("state-"):
+            return None
+        defines = mlil.get_var_definitions(state_var)
+        if all([defi.src.operation == MediumLevelILOperation.MLIL_CONST for defi in defines]):
+            return None
+        for define in defines:
+            if not isinstance(define, MediumLevelILSetVar):
+                continue
+            var = define.src
+            if (isinstance(var, MediumLevelILVar)
+                    and var.src.name.startswith("state-")
+                    and var.src != state_var):
+                return var.src

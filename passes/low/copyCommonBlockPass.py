@@ -1,7 +1,7 @@
 from binaryninja import *
 
 from ...fix_binaryninja_api.common import ILSourceLocation
-from ...utils import LLIL_get_incoming_blocks, log_error
+from ...utils import CFGAnalyzer, log_error
 
 
 def handle_pre_last_instr(llil, pre_last_instr, bb, copy_label):
@@ -49,7 +49,7 @@ def pass_copy_common_block(analysis_context: AnalysisContext):
             last_instr = llil[bb.end - 1]
             if last_instr.operation == LowLevelILOperation.LLIL_IF:
                 continue
-            pre_blocks = LLIL_get_incoming_blocks(llil, bb.start)
+            pre_blocks = CFGAnalyzer.LLIL_get_incoming_blocks(llil, bb.start)
             if len(pre_blocks) <= 1:
                 continue
             if any(frontier.start == bb.start for frontier in bb.dominance_frontier):
