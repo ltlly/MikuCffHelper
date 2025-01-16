@@ -20,10 +20,16 @@ def log_error(msg: str):
     mikuLogger.log_error(msg)
 
 class CFGAnalyzer:
-    """Handles control flow graph analysis and manipulation"""
+    """控制流图分析器，负责控制流图的分析和操作"""
     
     @staticmethod
     def create_cfg_graph(mlil: MediumLevelILFunction):
+        """创建基本块级别的控制流图
+        Args:
+            mlil (MediumLevelILFunction): 中间语言函数
+        Returns:
+            networkx.DiGraph: 生成的控制流图
+        """
         G = nx.DiGraph()
         for block in mlil.basic_blocks:
             G.add_node(block.start)
@@ -39,6 +45,12 @@ class CFGAnalyzer:
 
     @staticmethod
     def create_full_cfg_graph(mlil: MediumLevelILFunction):
+        """创建指令级别的完整控制流图
+        Args:
+            mlil (MediumLevelILFunction): 中间语言函数
+        Returns:
+            networkx.DiGraph: 生成的完整控制流图
+        """
         G = nx.DiGraph()
         for block in mlil.basic_blocks:
             for i in range(block.start, block.end):
@@ -59,7 +71,13 @@ class CFGAnalyzer:
 
     @staticmethod
     def get_basic_block_at(basic_blocks, index):
-        """Get basic block at specific index"""
+        """获取指定索引处的基本块
+        Args:
+            basic_blocks: 基本块列表
+            index: 目标索引
+        Returns:
+            包含指定索引的基本块，如果找不到返回None
+        """
         bbs = sorted(list(basic_blocks), key=lambda bb: bb.start)
         low, high = 0, len(bbs) - 1
         while low <= high:
@@ -75,7 +93,13 @@ class CFGAnalyzer:
 
     @staticmethod
     def LLIL_get_incoming_blocks(llil: LowLevelILFunction, bbIndex: int):
-        """Get incoming blocks for a basic block"""
+        """获取基本块的所有前驱块
+        Args:
+            llil (LowLevelILFunction): 低级中间语言函数
+            bbIndex (int): 目标基本块索引
+        Returns:
+            List: 所有前驱基本块列表
+        """
         bbs = []
         for bb in llil.basic_blocks:
             lastInstr = llil[bb.end - 1]

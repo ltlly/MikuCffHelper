@@ -14,7 +14,13 @@ from binaryninja import (
 from .mikuPlugin import suggest_stateVar, log_error
 
 def collect_stateVar_info(func: Function, ret_int: bool = True):
-    """Collect state variable information from function"""
+    """收集函数中的状态变量信息
+    Args:
+        func (Function): 目标函数
+        ret_int (bool): 是否返回整数值
+    Returns:
+        Tuple[Dict, Dict]: 包含if表和定义表的元组
+    """
     args = func.parameter_vars
     args_name = [var.name for var in args]
     mlil = func.medium_level_il
@@ -78,10 +84,16 @@ def collect_stateVar_info(func: Function, ret_int: bool = True):
     return ifTable, defineTable
 
 class StateMachine:
-    """Handles state machine analysis and state variable detection"""
+    """状态机分析器，负责状态机分析和状态变量检测"""
     
     @staticmethod
     def find_state_var(func: Function):
+        """查找函数中的状态变量
+        Args:
+            func (Function): 目标函数
+        Returns:
+            List[Variable]: 找到的状态变量列表
+        """
         vars = func.vars
         vars_name = [var.name for var in vars]
         if all([not var.startswith("state-") for var in vars_name]):
@@ -92,6 +104,13 @@ class StateMachine:
 
     @staticmethod
     def find_paired_state_var(state_var: Variable, mlil: MediumLevelILFunction):
+        """查找与给定状态变量配对的另一个状态变量
+        Args:
+            state_var (Variable): 目标状态变量
+            mlil (MediumLevelILFunction): 中间语言函数
+        Returns:
+            Variable: 找到的配对状态变量，如果不存在返回None
+        """
         if not state_var.name.startswith("state-"):
             return None
         defines = mlil.get_var_definitions(state_var)
