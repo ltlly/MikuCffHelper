@@ -37,16 +37,14 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
     for state_var in state_vars:
         paired_state_var = StateMachine.find_paired_state_var(state_var, mlil)
         possible_state_vars = [state_var]
-        
         if paired_state_var is not None:
             possible_state_vars.append(paired_state_var)
-            log_info(f"{paired_state_var},{state_var}")
             local_if_table = if_table.get(paired_state_var, []) + if_table.get(state_var, [])
             local_define_table = define_table.get(paired_state_var, []) + define_table.get(state_var, [])
         else:
-            log_info(f"{paired_state_var},{state_var}")
             local_if_table = if_table.get(state_var, [])
             local_define_table = define_table.get(state_var, [])
+        log_info(f"paired :: {paired_state_var},{state_var}")
             
         trans_dict = InstructionAnalyzer.find_state_transition_instructions(local_if_table, local_define_table)
         log_info(f"{pformat(trans_dict)}")

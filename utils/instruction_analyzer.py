@@ -23,6 +23,8 @@ def unsigned_to_signed_32bit(n):
         return n - 0x100000000
     else:
         return n
+
+
 def get_mask(width: int) -> int:
     """根据宽度生成掩码
     Args:
@@ -41,7 +43,8 @@ def get_mask(width: int) -> int:
             return 0xffffffffffffffff
         case _:
             return int(f"0x{'ff' * width}", 16)
-    
+
+
 class InstructionAnalyzer:
     """指令分析器，负责处理指令分析和状态转换检测"""
 
@@ -58,7 +61,7 @@ class InstructionAnalyzer:
             List[Dict[str, Any]]: 匹配的状态转换指令对列表
         """
         paired_instructions = []
-        
+
         # 使用字典存储if_instr的key_if值
         if_dict = {}
         for if_instr in local_if_table:
@@ -114,8 +117,7 @@ class InstructionAnalyzer:
         if not isinstance(instr, MediumLevelILIf):
             return False
         condition = instr.condition
-        d = dir(condition)
-        if "left" not in d and "right" not in d:
+        if (not hasattr(condition, "left")) or (not hasattr(condition, "right")):
             return False
         if condition.right.operation != MediumLevelILOperation.MLIL_CONST:
             return False

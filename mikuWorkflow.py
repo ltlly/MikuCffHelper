@@ -36,3 +36,6 @@ def workflow_patch_mlil(analysis_context: AnalysisContext):
     pass_clear(analysis_context)
     pass_reverse_if(analysis_context)
     pass_deflate_hard(analysis_context)
+def workflow_patch_hlil(analysis_context: AnalysisContext):
+    from .utils import suggest_stateVar
+    suggest_stateVar(analysis_context.view, analysis_context.function)

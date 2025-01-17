@@ -50,7 +50,6 @@ def make_stateVar(bv: BinaryView, func: Function, var: Variable):
     name = f"state-{i}"
     var.set_name_async(name)
     funDict[func.start][name] = var
-    funDict[func.start]['counter'] += 1
 
 
 def set_stateVar(bv: BinaryView, func: Function):

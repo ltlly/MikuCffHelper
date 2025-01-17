@@ -38,7 +38,6 @@ def collect_stateVar_info(func: Function, ret_int: bool = True):
             return
         condition = expr.condition
         if isinstance(condition, MediumLevelILVar):
-            log_error(f"if(cond) should not appear in {expr}")
             return
         if not hasattr(condition, "right"):
             return
@@ -121,8 +120,6 @@ class StateMachine:
                 continue
             var = define.src
             if (isinstance(var, MediumLevelILVar)
-                    and var.src != state_var):
-                if not var.src.name.startswith("state-"):
-                    from ..utils import make_stateVar
-                    make_stateVar(mlil.source_function.view,mlil.source_function,var.src)
+                    and var.src != state_var
+                    and var.src.name.startswith("state-")):
                 return var.src
