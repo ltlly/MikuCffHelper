@@ -5,4 +5,6 @@
   "reportAttributeAccessIssue":false,
   "reportOptionalMemberAccess":false,
   "reportAssignmentType":false,
+  "reportCallIssue": false,
+
 }
