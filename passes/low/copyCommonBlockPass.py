@@ -4,7 +4,7 @@ from ...fix_binaryninja_api.common import ILSourceLocation
 from ...utils import CFGAnalyzer, log_error
 
 
-def handle_pre_last_instr(llil, pre_last_instr, bb, copy_label):
+def handle_pre_last_instr(llil: LowLevelILFunction, pre_last_instr, bb, copy_label):
     if isinstance(pre_last_instr, LowLevelILGoto):
         llil.replace_expr(pre_last_instr.expr_index,
                           llil.goto(copy_label, ILSourceLocation.from_instruction(pre_last_instr)))
@@ -46,9 +46,9 @@ def pass_copy_common_block(analysis_context: AnalysisContext):
     for _ in range(len(llil.basic_blocks)):
         updated = False
         for bb in llil.basic_blocks:
-            last_instr = llil[bb.end - 1]
-            if last_instr.operation == LowLevelILOperation.LLIL_IF:
-                continue
+            # last_instr = llil[bb.end - 1]
+            # if last_instr.operation == LowLevelILOperation.LLIL_IF:
+                # continue
             pre_blocks = CFGAnalyzer.LLIL_get_incoming_blocks(llil, bb.start)
             if len(pre_blocks) <= 1:
                 continue

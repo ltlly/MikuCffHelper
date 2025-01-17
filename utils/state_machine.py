@@ -121,6 +121,8 @@ class StateMachine:
                 continue
             var = define.src
             if (isinstance(var, MediumLevelILVar)
-                    and var.src.name.startswith("state-")
                     and var.src != state_var):
+                if not var.src.name.startswith("state-"):
+                    from ..utils import make_stateVar
+                    make_stateVar(mlil.source_function.view,mlil.source_function,var.src)
                 return var.src

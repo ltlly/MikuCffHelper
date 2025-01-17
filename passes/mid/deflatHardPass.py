@@ -39,8 +39,6 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
         possible_state_vars = [state_var]
         
         if paired_state_var is not None:
-            state_vars.remove(paired_state_var)
-            state_vars.remove(state_var)
             possible_state_vars.append(paired_state_var)
             log_info(f"{paired_state_var},{state_var}")
             local_if_table = if_table.get(paired_state_var, []) + if_table.get(state_var, [])
