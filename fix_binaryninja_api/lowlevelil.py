@@ -4,9 +4,7 @@ from .common import ILSourceLocation
 from ..utils import log_error
 
 
-def copy_expr(
-        self, instr: LowLevelILInstruction, loc: ILSourceLocation = None
-):
+def copy_expr(self, instr: LowLevelILInstruction, loc: ILSourceLocation = None):
     """复制低级IL表达式
     Args:
         self: LowLevelILFunction实例
@@ -28,8 +26,13 @@ def copy_expr(
     )
 
 
-def if_expr(self, operand: ExpressionIndex, t: LowLevelILLabel, f: LowLevelILLabel,
-            loc: ILSourceLocation = None) -> ExpressionIndex:
+def if_expr(
+    self,
+    operand: ExpressionIndex,
+    t: LowLevelILLabel,
+    f: LowLevelILLabel,
+    loc: ILSourceLocation = None,
+) -> ExpressionIndex:
     """创建if表达式
     Args:
         self: LowLevelILFunction实例
@@ -42,33 +45,41 @@ def if_expr(self, operand: ExpressionIndex, t: LowLevelILLabel, f: LowLevelILLab
     """
     if loc is not None and loc.valid:
         return ExpressionIndex(
-            core.BNLowLevelILIfWithLocation(self.handle, operand, t.handle, f.handle, loc.address, loc.sourceOperand))
-    return ExpressionIndex(core.BNLowLevelILIf(self.handle, operand, t.handle, f.handle))
+            core.BNLowLevelILIfWithLocation(
+                self.handle, operand, t.handle, f.handle, loc.address, loc.sourceOperand
+            )
+        )
+    return ExpressionIndex(
+        core.BNLowLevelILIf(self.handle, operand, t.handle, f.handle)
+    )
 
 
 def goto(self, label: LowLevelILLabel, loc: ILSourceLocation = None) -> ExpressionIndex:
     if loc is not None and loc.valid:
         return ExpressionIndex(
-            core.BNLowLevelILGotoWithLocation(self.handle, label.handle, loc.address, loc.sourceOperand))
+            core.BNLowLevelILGotoWithLocation(
+                self.handle, label.handle, loc.address, loc.sourceOperand
+            )
+        )
     return ExpressionIndex(core.BNLowLevelILGoto(self.handle, label.handle))
 
 
 def expr(
-        self,
-        operation,
-        a: ExpressionIndex = 0,
-        b: ExpressionIndex = 0,
-        c: ExpressionIndex = 0,
-        d: ExpressionIndex = 0,
-        size: int = 0,
-        flags: Optional[
-            Union[
-                "architecture.FlagWriteTypeName",
-                "architecture.FlagType",
-                "architecture.FlagIndex",
-            ]
-        ] = None,
-        loc: ILSourceLocation = None,
+    self,
+    operation,
+    a: ExpressionIndex = 0,
+    b: ExpressionIndex = 0,
+    c: ExpressionIndex = 0,
+    d: ExpressionIndex = 0,
+    size: int = 0,
+    flags: Optional[
+        Union[
+            "architecture.FlagWriteTypeName",
+            "architecture.FlagType",
+            "architecture.FlagIndex",
+        ]
+    ] = None,
+    loc: ILSourceLocation = None,
 ):
     _flags = architecture.FlagIndex(0)
     if isinstance(operation, str):
@@ -108,7 +119,7 @@ def expr(
         )
 
 
-def get_basic_block_at(self, index: int) -> Optional['basicblock.BasicBlock']:
+def get_basic_block_at(self, index: int) -> Optional["basicblock.BasicBlock"]:
     basic_blocks = self.basic_blocks
     bbs = sorted(list(basic_blocks), key=lambda bb: bb.start)
     low, high = 0, len(bbs) - 1

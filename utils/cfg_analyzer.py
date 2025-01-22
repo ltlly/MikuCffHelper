@@ -9,19 +9,24 @@ from binaryninja import (
     AnalysisContext,
     MediumLevelILOperation,
     MediumLevelILSetVar,
-    MediumLevelILVar, MediumLevelILInstruction,
-    LowLevelILFunction, LowLevelILGoto, LowLevelILIf,
-    Logger
+    MediumLevelILVar,
+    MediumLevelILInstruction,
+    LowLevelILFunction,
+    LowLevelILGoto,
+    LowLevelILIf,
+    Logger,
 )
 
 mikuLogger = Logger(0, "MikuCffHelper")
 
+
 def log_error(msg: str):
     mikuLogger.log_error(msg)
 
+
 class CFGAnalyzer:
     """控制流图分析器，负责控制流图的分析和操作"""
-    
+
     @staticmethod
     def create_cfg_graph(mlil: MediumLevelILFunction):
         """创建基本块级别的控制流图
@@ -66,7 +71,9 @@ class CFGAnalyzer:
                 G.add_edge(lastInstr.instr_index, lastInstr.dest, edge_label="goto")
             else:
                 for edge in block.outgoing_edges:
-                    G.add_edge(lastInstr.instr_index, edge.target.start, edge_label="unknown")
+                    G.add_edge(
+                        lastInstr.instr_index, edge.target.start, edge_label="unknown"
+                    )
         return G
 
     @staticmethod

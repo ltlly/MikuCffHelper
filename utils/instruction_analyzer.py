@@ -6,17 +6,17 @@ from binaryninja import (
     MediumLevelILInstruction,
     MediumLevelILSetVar,
     MediumLevelILOperation,
-    Variable
+    Variable,
 )
-from .mikuPlugin import log_info
+from .mikuPlugin import log_info, log_error
+from .instr_vistor import SimpleVisitor
 
 
 def unsigned_to_signed_32bit(n):
     """将32位无符号整数转换为有符号整数"""
     # 检查是否在无符号32位整数范围内
     if n < 0 or n > 0xFFFFFFFF:
-        raise ValueError(
-            "Input is out of range for a 32-bit unsigned integer")
+        raise ValueError("Input is out of range for a 32-bit unsigned integer")
 
     # 如果大于 0x7FFFFFFF，则减去 0x100000000
     if n > 0x7FFFFFFF:
@@ -34,13 +34,13 @@ def get_mask(width: int) -> int:
     """
     match width:
         case 1:
-            return 0xff
+            return 0xFF
         case 2:
-            return 0xffff
+            return 0xFFFF
         case 4:
-            return 0xffffffff
+            return 0xFFFFFFFF
         case 8:
-            return 0xffffffffffffffff
+            return 0xFFFFFFFFFFFFFFFF
         case _:
             return int(f"0x{'ff' * width}", 16)
 
@@ -51,7 +51,7 @@ class InstructionAnalyzer:
     @staticmethod
     def find_state_transition_instructions(
         local_if_table: List[MediumLevelILIf],
-        local_define_table: List[MediumLevelILSetVar]
+        local_define_table: List[MediumLevelILSetVar],
     ) -> List[Dict[str, Any]]:
         """查找状态转换指令
         Args:
@@ -78,16 +78,20 @@ class InstructionAnalyzer:
             key_define = t_def_const.value.value & get_mask(t_def_const_width)
             if key_define in if_dict:
                 for if_instr in if_dict[key_define]:
-                    paired_instructions.append({
-                        "if_instr": if_instr,
-                        "def_instr": def_instr,
-                        "def_const": def_instr.src,
-                        "if_const": if_instr.condition.right,
-                    })
+                    paired_instructions.append(
+                        {
+                            "if_instr": if_instr,
+                            "def_instr": def_instr,
+                            "def_const": def_instr.src,
+                            "if_const": if_instr.condition.right,
+                        }
+                    )
         return paired_instructions
 
     @staticmethod
-    def find_white_instructions(mlil: MediumLevelILFunction, possible_state_vars: List[Variable]):
+    def find_white_instructions(
+        mlil: MediumLevelILFunction, possible_state_vars: List[Variable]
+    ):
         """查找白名单指令
         Args:
             mlil (MediumLevelILFunction): 中间语言函数
@@ -97,8 +101,11 @@ class InstructionAnalyzer:
         """
         white_instructions = []
         for instr in mlil.instructions:
-            if instr.operation not in [MediumLevelILOperation.MLIL_GOTO, MediumLevelILOperation.MLIL_IF,
-                                       MediumLevelILOperation.MLIL_SET_VAR]:
+            if instr.operation not in [
+                MediumLevelILOperation.MLIL_GOTO,
+                MediumLevelILOperation.MLIL_IF,
+                MediumLevelILOperation.MLIL_SET_VAR,
+            ]:
                 continue
             vars = instr.vars_written + instr.vars_read
             if not all([var in possible_state_vars for var in vars]):
@@ -133,24 +140,36 @@ class InstructionAnalyzer:
         Returns:
             bool: 比较结果
         """
-        def cmp_e(a, b): return a == b
-        def cmp_ne(a, b): return a != b
-        def cmp_ult(a, b): return a < b
-        def cmp_ule(a, b): return a <= b
-        def cmp_ugt(a, b): return a > b
-        def cmp_uge(a, b): return a >= b
 
-        def cmp_slt(a, b): return unsigned_to_signed_32bit(
-            a) < unsigned_to_signed_32bit(b)
+        def cmp_e(a, b):
+            return a == b
 
-        def cmp_sle(a, b): return unsigned_to_signed_32bit(
-            a) <= unsigned_to_signed_32bit(b)
+        def cmp_ne(a, b):
+            return a != b
 
-        def cmp_sgt(a, b): return unsigned_to_signed_32bit(
-            a) > unsigned_to_signed_32bit(b)
+        def cmp_ult(a, b):
+            return a < b
 
-        def cmp_sge(a, b): return unsigned_to_signed_32bit(
-            a) >= unsigned_to_signed_32bit(b)
+        def cmp_ule(a, b):
+            return a <= b
+
+        def cmp_ugt(a, b):
+            return a > b
+
+        def cmp_uge(a, b):
+            return a >= b
+
+        def cmp_slt(a, b):
+            return unsigned_to_signed_32bit(a) < unsigned_to_signed_32bit(b)
+
+        def cmp_sle(a, b):
+            return unsigned_to_signed_32bit(a) <= unsigned_to_signed_32bit(b)
+
+        def cmp_sgt(a, b):
+            return unsigned_to_signed_32bit(a) > unsigned_to_signed_32bit(b)
+
+        def cmp_sge(a, b):
+            return unsigned_to_signed_32bit(a) >= unsigned_to_signed_32bit(b)
 
         cmp_funcs = {
             MediumLevelILOperation.MLIL_CMP_E: cmp_e,
@@ -167,11 +186,41 @@ class InstructionAnalyzer:
         return cmp_funcs[if_symbol](left_const, right_const)
 
     @staticmethod
+    def emu_instrs_simple(
+        instrs: List[MediumLevelILInstruction],
+        mlil: MediumLevelILFunction,
+        state_vars: List[Variable],
+    ):
+        """
+        只check stateVar store load , if 转移
+        """
+        v = SimpleVisitor(mlil.source_function.view, mlil.source_function)
+        try:
+            for i in range(len(instrs)):
+                instr = instrs[i]
+                if instr.operation == MediumLevelILOperation.MLIL_IF:
+                    res, nextip = v.visit(instr)
+                    if i + 1 < len(instrs) and nextip != instrs[i + 1].instr_index:
+                        log_error(f"vars{v.vars}")
+                        log_error(f"checking {instr}")
+                        log_error(
+                            f"want {instrs[i + 1].instr_index}::{instrs[i + 1]}\n  but {nextip}::{mlil[nextip]} "
+                        )
+                        return (False, None)
+                    else:
+                        return (True, nextip)
+                else:
+                    v.visit(instr)
+        except:
+            return (False, None)
+        raise Exception("理论上 不应该到达这里")
+
+    @staticmethod
     def check_path(
-            mlil: MediumLevelILFunction,
-            path: List[int],
-            state_vars: List[Variable],
-            white_instructions: List[MediumLevelILInstruction]
+        mlil: MediumLevelILFunction,
+        path: List[int],
+        state_vars: List[Variable],
+        white_instructions: List[MediumLevelILInstruction],
     ):
         """检查路径是否有效
         Args:
@@ -186,9 +235,11 @@ class InstructionAnalyzer:
         for x in path:
             instrs.append(mlil[x])
         if not all([instr in white_instructions for instr in instrs]):
-            log_info(
-                f"not in white instructions::{pformat([instr for instr in instrs if instr not in white_instructions])}")
-            return False
+            # log_info(
+            #     f"not in white instructions::{pformat([instr for instr in instrs if instr not in white_instructions])}")
+            return (False,None)
+        res = InstructionAnalyzer.emu_instrs_simple(instrs, mlil, state_vars)
+        log_info(f"[path] {res}")
         log_info(f"[path] instructions::{pformat(instrs)}")
         log_info(f"[path] paths::{pformat(path)}")
-        return True
+        return res

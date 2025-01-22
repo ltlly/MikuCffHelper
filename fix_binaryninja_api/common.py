@@ -1,9 +1,11 @@
-from  binaryninja import *
+from binaryninja import *
+
 
 class ILSourceLocation:
     """中间语言源代码位置信息
     用于记录指令的地址和源操作数信息
     """
+
     def __init__(self, address=None, sourceOperand=None):
         """初始化源代码位置信息
         Args:
@@ -28,8 +30,12 @@ class ILSourceLocation:
         return instance
 
     @classmethod
-    def from_instruction(cls,
-                         instr: MediumLevelILInstruction | LowLevelILInstruction | HighLevelILInstruction) -> 'ILSourceLocation':
+    def from_instruction(
+        cls,
+        instr: MediumLevelILInstruction
+        | LowLevelILInstruction
+        | HighLevelILInstruction,
+    ) -> "ILSourceLocation":
         """从指令创建ILSourceLocation实例
         Args:
             instr: 中间语言、低级语言或高级语言指令
@@ -39,4 +45,3 @@ class ILSourceLocation:
         instance = cls(instr.address, instr.source_operand)
         instance.valid = True
         return instance
-

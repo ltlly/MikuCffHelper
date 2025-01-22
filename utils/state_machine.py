@@ -8,10 +8,11 @@ from binaryninja import (
     MediumLevelILOperation,
     MediumLevelILIf,
     MediumLevelILConst,
-    MediumLevelILInstruction
+    MediumLevelILInstruction,
 )
 
 from .mikuPlugin import suggest_stateVar, log_error
+
 
 def collect_stateVar_info(func: Function, ret_int: bool = True):
     """收集函数中的状态变量信息
@@ -27,12 +28,12 @@ def collect_stateVar_info(func: Function, ret_int: bool = True):
     if not mlil:
         return {}, {}
     ifTable: Dict[
-        MediumLevelILVar|Any, List[MediumLevelILInstruction]|List[int]|Any
+        MediumLevelILVar | Any, List[MediumLevelILInstruction] | List[int] | Any
     ] = {}
     defineTable: Dict[
-        MediumLevelILVar|Any, List[MediumLevelILInstruction]|List[int]|Any
+        MediumLevelILVar | Any, List[MediumLevelILInstruction] | List[int] | Any
     ] = {}
-    
+
     def travse_if_const_compare(expr):
         if not isinstance(expr, MediumLevelILIf):
             return
@@ -72,19 +73,22 @@ def collect_stateVar_info(func: Function, ret_int: bool = True):
 
     list(mlil.traverse(travse_if_const_compare))
     list(mlil.traverse(travse_define))
-    
+
     if not ret_int:
         for x in ifTable:
-            ifTable[x] = [instr for instr in ifTable[x] if instr.instr_index < len(mlil)]
+            ifTable[x] = [
+                instr for instr in ifTable[x] if instr.instr_index < len(mlil)
+            ]
         for x in defineTable:
             defineTable[x] = [
                 instr for instr in defineTable[x] if instr.instr_index < len(mlil)
             ]
     return ifTable, defineTable
 
+
 class StateMachine:
     """状态机分析器，负责状态机分析和状态变量检测"""
-    
+
     @staticmethod
     def find_state_var(func: Function):
         """查找函数中的状态变量
@@ -97,6 +101,7 @@ class StateMachine:
         vars_name = [var.name for var in vars]
         if all([not var.startswith("state-") for var in vars_name]):
             from .mikuPlugin import suggest_stateVar
+
             suggest_stateVar(func.view, func)
         state_vars = [var for var in vars if var.name.startswith("state-")]
         return state_vars
@@ -113,13 +118,20 @@ class StateMachine:
         if not state_var.name.startswith("state-"):
             return None
         defines = mlil.get_var_definitions(state_var)
-        if all([defi.src.operation == MediumLevelILOperation.MLIL_CONST for defi in defines]):
+        if all(
+            [
+                defi.src.operation == MediumLevelILOperation.MLIL_CONST
+                for defi in defines
+            ]
+        ):
             return None
         for define in defines:
             if not isinstance(define, MediumLevelILSetVar):
                 continue
             var = define.src
-            if (isinstance(var, MediumLevelILVar)
-                    and var.src != state_var
-                    and var.src.name.startswith("state-")):
+            if (
+                isinstance(var, MediumLevelILVar)
+                and var.src != state_var
+                and var.src.name.startswith("state-")
+            ):
                 return var.src

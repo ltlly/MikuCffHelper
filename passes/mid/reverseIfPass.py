@@ -1,5 +1,10 @@
-from binaryninja import MediumLevelILIf, MediumLevelILCmpNe, MediumLevelILOperation, \
-    AnalysisContext, MediumLevelILLabel
+from binaryninja import (
+    MediumLevelILIf,
+    MediumLevelILCmpNe,
+    MediumLevelILOperation,
+    AnalysisContext,
+    MediumLevelILLabel,
+)
 
 
 def pass_reverse_if(analysis_context: AnalysisContext):
@@ -7,12 +12,14 @@ def pass_reverse_if(analysis_context: AnalysisContext):
     把所有的if (a!=123)全部反转
     """
     mlil = analysis_context.function.mlil
+
     def traverse_find_if(instr):
         if isinstance(instr, MediumLevelILIf) and isinstance(
-                instr.condition, MediumLevelILCmpNe
+            instr.condition, MediumLevelILCmpNe
         ):
             return instr
         return
+
     updated = False
     ifInstrs = mlil.traverse(traverse_find_if)
     for instr in ifInstrs:
@@ -26,8 +33,7 @@ def pass_reverse_if(analysis_context: AnalysisContext):
             mlil.copy_expr(condition.operands[0]),
             mlil.copy_expr(condition.operands[1]),
         )
-        mlil.replace_expr(instr, mlil.if_expr(
-            new_condition, falseLabel, trueLabel))
+        mlil.replace_expr(instr, mlil.if_expr(new_condition, falseLabel, trueLabel))
         updated = True
     if updated:
         mlil.finalize()

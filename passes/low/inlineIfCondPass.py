@@ -15,7 +15,7 @@ def pass_inline_if_cond(analysis_context: AnalysisContext):
         define = llil.ssa_form.get_ssa_flag_definition(condition.src)
         if not bb.end > int(define.instr_index) >= bb.start:
             continue
-        if not isinstance(define,LowLevelILSetFlagSsa):
+        if not isinstance(define, LowLevelILSetFlagSsa):
             continue
         use = llil.ssa_form.get_ssa_flag_uses(condition.src)
         use = [x for x in use if not isinstance(x, LowLevelILFlagPhi)]
@@ -28,9 +28,12 @@ def pass_inline_if_cond(analysis_context: AnalysisContext):
         newTrueLabel.operand = ifInstr.true
         newFalseLabel = LowLevelILLabel()
         newFalseLabel.operand = ifInstr.false
-        newIfinstr = llil.if_expr(llil.copy_expr(defineInstr.src, ILSourceLocation.from_instruction(ifInstr)),
-                                  newTrueLabel, newFalseLabel,
-                                  ILSourceLocation.from_instruction(ifInstr))
+        newIfinstr = llil.if_expr(
+            llil.copy_expr(defineInstr.src, ILSourceLocation.from_instruction(ifInstr)),
+            newTrueLabel,
+            newFalseLabel,
+            ILSourceLocation.from_instruction(ifInstr),
+        )
         llil.replace_expr(ifInstr.expr_index, newIfinstr)
     llil.finalize()
     llil.generate_ssa_form()

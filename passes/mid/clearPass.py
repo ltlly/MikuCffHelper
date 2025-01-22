@@ -4,7 +4,7 @@ from binaryninja import (
     AnalysisContext,
     MediumLevelILLabel,
     MediumLevelILIf,
-    MediumLevelILInstruction
+    MediumLevelILInstruction,
 )
 from ...utils import log_info, ILSourceLocation
 
@@ -35,8 +35,10 @@ def pass_clear_goto(analysis_context: AnalysisContext):
         # 递归处理连续goto
         final_target = optimize_goto(target_instr)
         log_info(
-            f"Optimized goto {goto_instr.instr_index} to target {final_target.instr_index}")
+            f"Optimized goto {goto_instr.instr_index} to target {final_target.instr_index}"
+        )
         return final_target
+
     for _ in range(len(mlil.basic_blocks)):
         updated = False
         # 遍历所有基本块
@@ -50,8 +52,7 @@ def pass_clear_goto(analysis_context: AnalysisContext):
             # 创建新的goto指令指向最终目标
             label = MediumLevelILLabel()
             label.operand = final_target_instr.instr_index
-            new_goto = mlil.goto(
-                label, ILSourceLocation.from_instruction(goto_instr))
+            new_goto = mlil.goto(label, ILSourceLocation.from_instruction(goto_instr))
             updated = True
             mlil.replace_expr(goto_instr.expr_index, new_goto)
         if updated:
@@ -90,17 +91,22 @@ def pass_clear_if(analysis_context: AnalysisContext):
             true_target = get_final_target(mlil[if_instr.true])
             false_target = get_final_target(mlil[if_instr.false])
 
-            if true_target.instr_index != if_instr.true or false_target.instr_index != if_instr.false:
+            if (
+                true_target.instr_index != if_instr.true
+                or false_target.instr_index != if_instr.false
+            ):
                 true_label = MediumLevelILLabel()
                 false_label = MediumLevelILLabel()
                 true_label.operand = true_target.instr_index
                 false_label.operand = false_target.instr_index
                 # 创建新的if指令
                 new_if = mlil.if_expr(
-                    mlil.copy_expr(if_instr.condition,ILSourceLocation.from_instruction(if_instr)),
+                    mlil.copy_expr(
+                        if_instr.condition, ILSourceLocation.from_instruction(if_instr)
+                    ),
                     true_label,
                     false_label,
-                    ILSourceLocation.from_instruction(if_instr)
+                    ILSourceLocation.from_instruction(if_instr),
                 )
                 mlil.replace_expr(if_instr.expr_index, new_if)
                 updated = True

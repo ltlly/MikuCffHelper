@@ -6,8 +6,10 @@ from ...utils import CFGAnalyzer, log_error
 
 def handle_pre_last_instr(llil: LowLevelILFunction, pre_last_instr, bb, copy_label):
     if isinstance(pre_last_instr, LowLevelILGoto):
-        llil.replace_expr(pre_last_instr.expr_index,
-                          llil.goto(copy_label, ILSourceLocation.from_instruction(pre_last_instr)))
+        llil.replace_expr(
+            pre_last_instr.expr_index,
+            llil.goto(copy_label, ILSourceLocation.from_instruction(pre_last_instr)),
+        )
     elif isinstance(pre_last_instr, LowLevelILIf):
         true_target = pre_last_instr.true
         false_target = pre_last_instr.false
@@ -17,10 +19,13 @@ def handle_pre_last_instr(llil: LowLevelILFunction, pre_last_instr, bb, copy_lab
             llil.replace_expr(
                 pre_last_instr.expr_index,
                 llil.if_expr(
-                    llil.copy_expr(pre_last_instr.condition, ILSourceLocation.from_instruction(pre_last_instr)),
+                    llil.copy_expr(
+                        pre_last_instr.condition,
+                        ILSourceLocation.from_instruction(pre_last_instr),
+                    ),
                     copy_label,
                     fix_false_label,
-                    ILSourceLocation.from_instruction(pre_last_instr)
+                    ILSourceLocation.from_instruction(pre_last_instr),
                 ),
             )
         elif false_target == bb.start:
@@ -29,10 +34,13 @@ def handle_pre_last_instr(llil: LowLevelILFunction, pre_last_instr, bb, copy_lab
             llil.replace_expr(
                 pre_last_instr.expr_index,
                 llil.if_expr(
-                    llil.copy_expr(pre_last_instr.condition, ILSourceLocation.from_instruction(pre_last_instr)),
+                    llil.copy_expr(
+                        pre_last_instr.condition,
+                        ILSourceLocation.from_instruction(pre_last_instr),
+                    ),
                     fix_true_label,
                     copy_label,
-                    ILSourceLocation.from_instruction(pre_last_instr)
+                    ILSourceLocation.from_instruction(pre_last_instr),
                 ),
             )
         else:
@@ -48,7 +56,7 @@ def pass_copy_common_block(analysis_context: AnalysisContext):
         for bb in llil.basic_blocks:
             # last_instr = llil[bb.end - 1]
             # if last_instr.operation == LowLevelILOperation.LLIL_IF:
-                # continue
+            # continue
             pre_blocks = CFGAnalyzer.LLIL_get_incoming_blocks(llil, bb.start)
             if len(pre_blocks) <= 1:
                 continue
@@ -61,7 +69,11 @@ def pass_copy_common_block(analysis_context: AnalysisContext):
                 copy_label = LowLevelILLabel()
                 llil.mark_label(copy_label)
                 for l in range(bb.start, bb.end):
-                    llil.append(llil.copy_expr(llil[l], ILSourceLocation.from_instruction(llil[l])))
+                    llil.append(
+                        llil.copy_expr(
+                            llil[l], ILSourceLocation.from_instruction(llil[l])
+                        )
+                    )
                 handle_pre_last_instr(llil, pre_last_instr, bb, copy_label)
         if updated:
             llil.finalize()

@@ -10,7 +10,9 @@ from binaryninja import (
     AnalysisContext,
     MediumLevelILOperation,
     MediumLevelILSetVar,
-    MediumLevelILVar, MediumLevelILInstruction,
+    MediumLevelILVar,
+    MediumLevelILInstruction,
+    MediumLevelILLabel
 )
 
 from ...utils import (
@@ -20,7 +22,7 @@ from ...utils import (
     unsigned_to_signed_32bit,
     CFGAnalyzer,
     StateMachine,
-    InstructionAnalyzer
+    InstructionAnalyzer,
 )
 
 
@@ -37,21 +39,34 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
     log_error(pformat(define_table))
     possible_state_vars = state_vars
     l_if_table = []
-    for k,v in if_table.items():
-        l_if_table+=v
-    l_define_table =[]
-    for k,v in define_table.items():
-        l_define_table+=v
+    for k, v in if_table.items():
+        l_if_table += v
+    l_define_table = []
+    for k, v in define_table.items():
+        l_define_table += v
 
-    trans_dict = InstructionAnalyzer.find_state_transition_instructions(l_if_table, l_define_table)
-    white_instructions = InstructionAnalyzer.find_white_instructions(mlil, possible_state_vars)
+    trans_dict = InstructionAnalyzer.find_state_transition_instructions(
+        l_if_table, l_define_table
+    )
+    white_instructions = InstructionAnalyzer.find_white_instructions(
+        mlil, possible_state_vars
+    )
     for trans in trans_dict:
         def_instr: MediumLevelILInstruction | MediumLevelILSetVar = trans["def_instr"]
         if_instr: MediumLevelILInstruction | MediumLevelILIf = trans["if_instr"]
         try:
-            path_full = nx.shortest_path(G_full, def_instr.instr_index, if_instr.instr_index)
+            path_full = nx.shortest_path(
+                G_full, def_instr.instr_index, if_instr.instr_index
+            )
         except nx.NetworkXNoPath:
             continue
-        cond = InstructionAnalyzer.check_path(mlil, path_full, possible_state_vars, white_instructions)
+        cond, targetIdx = InstructionAnalyzer.check_path(
+            mlil, path_full, possible_state_vars, white_instructions
+        )
         if not cond:
             continue
+        # 把defineInstr 直接 patch 成goto
+        
+        label=MediumLevelILLabel()
+        label.operand = targetIdx
+        

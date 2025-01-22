@@ -1,11 +1,18 @@
-from binaryninja import MediumLevelILIf, MediumLevelILCmpNe, MediumLevelILOperation, \
-    AnalysisContext, MediumLevelILLabel,MediumLevelILConst
+from binaryninja import (
+    MediumLevelILIf,
+    MediumLevelILCmpNe,
+    MediumLevelILOperation,
+    AnalysisContext,
+    MediumLevelILLabel,
+    MediumLevelILConst,
+)
 from ...utils import ILSourceLocation
+
 
 def pass_clear_const_if(analysis_context: AnalysisContext):
     """
     清除常量条件if语句的优化pass
-    
+
     该pass用于优化MLIL将if(true) 与 if(false)语句替换为直接跳转。
     通过消除不必要的条件判断来简化控制流图。
     参数：
@@ -30,8 +37,8 @@ def pass_clear_const_if(analysis_context: AnalysisContext):
                 label.operand = if_instr.false
             else:
                 continue
-            goto_instr = mlil.goto(label,ILSourceLocation.from_instruction(if_instr))
-            mlil.replace_expr(if_instr.expr_index,goto_instr)
+            goto_instr = mlil.goto(label, ILSourceLocation.from_instruction(if_instr))
+            mlil.replace_expr(if_instr.expr_index, goto_instr)
             updated = True
         if updated:
             mlil.finalize()
@@ -40,4 +47,3 @@ def pass_clear_const_if(analysis_context: AnalysisContext):
             break
     mlil.finalize()
     mlil.generate_ssa_form()
-        

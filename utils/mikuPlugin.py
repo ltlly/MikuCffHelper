@@ -41,8 +41,7 @@ def make_stateVar(bv: BinaryView, func: Function, var: Variable):
     """
     global state_counter
     if func.start not in funDict:
-        funDict[func.start] = {
-        }
+        funDict[func.start] = {}
     varNameList = [var.name for var in func.vars]
     i = 0
     while f"state-{i}" in varNameList or f"state-{i}" in funDict[func.start]:
@@ -59,6 +58,7 @@ def set_stateVar(bv: BinaryView, func: Function):
         func (Function): 目标函数
     """
     from binaryninjaui import UIContext
+
     ctx = UIContext.activeContext()
     h = ctx.contentActionHandler()
     a = h.actionContext()
@@ -77,33 +77,31 @@ def suggest_stateVar(bv: BinaryView, func: Function):
     if not mlil:
         return
     from .state_machine import collect_stateVar_info
+
     # State variable recognition rules
     state_var_rules = [
         # Rule 1: Variable appears in both ifTable and defineTable with same value count >= 3
         lambda var, ifTable, defineTable: (
-            var in ifTable and
-            var in defineTable and
-            len(defineTable[var]) == len(ifTable[var]) and
-            len(defineTable[var]) >= 3
+            var in ifTable
+            and var in defineTable
+            and len(defineTable[var]) == len(ifTable[var])
+            and len(defineTable[var]) >= 3
         ),
-
         # Rule 2: Variable in defineTable with value count >= 3 and average > 0x10000000
         lambda var, ifTable, defineTable: (
-            var in defineTable and
-            len(defineTable[var]) >= 3 and
-            sum(defineTable[var]) // len(defineTable[var]) > 0x10000000
+            var in defineTable
+            and len(defineTable[var]) >= 3
+            and sum(defineTable[var]) // len(defineTable[var]) > 0x10000000
         ),
-
         # Rule 3: Variable in ifTable with value count >= 3 and average > 0x10000000
         lambda var, ifTable, defineTable: (
-            var in ifTable and
-            len(ifTable[var]) >= 3 and
-            sum(ifTable[var]) // len(ifTable[var]) > 0x10000000
+            var in ifTable
+            and len(ifTable[var]) >= 3
+            and sum(ifTable[var]) // len(ifTable[var]) > 0x10000000
         ),
         lambda var, ifTable, defineTable: (
             var.name.startswith("state-") and "_" in var.name
-        )
-
+        ),
     ]
     ifTable, defineTable = collect_stateVar_info(func)
     # Check all variables
