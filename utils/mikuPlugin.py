@@ -73,8 +73,11 @@ def suggest_stateVar(bv: BinaryView, func: Function):
         bv (BinaryView): 二进制视图
         func (Function): 目标函数
     """
-    mlil = func.medium_level_il
-    if not mlil:
+    try:
+        mlil = func.medium_level_il
+        if not mlil:
+            return
+    except:
         return
     from .state_machine import collect_stateVar_info
 

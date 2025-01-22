@@ -35,7 +35,7 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
         return
     worked_define = []
     worked_if = []
-    for _ in range(len(mlil.basic_blocks)):
+    for _ in range(len(mlil.basic_blocks) * 2):
         updated = False
         G_full = CFGAnalyzer.create_full_cfg_graph(mlil)
         state_vars = StateMachine.find_state_var(function)

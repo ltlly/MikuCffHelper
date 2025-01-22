@@ -1,6 +1,7 @@
-from typing import Dict, Any
+from typing import Dict, Any, List
 import networkx as nx
 from binaryninja import (
+    MediumLevelILBasicBlock,
     MediumLevelILFunction,
     MediumLevelILIf,
     MediumLevelILGoto,
@@ -114,6 +115,31 @@ class CFGAnalyzer:
                 if lastInstr.dest == bbIndex:
                     bbs.append(bb)
             elif isinstance(lastInstr, LowLevelILIf):
+                if lastInstr.true == bbIndex:
+                    bbs.append(bb)
+                elif lastInstr.false == bbIndex:
+                    bbs.append(bb)
+        bbs.sort(key=lambda bb: bb.start)
+        return bbs
+
+    @staticmethod
+    def MLIL_get_incoming_blocks(
+        mlil: MediumLevelILFunction, bbIndex: int
+    ) -> List[MediumLevelILBasicBlock]:
+        """获取目标基本块的所有前驱基本块
+        Args:
+            mlil (MediumLevelILFunction): 中级中间语言函数
+            bbIndex (int): 目标基本块索引
+        Returns:
+            List: 所有前驱基本块列表
+        """
+        bbs = []
+        for bb in mlil.basic_blocks:
+            lastInstr = mlil[bb.end - 1]
+            if isinstance(lastInstr, MediumLevelILGoto):
+                if lastInstr.dest == bbIndex:
+                    bbs.append(bb)
+            elif isinstance(lastInstr, MediumLevelILIf):
                 if lastInstr.true == bbIndex:
                     bbs.append(bb)
                 elif lastInstr.false == bbIndex:

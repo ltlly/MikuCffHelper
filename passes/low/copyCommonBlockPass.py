@@ -58,6 +58,12 @@ def pass_copy_common_block(analysis_context: AnalysisContext):
             # if last_instr.operation == LowLevelILOperation.LLIL_IF:
             # continue
             pre_blocks = CFGAnalyzer.LLIL_get_incoming_blocks(llil, bb.start)
+            pre_instrs = [prebb[-1] for prebb in pre_blocks]
+            if not all(
+                isinstance(instr, LowLevelILGoto) or isinstance(instr, LowLevelILIf)
+                for instr in pre_instrs
+            ):
+                continue
             if len(pre_blocks) <= 1:
                 continue
             if any(frontier.start == bb.start for frontier in bb.dominance_frontier):

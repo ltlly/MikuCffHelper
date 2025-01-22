@@ -15,7 +15,7 @@ def register_workflow():
         {
             "name": "analysis.plugins.workflow_patch_llil",
             "description": "A activity to patch llil",
-            "eligibility": {"auto": {"default": False}},
+            "eligibility": {"auto": {"default": True}},
         }
     )
     cffFixWorkFlow.register_activity(
