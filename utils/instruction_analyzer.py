@@ -207,7 +207,7 @@ class InstructionAnalyzer:
                             f"want {instrs[i + 1].instr_index}::{instrs[i + 1]}\n  but {nextip}::{mlil[nextip]} "
                         )
                         return (False, None)
-                    else:
+                    elif i == len(instrs) - 1:
                         return (True, nextip)
                 else:
                     v.visit(instr)
@@ -237,7 +237,7 @@ class InstructionAnalyzer:
         if not all([instr in white_instructions for instr in instrs]):
             # log_info(
             #     f"not in white instructions::{pformat([instr for instr in instrs if instr not in white_instructions])}")
-            return (False,None)
+            return (False, None)
         res = InstructionAnalyzer.emu_instrs_simple(instrs, mlil, state_vars)
         log_info(f"[path] {res}")
         log_info(f"[path] instructions::{pformat(instrs)}")

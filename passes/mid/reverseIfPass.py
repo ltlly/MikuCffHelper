@@ -33,7 +33,7 @@ def pass_reverse_if(analysis_context: AnalysisContext):
             mlil.copy_expr(condition.operands[0]),
             mlil.copy_expr(condition.operands[1]),
         )
-        mlil.replace_expr(instr, mlil.if_expr(new_condition, falseLabel, trueLabel))
+        mlil.replace_expr(instr, mlil.if_expr(new_condition, trueLabel, falseLabel))
         updated = True
     if updated:
         mlil.finalize()
