@@ -179,6 +179,8 @@ def merge_block(
     ):
         log_error(f"eeeee {pre_instrs}")
         return False
+    if len(instrs) == 0:
+        return False
     label = MediumLevelILLabel()
     mlil.mark_label(label)
     start_label_oprand = label.operand
@@ -227,7 +229,7 @@ def merge_block(
                 raise Exception("Invalid if condition")
     return True
 
-
+# todo arm64_v8a.so - sub_224e8 未合并成功 待debug
 def pass_merge_block(analysis_context: AnalysisContext):
     "合并连续几个dirct block 为一个block"
     mlil = analysis_context.mlil
