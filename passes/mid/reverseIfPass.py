@@ -5,11 +5,12 @@ from binaryninja import (
     AnalysisContext,
     MediumLevelILLabel,
 )
+from ...utils import ILSourceLocation
 
 
 def pass_reverse_if(analysis_context: AnalysisContext):
     """
-    把所有的if (a!=123)全部反转
+    把所有的if (a!=123)then 1 else 2 反转为 if a==123 then 2 else 1
     """
     mlil = analysis_context.function.mlil
 
@@ -21,7 +22,7 @@ def pass_reverse_if(analysis_context: AnalysisContext):
         return
 
     updated = False
-    ifInstrs = mlil.traverse(traverse_find_if)
+    ifInstrs = list(mlil.traverse(traverse_find_if))
     for instr in ifInstrs:
         condition = instr.condition
         trueLabel = MediumLevelILLabel()
@@ -33,7 +34,15 @@ def pass_reverse_if(analysis_context: AnalysisContext):
             mlil.copy_expr(condition.operands[0]),
             mlil.copy_expr(condition.operands[1]),
         )
-        mlil.replace_expr(instr, mlil.if_expr(new_condition, trueLabel, falseLabel))
+        mlil.replace_expr(
+            instr,
+            mlil.if_expr(
+                new_condition,
+                trueLabel,
+                falseLabel,
+                ILSourceLocation.from_instruction(instr),
+            ),
+        )
         updated = True
     if updated:
         mlil.finalize()

@@ -19,6 +19,12 @@ def copy_expr(
     )
 
 
+def cmp(opration: MediumLevelILOperation):
+    return lambda self, left, right, size, loc: self.expr(
+        opration, left, right, 0, 0, 0, size, loc
+    )
+
+
 def if_expr(
     self,
     operand: ExpressionIndex,
@@ -107,3 +113,13 @@ MediumLevelILFunction.expr = expr
 MediumLevelILFunction.copy_expr = copy_expr
 MediumLevelILFunction.if_expr = if_expr
 MediumLevelILFunction.goto = goto
+MediumLevelILFunction.cmp_e = cmp(MediumLevelILOperation.MLIL_CMP_E)
+MediumLevelILFunction.cmp_ne = cmp(MediumLevelILOperation.MLIL_CMP_NE)
+MediumLevelILFunction.cmp_slt = cmp(MediumLevelILOperation.MLIL_CMP_SLT)
+MediumLevelILFunction.cmp_sle = cmp(MediumLevelILOperation.MLIL_CMP_SLE)
+MediumLevelILFunction.cmp_sge = cmp(MediumLevelILOperation.MLIL_CMP_SGE)
+MediumLevelILFunction.cmp_sgt = cmp(MediumLevelILOperation.MLIL_CMP_SGT)
+MediumLevelILFunction.cmp_ult = cmp(MediumLevelILOperation.MLIL_CMP_ULT)
+MediumLevelILFunction.cmp_ule = cmp(MediumLevelILOperation.MLIL_CMP_ULE)
+MediumLevelILFunction.cmp_uge = cmp(MediumLevelILOperation.MLIL_CMP_UGE)
+MediumLevelILFunction.cmp_ugt = cmp(MediumLevelILOperation.MLIL_CMP_UGT)

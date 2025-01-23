@@ -34,7 +34,7 @@ def workflow_patch_mlil(analysis_context: AnalysisContext):
         log_error(f"Function {function.name} has no MLIL")
         return
     pass_clear(analysis_context)
-    pass_mov_state_define(analysis_context)
+    # pass_mov_state_define(analysis_context)
     pass_reverse_if(analysis_context)
     pass_deflate_hard(analysis_context)
     pass_clear(analysis_context)

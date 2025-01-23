@@ -5,13 +5,13 @@ from ..utils import log_error
 
 
 def copy_expr(self, instr: LowLevelILInstruction, loc: ILSourceLocation = None):
-    """复制低级IL表达式
+    """Copy LowLevelIL expression
     Args:
-        self: LowLevelILFunction实例
-        instr (LowLevelILInstruction): 要复制的指令
-        loc (ILSourceLocation): 源代码位置信息
+        self: LowLevelILFunction instance
+        instr (LowLevelILInstruction): Instruction to copy
+        loc (ILSourceLocation): Source code location information
     Returns:
-        ExpressionIndex: 新创建的表达式索引
+        ExpressionIndex: Index of newly created expression
     """
     flags = instr.flags if instr.flags != "" else None
     return self.expr(
@@ -33,15 +33,15 @@ def if_expr(
     f: LowLevelILLabel,
     loc: ILSourceLocation = None,
 ) -> ExpressionIndex:
-    """创建if表达式
+    """Create if expression
     Args:
-        self: LowLevelILFunction实例
-        operand (ExpressionIndex): 条件表达式索引
-        t (LowLevelILLabel): true分支标签
-        f (LowLevelILLabel): false分支标签
-        loc (ILSourceLocation): 源代码位置信息
+        self: LowLevelILFunction instance
+        operand (ExpressionIndex): Condition expression index
+        t (LowLevelILLabel): True branch label
+        f (LowLevelILLabel): False branch label
+        loc (ILSourceLocation): Source code location information
     Returns:
-        ExpressionIndex: 新创建的if表达式索引
+        ExpressionIndex: Newly created if expression index
     """
     if loc is not None and loc.valid:
         return ExpressionIndex(
