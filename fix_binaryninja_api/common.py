@@ -2,8 +2,8 @@ from binaryninja import *
 
 
 class ILSourceLocation:
-    """中间语言源代码位置信息
-    用于记录指令的地址和源操作数信息
+    """Intermediate Language source code location information
+    Used to record instruction addresses and source operand information
     """
 
     def __init__(self, address=None, sourceOperand=None):

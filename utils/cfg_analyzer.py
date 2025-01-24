@@ -146,3 +146,60 @@ class CFGAnalyzer:
                     bbs.append(bb)
         bbs.sort(key=lambda bb: bb.start)
         return bbs
+
+    @staticmethod
+    def find_cfg_groups(block_cfg: nx.Graph) -> List[List[int]]:
+        """
+        查找CFG中的线性组
+        线性组是指由出度为1的节点组成的链
+        Args:
+            block_cfg (nx.Graph): 基本块控制流图
+        Returns:
+            List[List[int]]: 线性组列表,返回[[block1.start,block2.start],[block3.start,block4.start]]
+        """
+        visited = set()
+        groups = []
+        for node in block_cfg.nodes():
+            if node in visited:
+                continue  # 跳过已访问节点
+
+            # 只允许出度为1的节点作为组的起点
+            if block_cfg.out_degree(node) != 1:
+                continue
+
+            current_group = []
+            current_node = node
+            current_group.append(current_node)
+            visited.add(current_node)
+
+            while True:
+                # 获取当前节点的唯一后继
+                successors = list(block_cfg.successors(current_node))
+                if len(successors) != 1:
+                    break  # 出度不为1时终止
+                next_node = successors[0]
+
+                # 检查后继节点的入度和出度
+                if block_cfg.in_degree(next_node) != 1 or block_cfg.out_degree(
+                    next_node
+                ) not in {0, 1}:
+                    break  # 不满足条件时终止
+
+                # 检查后继节点是否已访问
+                if next_node in visited:
+                    break
+
+                # 将后继节点加入组
+                current_group.append(next_node)
+                visited.add(next_node)
+                current_node = next_node
+
+                # 如果出度为0，终止扩展
+                if block_cfg.out_degree(current_node) == 0:
+                    break
+
+            # 仅保留有效组（长度≥2）
+            if len(current_group) >= 2:
+                groups.append(current_group)
+
+        return groups

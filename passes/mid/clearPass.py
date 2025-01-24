@@ -31,19 +31,17 @@ def pass_clear_const_if(analysis_context: AnalysisContext):
     for _ in range(len(mlil.basic_blocks)):
         updated = False
         for bb in mlil.basic_blocks:
-            if not isinstance(bb[-1], MediumLevelILIf):
-                continue
             if_instr = bb[-1]
+            if not isinstance(if_instr, MediumLevelILIf):
+                continue
             condition = if_instr.condition
             if not isinstance(condition, MediumLevelILConst):
                 continue
-            label = MediumLevelILLabel()
-            if condition.constant == 1:
-                label.operand = if_instr.true
-            elif condition.constant == 0:
-                label.operand = if_instr.false
-            else:
+            const_val = condition.constant
+            if const_val not in (0, 1):
                 continue
+            label = MediumLevelILLabel()
+            label.operand = if_instr.true if const_val else if_instr.false
             goto_instr = mlil.goto(label, ILSourceLocation.from_instruction(if_instr))
             mlil.replace_expr(if_instr.expr_index, goto_instr)
             updated = True
@@ -78,12 +76,7 @@ def pass_clear_goto(analysis_context: AnalysisContext):
         target_instr = mlil[goto_instr.dest]
         if not isinstance(target_instr, MediumLevelILGoto):
             return target_instr
-
-        # 递归处理连续goto
         final_target = optimize_goto(target_instr)
-        log_info(
-            f"Optimized goto {goto_instr.instr_index} to target {final_target.instr_index}"
-        )
         return final_target
 
     for _ in range(len(mlil.basic_blocks)):
@@ -132,12 +125,10 @@ def pass_clear_if(analysis_context: AnalysisContext):
         updated = False
         for bb in mlil.basic_blocks:
             if_instr = bb[-1]
-
             if not isinstance(if_instr, MediumLevelILIf):
                 continue
             true_target = get_final_target(mlil[if_instr.true])
             false_target = get_final_target(mlil[if_instr.false])
-
             if (
                 true_target.instr_index != if_instr.true
                 or false_target.instr_index != if_instr.false
@@ -157,7 +148,6 @@ def pass_clear_if(analysis_context: AnalysisContext):
                 )
                 mlil.replace_expr(if_instr.expr_index, new_if)
                 updated = True
-
         if updated:
             mlil.finalize()
             mlil.generate_ssa_form()
@@ -173,61 +163,68 @@ def merge_block(
     instrs: List[MediumLevelILInstruction],
     pre_instrs: List[MediumLevelILInstruction],
 ) -> bool:
-    if not all(
-        isinstance(instr, MediumLevelILGoto) or isinstance(instr, MediumLevelILIf)
+    # Validate pre_instrs types
+    if pre_instrs and any(
+        not isinstance(instr, (MediumLevelILGoto, MediumLevelILIf))
         for instr in pre_instrs
     ):
-        log_error(f"eeeee {pre_instrs}")
+        log_error(f"Invalid predecessor instructions: {pre_instrs}")
         return False
-    if len(instrs) == 0:
+
+    if not instrs:
         return False
-    label = MediumLevelILLabel()
-    mlil.mark_label(label)
-    start_label_oprand = label.operand
-    for x in instrs:
-        mlil.append(mlil.copy_expr(x, ILSourceLocation.from_instruction(x)))
+
+    # Create label for merged block start
+    merged_label = MediumLevelILLabel()
+    mlil.mark_label(merged_label)
+    merged_operand = merged_label.operand
+
+    # Copy instructions to new block
+    for instr in instrs:
+        mlil.append(mlil.copy_expr(instr, ILSourceLocation.from_instruction(instr)))
+
+    # Redirect control flow from predecessors
     for pre_instr in pre_instrs:
         if isinstance(pre_instr, MediumLevelILGoto):
-            mlil.replace_expr(
-                pre_instr.expr_index,
-                mlil.goto(label, ILSourceLocation.from_instruction(pre_instr)),
+            # Replace Goto with jump to merged block
+            new_goto = mlil.goto(
+                merged_label, ILSourceLocation.from_instruction(pre_instr)
             )
+            mlil.replace_expr(pre_instr.expr_index, new_goto)
+
         elif isinstance(pre_instr, MediumLevelILIf):
-            true_idx = pre_instr.true
-            false_idx = pre_instr.false
-            true_label = MediumLevelILLabel()
-            true_label.operand = true_idx
-            false_label = MediumLevelILLabel()
-            false_label.operand = false_idx
-            if true_idx == instrs[0].instr_index:
-                t_label = MediumLevelILLabel()
-                t_label.operand = start_label_oprand
-                new_if = mlil.if_expr(
-                    mlil.copy_expr(
-                        pre_instr.condition,
-                        ILSourceLocation.from_instruction(pre_instr),
-                    ),
-                    t_label,
-                    false_label,
-                    ILSourceLocation.from_instruction(pre_instr),
+            target_index = instrs[0].instr_index
+            true_idx, false_idx = pre_instr.true, pre_instr.false
+
+            # Validate branch targets
+            if true_idx != target_index and false_idx != target_index:
+                raise ValueError("If statement branches don't target merged block")
+
+            # Create labels with appropriate targets
+            def create_label(original_idx: int) -> MediumLevelILLabel:
+                label = MediumLevelILLabel()
+                label.operand = (
+                    merged_operand if original_idx == target_index else original_idx
                 )
-                mlil.replace_expr(pre_instr.expr_index, new_if)
-            elif false_idx == instrs[0].instr_index:
-                t_label = MediumLevelILLabel()
-                t_label.operand = start_label_oprand
-                new_if = mlil.if_expr(
-                    mlil.copy_expr(
-                        pre_instr.condition,
-                        ILSourceLocation.from_instruction(pre_instr),
-                    ),
-                    true_label,
-                    t_label,
-                    ILSourceLocation.from_instruction(pre_instr),
-                )
-                mlil.replace_expr(pre_instr.expr_index, new_if)
-            else:
-                raise Exception("Invalid if condition")
+                return label
+
+            true_label = create_label(true_idx)
+            false_label = create_label(false_idx)
+
+            # Create replacement If expression
+            new_cond = mlil.copy_expr(
+                pre_instr.condition, ILSourceLocation.from_instruction(pre_instr)
+            )
+            new_if = mlil.if_expr(
+                new_cond,
+                true_label,
+                false_label,
+                ILSourceLocation.from_instruction(pre_instr),
+            )
+            mlil.replace_expr(pre_instr.expr_index, new_if)
+
     return True
+
 
 # todo arm64_v8a.so - sub_224e8 未合并成功 待debug
 def pass_merge_block(analysis_context: AnalysisContext):
@@ -235,30 +232,24 @@ def pass_merge_block(analysis_context: AnalysisContext):
     mlil = analysis_context.mlil
     if mlil is None:
         return
-    for _ in range(len(mlil.basic_blocks) * 2):
+    for _ in range(len(mlil.basic_blocks)):
+        block_cfg = CFGAnalyzer.create_cfg_graph(mlil)
+        groups = CFGAnalyzer.find_cfg_groups(block_cfg)
         updated = False
-        for block in mlil.basic_blocks:
-            last_instr = block[-1]
-            if not isinstance(last_instr, MediumLevelILGoto):
-                continue
-            next_block = mlil.get_basic_block_at(last_instr.dest)
-            next_block_incoming = CFGAnalyzer.MLIL_get_incoming_blocks(
-                mlil, next_block.start
-            )
-            if (
-                next_block is not None
-                and len(next_block_incoming) == 1
-                and (
-                    isinstance(next_block[-1], MediumLevelILGoto)
-                    or isinstance(next_block[-1], MediumLevelILRet)
-                )
-            ):
-                pre_blocks = CFGAnalyzer.MLIL_get_incoming_blocks(mlil, block.start)
-                pre_instrs = [x[-1] for x in pre_blocks]
-                instrs = list(block[:-1]) + list(next_block[:])
-                if merge_block(mlil, instrs, pre_instrs):
-                    updated = True
-                    break
+        for group in groups:
+            # 因为函数必须从0开始, 如果要求合并的话 需要特殊处理0部分,因此不处理
+            if group[0] == 0:
+                group.pop(0)
+            blocks = [mlil.get_basic_block_at(idx) for idx in group]
+            block0 = blocks[0]
+            pre_blocks = CFGAnalyzer.MLIL_get_incoming_blocks(mlil, block0.start)
+            pre_instrs = [x[-1] for x in pre_blocks]
+            instrs = []
+            for x in blocks[:-1]:
+                instrs += list(x)[:-1]
+            instrs += list(blocks[-1])
+            if merge_block(mlil, instrs, pre_instrs):
+                updated = True
         if updated:
             mlil.finalize()
             mlil.generate_ssa_form()
@@ -273,7 +264,6 @@ def pass_swap_if(analysis_context: AnalysisContext):
     mlil = func.mlil
     if mlil is None:
         return
-
     def traverse_find_if(instr):
         if isinstance(instr, MediumLevelILIf) and not isinstance(
             instr.condition, MediumLevelILVar
@@ -284,19 +274,56 @@ def pass_swap_if(analysis_context: AnalysisContext):
                 ):
                     return instr
         return
-
-    if_instrs = mlil.traverse(traverse_find_if)
+    reverse_operations = {
+        MediumLevelILOperation.MLIL_CMP_E: MediumLevelILOperation.MLIL_CMP_E,
+        MediumLevelILOperation.MLIL_CMP_NE: MediumLevelILOperation.MLIL_CMP_NE,
+        MediumLevelILOperation.MLIL_CMP_ULT: MediumLevelILOperation.MLIL_CMP_UGT,
+        MediumLevelILOperation.MLIL_CMP_UGT: MediumLevelILOperation.MLIL_CMP_ULT,
+        MediumLevelILOperation.MLIL_CMP_ULE: MediumLevelILOperation.MLIL_CMP_UGE,
+        MediumLevelILOperation.MLIL_CMP_UGE: MediumLevelILOperation.MLIL_CMP_ULE,
+        MediumLevelILOperation.MLIL_CMP_SLT: MediumLevelILOperation.MLIL_CMP_SGT,
+        MediumLevelILOperation.MLIL_CMP_SGT: MediumLevelILOperation.MLIL_CMP_SLT,
+        MediumLevelILOperation.MLIL_CMP_SLE: MediumLevelILOperation.MLIL_CMP_SGE,
+        MediumLevelILOperation.MLIL_CMP_SGE: MediumLevelILOperation.MLIL_CMP_SLE,
+    }
+    if_instrs: List[MediumLevelILIf] = mlil.traverse(traverse_find_if)
+    updated = False
     for if_instr in if_instrs:
         condition = if_instr.condition
-        if condition in [
-            MediumLevelILOperation.MLIL_CMP_E,
-            MediumLevelILOperation.MLIL_CMP_NE,
-        ]:
-            pass
+        new_condition = mlil.expr(
+            reverse_operations[condition.operation],
+            mlil.copy_expr(
+                condition.right, ILSourceLocation.from_instruction(if_instr)
+            ),
+            mlil.copy_expr(condition.left, ILSourceLocation.from_instruction(if_instr)),
+            0,
+            0,
+            0,
+            if_instr.size,
+            ILSourceLocation.from_instruction(if_instr),
+        )
+        true_label = MediumLevelILLabel()
+        true_label.operand = if_instr.true
+
+        false_label = MediumLevelILLabel()
+        false_label.operand = if_instr.false
+
+        new_if_instr = mlil.if_expr(
+            new_condition,
+            true_label,
+            false_label,
+            ILSourceLocation.from_instruction(if_instr),
+        )
+        mlil.replace_expr(if_instr.expr_index, new_if_instr)
+        updated = True
+    if updated:
+        mlil.finalize()
+        mlil.generate_ssa_form()
 
 
 def pass_clear(analysis_context: AnalysisContext):
     pass_clear_const_if(analysis_context)
     pass_clear_goto(analysis_context)
     pass_clear_if(analysis_context)
+    pass_swap_if(analysis_context)
     pass_merge_block(analysis_context)
