@@ -320,8 +320,6 @@ def pass_swap_if(analysis_context: AnalysisContext):
         mlil.generate_ssa_form()
 
 
-
-
 def handle_pre_last_instr(mlil: MediumLevelILFunction, pre_last_instr, bb, copy_label):
     if isinstance(pre_last_instr, MediumLevelILGoto):
         mlil.replace_expr(
@@ -366,6 +364,7 @@ def handle_pre_last_instr(mlil: MediumLevelILFunction, pre_last_instr, bb, copy_
     else:
         log_error("ERROR")
 
+
 def pass_copy_common_block_mid(analysis_context: AnalysisContext):
     mlil = analysis_context.function.mlil
     for _ in range(len(mlil.basic_blocks)):
@@ -376,7 +375,8 @@ def pass_copy_common_block_mid(analysis_context: AnalysisContext):
             pre_blocks = CFGAnalyzer.MLIL_get_incoming_blocks(mlil, bb.start)
             pre_instrs = [prebb[-1] for prebb in pre_blocks]
             if not all(
-                isinstance(instr, MediumLevelILGoto) or isinstance(instr, MediumLevelILIf)
+                isinstance(instr, MediumLevelILGoto)
+                or isinstance(instr, MediumLevelILIf)
                 for instr in pre_instrs
             ):
                 continue

@@ -42,7 +42,6 @@ def workflow_patch_mlil(analysis_context: AnalysisContext):
     pass_clear(analysis_context)
 
 
-
 def workflow_patch_hlil(analysis_context: AnalysisContext):
     from .utils import suggest_stateVar
 
