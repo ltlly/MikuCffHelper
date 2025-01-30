@@ -11,8 +11,6 @@ from binaryninja import (
     MediumLevelILInstruction,
 )
 
-from .mikuPlugin import suggest_stateVar, log_error
-
 
 def collect_stateVar_info(func: Function, ret_int: bool = True):
     """收集函数中的状态变量信息

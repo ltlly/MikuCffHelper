@@ -1,4 +1,10 @@
-from binaryninja import *
+from binaryninja import (
+    LowLevelILFunction,
+    LowLevelILGoto,
+    LowLevelILIf,
+    LowLevelILLabel,
+    AnalysisContext,
+)
 
 from ...fix_binaryninja_api.common import ILSourceLocation
 from ...utils import CFGAnalyzer, log_error

@@ -3,12 +3,6 @@ from binaryninja import (
     BinaryView,
     Variable,
     VariableSourceType,
-    MediumLevelILConstPtr,
-    MediumLevelILFunction,
-    MediumLevelILVar,
-    PossibleValueSet,
-    MediumLevelILInstruction,
-    MediumLevelILConst,
 )
 
 
@@ -24,25 +18,13 @@ from z3 import (
     BoolVal,
     Extract,
     ZeroExt,
-    If,
-    SignExt,
     simplify,
     BitVecNumRef,
-    Array,
-    BitVecSort,
     BoolRef,
-    Solver,
-    ArrayRef,
-    unsat,
 )
 from binaryninja.log import log_error, log_info
 from typing import (
     Any,
-    Dict,
-    List,
-    Optional,
-    Set,
-    Tuple,
     Union,
 )
 
@@ -96,8 +78,8 @@ class SimpleVisitor(BNILVisitor):
 
     def visit_MLIL_IF(self, expr):
         result: BoolRef = self.visit(expr.condition)
-        result = simplify(result)
-        if result:
+        r2: bool = simplify(result)
+        if r2:
             return (True, expr.true)
         else:
             return (False, expr.false)

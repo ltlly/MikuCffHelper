@@ -1,15 +1,11 @@
 from binaryninja import (
-    MediumLevelILIf,
-    MediumLevelILCmpNe,
-    MediumLevelILOperation,
     AnalysisContext,
-    MediumLevelILLabel,
     MediumLevelILSetVar,
     MediumLevelILInstruction,
 )
 
-from ...utils import StateMachine, collect_stateVar_info
-from ...utils import log_error, log_info, log_warn
+from ...utils import collect_stateVar_info
+from ...utils import log_error, log_info
 
 
 def pass_mov_state_define(analysis_context: AnalysisContext):
@@ -33,10 +29,10 @@ def pass_mov_state_define(analysis_context: AnalysisContext):
         for i in range(define.instr_index + 1, define_block.end - 1):
             will_check_instr.append(mlil[i])
         can_move = True
-        vars = define.vars_read + define.vars_written
+        v = define.vars_read + define.vars_written
         for instr in will_check_instr:
             for x in instr.vars_read + instr.vars_written:
-                if x in vars:
+                if x in v:
                     can_move = False
                     break
             if not can_move:

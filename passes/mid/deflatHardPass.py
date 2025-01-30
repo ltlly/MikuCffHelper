@@ -1,16 +1,11 @@
-from pprint import pformat
-from typing import List, Dict, Any
 import networkx as nx
 from binaryninja import (
     MediumLevelILFunction,
     MediumLevelILIf,
     MediumLevelILGoto,
     Function,
-    Variable,
     AnalysisContext,
-    MediumLevelILOperation,
     MediumLevelILSetVar,
-    MediumLevelILVar,
     MediumLevelILInstruction,
     MediumLevelILLabel,
 )
@@ -18,8 +13,6 @@ from binaryninja import (
 from ...utils import (
     log_error,
     collect_stateVar_info,
-    log_info,
-    unsigned_to_signed_32bit,
     CFGAnalyzer,
     StateMachine,
     InstructionAnalyzer,
@@ -66,13 +59,13 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
                 )
             except nx.NetworkXNoPath:
                 continue
-            cond, targetIdx = InstructionAnalyzer.check_path(
+            cond, target_idx = InstructionAnalyzer.check_path(
                 mlil, path_full, possible_state_vars, white_instructions
             )
             if not cond:
                 continue
             label = MediumLevelILLabel()
-            label.operand = targetIdx
+            label.operand = target_idx
             will_patch_instr = None
             i = 0
             while not isinstance(will_patch_instr, MediumLevelILGoto):

@@ -1,5 +1,4 @@
-from binaryninja import *
-from typing import Dict, List
+from binaryninja import Logger, BinaryView, Function, Variable
 
 # Initialize logger
 mikuLogger = Logger(0, "MikuCffHelper")
@@ -29,26 +28,24 @@ def log_error(msg: str):
     mikuLogger.log_error(msg)
 
 
-funDict = {}
+func_dict = {}
 
 
-def make_stateVar(bv: BinaryView, func: Function, var: Variable):
+def make_stateVar(func: Function, var: Variable):
     """创建状态变量
     Args:
-        bv (BinaryView): 二进制视图
         func (Function): 目标函数
         var (Variable): 要标记为状态变量的变量
     """
-    global state_counter
-    if func.start not in funDict:
-        funDict[func.start] = {}
-    varNameList = [var.name for var in func.vars]
+    if func.start not in func_dict:
+        func_dict[func.start] = {}
+    var_name_list = [var.name for var in func.vars]
     i = 0
-    while f"state-{i}" in varNameList or f"state-{i}" in funDict[func.start]:
+    while f"state-{i}" in var_name_list or f"state-{i}" in func_dict[func.start]:
         i += 1
     name = f"state-{i}"
     var.set_name_async(name)
-    funDict[func.start][name] = var
+    func_dict[func.start][name] = var
 
 
 def set_stateVar(bv: BinaryView, func: Function):
@@ -64,7 +61,7 @@ def set_stateVar(bv: BinaryView, func: Function):
     a = h.actionContext()
     token_state = a.token
     var = Variable.from_identifier(func, token_state.token.value)
-    make_stateVar(bv, func, var)
+    make_stateVar(func, var)
 
 
 def suggest_stateVar(bv: BinaryView, func: Function):
@@ -115,9 +112,9 @@ def suggest_stateVar(bv: BinaryView, func: Function):
         # Check all rules
         for rule in state_var_rules:
             if rule(var, ifTable, defineTable):
-                make_stateVar(bv, func, var)
+                make_stateVar(func, var)
                 break
-    funDict[func.start] = {}
+    func_dict[func.start] = {}
 
 
 def isV(bv: BinaryView, inst):

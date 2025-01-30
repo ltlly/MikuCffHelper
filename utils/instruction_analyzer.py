@@ -199,13 +199,8 @@ class InstructionAnalyzer:
             for i in range(len(instrs)):
                 instr = instrs[i]
                 if instr.operation == MediumLevelILOperation.MLIL_IF:
-                    res, nextip = v.visit(instr)
+                    _, nextip = v.visit(instr)
                     if i + 1 < len(instrs) and nextip != instrs[i + 1].instr_index:
-                        log_error(f"vars{v.vars}")
-                        log_error(f"checking {instr}")
-                        log_error(
-                            f"want {instrs[i + 1].instr_index}::{instrs[i + 1]}\n  but {nextip}::{mlil[nextip]} "
-                        )
                         return (False, None)
                     elif i == len(instrs) - 1:
                         return (True, nextip)

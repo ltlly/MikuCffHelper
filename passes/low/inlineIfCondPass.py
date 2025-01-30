@@ -1,4 +1,12 @@
-from binaryninja import *
+from binaryninja import (
+    AnalysisContext,
+    LowLevelILIf,
+    LowLevelILInstruction,
+    LowLevelILFlagSsa,
+    LowLevelILSetFlagSsa,
+    LowLevelILFlagPhi,
+    LowLevelILLabel,
+)
 
 from ...utils import ILSourceLocation
 

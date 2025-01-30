@@ -7,12 +7,10 @@ from binaryninja import (
     MediumLevelILIf,
     MediumLevelILInstruction,
     MediumLevelILConst,
-    MediumLevelILBasicBlock,
-    MediumLevelILRet,
     MediumLevelILVar,
     MediumLevelILOperation,
 )
-from ...utils import log_info, ILSourceLocation, CFGAnalyzer
+from ...utils import ILSourceLocation, CFGAnalyzer
 from ...utils import log_error
 
 
@@ -197,7 +195,7 @@ def merge_block(
             true_idx, false_idx = pre_instr.true, pre_instr.false
 
             # Validate branch targets
-            if true_idx != target_index and false_idx != target_index:
+            if target_index not in (true_idx, false_idx):
                 raise ValueError("If statement branches don't target merged block")
 
             # Create labels with appropriate targets
@@ -226,7 +224,6 @@ def merge_block(
     return True
 
 
-# todo arm64_v8a.so - sub_224e8 未合并成功 待debug
 def pass_merge_block(analysis_context: AnalysisContext):
     "合并连续几个dirct block 为一个block"
     mlil = analysis_context.mlil
@@ -264,6 +261,7 @@ def pass_swap_if(analysis_context: AnalysisContext):
     mlil = func.mlil
     if mlil is None:
         return
+
     def traverse_find_if(instr):
         if isinstance(instr, MediumLevelILIf) and not isinstance(
             instr.condition, MediumLevelILVar
@@ -274,6 +272,7 @@ def pass_swap_if(analysis_context: AnalysisContext):
                 ):
                     return instr
         return
+
     reverse_operations = {
         MediumLevelILOperation.MLIL_CMP_E: MediumLevelILOperation.MLIL_CMP_E,
         MediumLevelILOperation.MLIL_CMP_NE: MediumLevelILOperation.MLIL_CMP_NE,
