@@ -60,9 +60,6 @@ def pass_copy_common_block(analysis_context: AnalysisContext):
     for _ in range(len(llil.basic_blocks)):
         updated = False
         for bb in llil.basic_blocks:
-            # last_instr = llil[bb.end - 1]
-            # if last_instr.operation == LowLevelILOperation.LLIL_IF:
-            # continue
             pre_blocks = CFGAnalyzer.LLIL_get_incoming_blocks(llil, bb.start)
             pre_instrs = [prebb[-1] for prebb in pre_blocks]
             if not all(

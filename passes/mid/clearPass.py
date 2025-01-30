@@ -320,9 +320,96 @@ def pass_swap_if(analysis_context: AnalysisContext):
         mlil.generate_ssa_form()
 
 
+
+
+def handle_pre_last_instr(mlil: MediumLevelILFunction, pre_last_instr, bb, copy_label):
+    if isinstance(pre_last_instr, MediumLevelILGoto):
+        mlil.replace_expr(
+            pre_last_instr.expr_index,
+            mlil.goto(copy_label, ILSourceLocation.from_instruction(pre_last_instr)),
+        )
+    elif isinstance(pre_last_instr, MediumLevelILIf):
+        true_target = pre_last_instr.true
+        false_target = pre_last_instr.false
+        if true_target == bb.start:
+            fix_false_label = MediumLevelILLabel()
+            fix_false_label.operand = false_target
+            mlil.replace_expr(
+                pre_last_instr.expr_index,
+                mlil.if_expr(
+                    mlil.copy_expr(
+                        pre_last_instr.condition,
+                        ILSourceLocation.from_instruction(pre_last_instr),
+                    ),
+                    copy_label,
+                    fix_false_label,
+                    ILSourceLocation.from_instruction(pre_last_instr),
+                ),
+            )
+        elif false_target == bb.start:
+            fix_true_label = MediumLevelILLabel()
+            fix_true_label.operand = true_target
+            mlil.replace_expr(
+                pre_last_instr.expr_index,
+                mlil.if_expr(
+                    mlil.copy_expr(
+                        pre_last_instr.condition,
+                        ILSourceLocation.from_instruction(pre_last_instr),
+                    ),
+                    fix_true_label,
+                    copy_label,
+                    ILSourceLocation.from_instruction(pre_last_instr),
+                ),
+            )
+        else:
+            log_error("ERROR IF")
+    else:
+        log_error("ERROR")
+
+def pass_copy_common_block_mid(analysis_context: AnalysisContext):
+    mlil = analysis_context.function.mlil
+    for _ in range(len(mlil.basic_blocks)):
+        updated = False
+        for bb in mlil.basic_blocks:
+            if bb.length > 5:
+                continue
+            pre_blocks = CFGAnalyzer.MLIL_get_incoming_blocks(mlil, bb.start)
+            pre_instrs = [prebb[-1] for prebb in pre_blocks]
+            if not all(
+                isinstance(instr, MediumLevelILGoto) or isinstance(instr, MediumLevelILIf)
+                for instr in pre_instrs
+            ):
+                continue
+            if len(pre_blocks) <= 1:
+                continue
+            if any(frontier.start == bb.start for frontier in bb.dominance_frontier):
+                continue
+            for j in range(1, len(pre_blocks)):
+                updated = True
+                pre_block = pre_blocks[j]
+                pre_last_instr = mlil[pre_block.end - 1]
+                copy_label = MediumLevelILLabel()
+                mlil.mark_label(copy_label)
+                for l in range(bb.start, bb.end):
+                    mlil.append(
+                        mlil.copy_expr(
+                            mlil[l], ILSourceLocation.from_instruction(mlil[l])
+                        )
+                    )
+                handle_pre_last_instr(mlil, pre_last_instr, bb, copy_label)
+        if updated:
+            mlil.finalize()
+            mlil.generate_ssa_form()
+        else:
+            break
+    mlil.finalize()
+    mlil.generate_ssa_form()
+
+
 def pass_clear(analysis_context: AnalysisContext):
     pass_clear_const_if(analysis_context)
     pass_clear_goto(analysis_context)
     pass_clear_if(analysis_context)
     pass_swap_if(analysis_context)
     pass_merge_block(analysis_context)
+    pass_copy_common_block_mid(analysis_context)
