@@ -8,6 +8,7 @@ from binaryninja import (
     MediumLevelILSetVar,
     MediumLevelILInstruction,
     MediumLevelILLabel,
+    Variable,
 )
 
 from ...utils import (
@@ -17,9 +18,49 @@ from ...utils import (
     StateMachine,
     InstructionAnalyzer,
     ILSourceLocation,
+    SimpleVisitor,
 )
 
+
 # todo sub_1f310
+def emu_hard(instrs: list[MediumLevelILInstruction], white_vars: list[Variable]):
+    func = instrs[0].function.source_function
+    v = SimpleVisitor(func.view, func)
+    walked_instrs = []
+    for i, instr in enumerate(instrs):
+        try:
+            match instr:
+                case MediumLevelILGoto():
+                    continue
+                case MediumLevelILSetVar():
+                    left = instr.dest
+                    if left in white_vars:
+                        v.visit(instr)
+                    walked_instrs.append(instr)
+                case MediumLevelILIf():
+                    # if any(var not in white_vars for var in instr.vars_read):
+                    # log_error(f"ck var {instr}")
+                    # return (False, None, unused_instr)
+                    _, nextip = v.visit(instr)
+                    if i + 1 < len(instrs) and nextip != instrs[i + 1].instr_index:
+                        log_error(
+                            f"path not eq! want{instrs[i + 1].instr_index} but {nextip}"
+                        )
+                        return (False, None, [])
+                    elif i == len(instrs) - 1:
+                        return (True, nextip, walked_instrs)
+                case _:
+                    if any(var in white_vars for var in instr.vars_read) or any(
+                        var in white_vars for var in instr.vars_written
+                    ):
+                        log_error(f"ck _ {instr.instr_index}::{instr}")
+                        return (False, None, [])
+                    walked_instrs.append(instr)
+        except Exception as e:
+            # log_error(f"error:: {instr.instr_index}::{instr}")
+            # log_error(f"{e}")
+            return (False, None, [])
+    raise  # never reach here
 
 
 def pass_deflate_hard(analysis_context: AnalysisContext):
@@ -28,32 +69,38 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
     if mlil is None:
         log_error(f"Function {function.name} has no MLIL")
         return
+
+    # 保存已处理的 define 与 if 指令，避免重复处理
     worked_define = []
     worked_if = []
+    # 最多遍历基本块数量的两倍次，若无更新则提前退出
     for _ in range(len(mlil.basic_blocks) * 2):
         updated = False
+        # 构建完整的控制流图
         G_full = CFGAnalyzer.create_full_cfg_graph(mlil)
         state_vars = StateMachine.find_state_var(function)
         if_table, define_table = collect_stateVar_info(function, False)
-        possible_state_vars = state_vars
-        l_if_table = []
-        for k, v in if_table.items():
-            l_if_table += v
-        l_define_table = []
-        for k, v in define_table.items():
-            l_define_table += v
-        l_if_table = [x for x in l_if_table if x not in worked_if]
-        l_define_table = [x for x in l_define_table if x not in worked_define]
+        # 整理所有 if 指令和 define 指令，并过滤掉已处理项
+        l_if_table = [
+            instr for v in if_table.values() for instr in v if instr not in worked_if
+        ]
+        l_define_table = [
+            instr
+            for v in define_table.values()
+            for instr in v
+            if instr not in worked_define
+        ]
+
+        # 查找状态转换指令对
         trans_dict = InstructionAnalyzer.find_state_transition_instructions(
             l_if_table, l_define_table
         )
-
         for trans in trans_dict:
             def_instr: MediumLevelILInstruction | MediumLevelILSetVar = trans[
                 "def_instr"
             ]
             if_instr: MediumLevelILInstruction | MediumLevelILIf = trans["if_instr"]
-
+            # 尝试找到从 def_instr 到 if_instr 的最短路径
             try:
                 path_full = nx.shortest_path(
                     G_full, def_instr.instr_index, if_instr.instr_index
@@ -63,51 +110,43 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
 
             define_state_var = def_instr.vars_written[0]
             if_state_var = if_instr.vars_read[0]
-            white_instructions = InstructionAnalyzer.find_white_instructions(
-                mlil, [define_state_var, if_state_var]
+            instrs = [mlil[i] for i in path_full]
+            r, target_idx, unused_instrs = emu_hard(
+                instrs, [define_state_var, if_state_var]
             )
-
-            cond, target_idx = InstructionAnalyzer.check_path(
-                mlil, path_full, white_instructions
-            )
-            if not cond:
+            if not r:
                 continue
-            label = MediumLevelILLabel()
-            label.operand = target_idx
-            will_patch_instr = None
-            i = 0
-            while not isinstance(will_patch_instr, MediumLevelILGoto):
-                will_patch_instr = mlil[path_full[i]]
-                i += 1
-            # 不会命中
-            # if not isinstance(will_patch_instr,MediumLevelILGoto):
-            #     log_error(f"what can i say!")
-            #     log_error(f"path {path_full}")
-            #     log_error(f"will_patch_instr {will_patch_instr} {will_patch_instr.instr_index}")
-            #     for x in path_full:
-            #         log_error(f"{mlil[x].instr_index} :: {mlil[x]}")
-            #     continue
+            # log_error(f"r: {r}, target_idx: {target_idx}, unused_instrs: {unused_instrs}")
+            # for i in path_full:
+            #     instr = mlil[i]
+            #     log_error(f"{i}::{instr}")
+            target_label = MediumLevelILLabel()
+            target_label.operand = target_idx
+            will_patch_instr = mlil[path_full[0]]
 
-            # log_error(f"==================================")
-            # log_error(f"working {def_instr} to {if_instr}")
-            # log_error(f"path {path_full}")
-            # log_error(
-            #     f"will_patch_instr {will_patch_instr} {will_patch_instr.instr_index}")
-            # for x in path_full:
-            #     log_error(f"{mlil[x].instr_index} :: {mlil[x]}")
+            new_block_label = MediumLevelILLabel()
+            mlil.mark_label(new_block_label)
+            for instr in unused_instrs:
+                mlil.append(
+                    mlil.copy_expr(instr, ILSourceLocation.from_instruction(instr))
+                )
+            mlil.append(mlil.goto(target_label))
 
-            new_goto = mlil.goto(
-                label, ILSourceLocation.from_instruction(will_patch_instr)
+            mlil.replace_expr(
+                will_patch_instr.expr_index,
+                mlil.goto(
+                    new_block_label, ILSourceLocation.from_instruction(will_patch_instr)
+                ),
             )
-            mlil.replace_expr(will_patch_instr.expr_index, new_goto)
-            worked_define.append(def_instr)
-            worked_if.append(if_instr)
             updated = True
+
+        # 若本轮有更新，则重新生成 MLIL SSA 形式，否则退出循环
         if updated:
             mlil.finalize()
             mlil.generate_ssa_form()
-            continue
         else:
             break
+
+    # 最后再次 finalize 与生成 SSA
     mlil.finalize()
     mlil.generate_ssa_form()

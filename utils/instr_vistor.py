@@ -43,10 +43,10 @@ class BNILVisitor(object):
                 value = None
             return value
         except Exception as e:
-            log_error(
-                f"[{expression.instr_index}]::Error in {repr(expression.operation)} "
-            )
-            log_error(f"{e}")
+            # log_error(
+            #     f"[{expression.instr_index}]::Error in {repr(expression.operation)} "
+            # )
+            # log_error(f"{e}")
             raise e
 
 
@@ -71,7 +71,7 @@ class SimpleVisitor(BNILVisitor):
         self.func = function
         super().__init__()
         addr_size = self.view.address_size
-        self.vars = {}
+        self.vars: dict[str, Any] = {}
 
     def visit_MLIL_GOTO(self, expr):
         pass
