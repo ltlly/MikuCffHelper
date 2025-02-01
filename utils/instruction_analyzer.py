@@ -234,7 +234,4 @@ class InstructionAnalyzer:
             #     f"not in white instructions::{pformat([instr for instr in instrs if instr not in white_instructions])}")
             return (False, None)
         res = InstructionAnalyzer.emu_instrs_simple(instrs, mlil, state_vars)
-        log_info(f"[path] {res}")
-        log_info(f"[path] instructions::{pformat(instrs)}")
-        log_info(f"[path] paths::{pformat(path)}")
         return res

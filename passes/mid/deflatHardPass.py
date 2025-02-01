@@ -19,6 +19,7 @@ from ...utils import (
     ILSourceLocation,
 )
 
+# todo sub_1f310 
 
 def pass_deflate_hard(analysis_context: AnalysisContext):
     function: Function = analysis_context.function
@@ -71,7 +72,8 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
             while not isinstance(will_patch_instr, MediumLevelILGoto):
                 will_patch_instr = mlil[path_full[i]]
                 i += 1
-
+            if not isinstance(will_patch_instr,MediumLevelILGoto):
+                continue
             new_goto = mlil.goto(
                 label, ILSourceLocation.from_instruction(will_patch_instr)
             )
