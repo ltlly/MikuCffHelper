@@ -19,7 +19,8 @@ from ...utils import (
     ILSourceLocation,
 )
 
-# todo sub_1f310 
+# todo sub_1f310
+
 
 def pass_deflate_hard(analysis_context: AnalysisContext):
     function: Function = analysis_context.function
@@ -46,22 +47,28 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
         trans_dict = InstructionAnalyzer.find_state_transition_instructions(
             l_if_table, l_define_table
         )
-        white_instructions = InstructionAnalyzer.find_white_instructions(
-            mlil, possible_state_vars
-        )
+
         for trans in trans_dict:
             def_instr: MediumLevelILInstruction | MediumLevelILSetVar = trans[
                 "def_instr"
             ]
             if_instr: MediumLevelILInstruction | MediumLevelILIf = trans["if_instr"]
+
             try:
                 path_full = nx.shortest_path(
                     G_full, def_instr.instr_index, if_instr.instr_index
                 )
             except nx.NetworkXNoPath:
                 continue
+
+            define_state_var = def_instr.vars_written[0]
+            if_state_var = if_instr.vars_read[0]
+            white_instructions = InstructionAnalyzer.find_white_instructions(
+                mlil, [define_state_var, if_state_var]
+            )
+
             cond, target_idx = InstructionAnalyzer.check_path(
-                mlil, path_full, possible_state_vars, white_instructions
+                mlil, path_full, white_instructions
             )
             if not cond:
                 continue
@@ -72,8 +79,23 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
             while not isinstance(will_patch_instr, MediumLevelILGoto):
                 will_patch_instr = mlil[path_full[i]]
                 i += 1
-            if not isinstance(will_patch_instr,MediumLevelILGoto):
-                continue
+            # 不会命中
+            # if not isinstance(will_patch_instr,MediumLevelILGoto):
+            #     log_error(f"what can i say!")
+            #     log_error(f"path {path_full}")
+            #     log_error(f"will_patch_instr {will_patch_instr} {will_patch_instr.instr_index}")
+            #     for x in path_full:
+            #         log_error(f"{mlil[x].instr_index} :: {mlil[x]}")
+            #     continue
+
+            # log_error(f"==================================")
+            # log_error(f"working {def_instr} to {if_instr}")
+            # log_error(f"path {path_full}")
+            # log_error(
+            #     f"will_patch_instr {will_patch_instr} {will_patch_instr.instr_index}")
+            # for x in path_full:
+            #     log_error(f"{mlil[x].instr_index} :: {mlil[x]}")
+
             new_goto = mlil.goto(
                 label, ILSourceLocation.from_instruction(will_patch_instr)
             )

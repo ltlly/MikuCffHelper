@@ -8,6 +8,7 @@ from binaryninja import (
 from ...utils import collect_stateVar_info, StateMachine
 from ...utils import log_error, log_info, ILSourceLocation
 
+
 def pass_mov_state_define(analysis_context: AnalysisContext):
     func = analysis_context.function
     mlil = func.mlil
@@ -56,14 +57,14 @@ def pass_mov_state_define(analysis_context: AnalysisContext):
         check_index = [
             x for x in check_index if x not in [d.instr_index for d in defines]
         ]
-        log_info(f"check_index::{check_index}")
+        # log_info(f"check_index::{check_index}")
         for i in check_index:
             instr = mlil[i]
             v = instr.vars_read + instr.vars_written
             if any(var in all_vars for var in v):
                 can_move = False
                 break
-        log_info(f"can_move::{can_move}")
+        # log_info(f"can_move::{can_move}")
         if not can_move:
             continue
         # 移动语句

@@ -189,10 +189,9 @@ class InstructionAnalyzer:
     def emu_instrs_simple(
         instrs: List[MediumLevelILInstruction],
         mlil: MediumLevelILFunction,
-        state_vars: List[Variable],
     ):
         """
-        只check stateVar store load , if 转移
+        只check  store load , if 转移
         """
         v = SimpleVisitor(mlil.source_function.view, mlil.source_function)
         try:
@@ -214,7 +213,6 @@ class InstructionAnalyzer:
     def check_path(
         mlil: MediumLevelILFunction,
         path: List[int],
-        state_vars: List[Variable],
         white_instructions: List[MediumLevelILInstruction],
     ):
         """检查路径是否有效
@@ -233,5 +231,5 @@ class InstructionAnalyzer:
             # log_info(
             #     f"not in white instructions::{pformat([instr for instr in instrs if instr not in white_instructions])}")
             return (False, None)
-        res = InstructionAnalyzer.emu_instrs_simple(instrs, mlil, state_vars)
+        res = InstructionAnalyzer.emu_instrs_simple(instrs, mlil)
         return res
