@@ -39,8 +39,8 @@ def emu_hard(instrs: list[MediumLevelILInstruction], white_vars: list[Variable])
                     walked_instrs.append(instr)
                 case MediumLevelILIf():
                     # if any(var not in white_vars for var in instr.vars_read):
-                    # log_error(f"ck var {instr}")
-                    # return (False, None, unused_instr)
+                        # log_error(f"ck var {instr}")
+                        # return (False, None, [])
                     _, nextip = v.visit(instr)
                     if i + 1 < len(instrs) and nextip != instrs[i + 1].instr_index:
                         log_error(

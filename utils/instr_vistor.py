@@ -40,7 +40,7 @@ class BNILVisitor(object):
                 value = getattr(self, method_name)(expression)
             else:
                 log_error(f"{repr(expression.operation)} not implemented")
-                value = None
+                raise NotImplementedError
             return value
         except Exception as e:
             # log_error(

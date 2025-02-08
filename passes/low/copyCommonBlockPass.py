@@ -3,6 +3,8 @@ from binaryninja import (
     LowLevelILGoto,
     LowLevelILIf,
     LowLevelILLabel,
+    LowLevelILInstruction,
+    LowLevelILBasicBlock,
     AnalysisContext,
 )
 
@@ -10,7 +12,12 @@ from ...fix_binaryninja_api.common import ILSourceLocation
 from ...utils import CFGAnalyzer, log_error
 
 
-def handle_pre_last_instr(llil: LowLevelILFunction, pre_last_instr, bb, copy_label):
+def fix_pre_bb(
+    llil: LowLevelILFunction,
+    pre_last_instr: LowLevelILInstruction,
+    bb: LowLevelILBasicBlock,
+    copy_label: LowLevelILLabel,
+):
     if isinstance(pre_last_instr, LowLevelILGoto):
         llil.replace_expr(
             pre_last_instr.expr_index,
@@ -57,17 +64,19 @@ def handle_pre_last_instr(llil: LowLevelILFunction, pre_last_instr, bb, copy_lab
 
 def pass_copy_common_block(analysis_context: AnalysisContext):
     llil = analysis_context.function.llil
+    if len(llil.basic_blocks) > 100:
+        return
     for _ in range(len(llil.basic_blocks)):
         updated = False
         for bb in llil.basic_blocks:
             pre_blocks = CFGAnalyzer.LLIL_get_incoming_blocks(llil, bb.start)
+            if len(pre_blocks) <= 1:
+                continue
             pre_instrs = [prebb[-1] for prebb in pre_blocks]
             if not all(
                 isinstance(instr, LowLevelILGoto) or isinstance(instr, LowLevelILIf)
                 for instr in pre_instrs
             ):
-                continue
-            if len(pre_blocks) <= 1:
                 continue
             if any(frontier.start == bb.start for frontier in bb.dominance_frontier):
                 continue
@@ -83,7 +92,7 @@ def pass_copy_common_block(analysis_context: AnalysisContext):
                             llil[l], ILSourceLocation.from_instruction(llil[l])
                         )
                     )
-                handle_pre_last_instr(llil, pre_last_instr, bb, copy_label)
+                fix_pre_bb(llil, pre_last_instr, bb, copy_label)
         if updated:
             llil.finalize()
             llil.generate_ssa_form()

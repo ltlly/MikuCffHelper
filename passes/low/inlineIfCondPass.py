@@ -21,16 +21,15 @@ def pass_inline_if_cond(analysis_context: AnalysisContext):
         if not isinstance(condition, LowLevelILFlagSsa):
             continue
         define = llil.ssa_form.get_ssa_flag_definition(condition.src)
-        if not bb.end > int(define.instr_index) >= bb.start:
-            continue
         if not isinstance(define, LowLevelILSetFlagSsa):
+            continue
+        if not bb.end > int(define.instr_index) >= bb.start:
             continue
         use = llil.ssa_form.get_ssa_flag_uses(condition.src)
         use = [x for x in use if not isinstance(x, LowLevelILFlagPhi)]
         if len(use) > 1:
             continue
         ifInstr: LowLevelILIf = lastInstrSSA.non_ssa_form
-
         defineInstr = define.non_ssa_form
         newTrueLabel = LowLevelILLabel()
         newTrueLabel.operand = ifInstr.true

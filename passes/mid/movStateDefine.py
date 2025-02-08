@@ -23,8 +23,6 @@ def pass_mov_state_define(analysis_context: AnalysisContext):
     for k, v in define_table.items():
         l_define_table += v
 
-    log_info(f"[mov_state_define] state_vars::{state_vars}")
-    log_info(f"[mov_state_define] l_define_table::{l_define_table}")
     # 按block分组收集statevar定义
     block_defines = {}
     for define in l_define_table:
@@ -36,12 +34,10 @@ def pass_mov_state_define(analysis_context: AnalysisContext):
         if define_block not in block_defines:
             block_defines[define_block] = []
         block_defines[define_block].append(define)
-    log_info(f"[mov_state_define] block_defines::{block_defines}")
     # 处理每个block
     for block, defines in block_defines.items():
         block: MediumLevelILBasicBlock
         defines: list[MediumLevelILSetVar]
-        log_info(f"working for {block}")
         if len(defines) == block.length - 1:
             continue
         # 保持相对顺序
@@ -82,11 +78,8 @@ def pass_mov_state_define(analysis_context: AnalysisContext):
             for x in not_defines_copy
         ]
         will_copy = not_defines_copy + defines_copy
-        for x in will_copy:
-            log_info(f"will_copy::{mlil.get_expr(x)}")
         for i in range(block.start, block.end - 1):
             mlil.replace_expr(mlil[i].expr_index, will_copy[i - block.start])
-        log_info(f"Moved {len(defines)} statevar defines in block {block.start}")
         updated = True
     if updated:
         mlil.finalize()
