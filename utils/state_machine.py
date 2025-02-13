@@ -32,45 +32,52 @@ def collect_stateVar_info(func: Function, ret_int: bool = True):
         MediumLevelILVar | Any, List[MediumLevelILInstruction] | List[int] | Any
     ] = {}
 
-    def travse_if_const_compare(expr):
-        if not isinstance(expr, MediumLevelILIf):
-            return
-        condition = expr.condition
-        if isinstance(condition, MediumLevelILVar):
-            return
-        if not hasattr(condition, "right"):
-            return
-        if isinstance(condition.right, MediumLevelILConst):
-            left = condition.left
-            for token in left.tokens:
+    def find_if_const_compare(mlil: MediumLevelILFunction):
+        ifTable = {}
+        for bb in mlil.basic_blocks:
+            expr = bb[-1]
+            if not isinstance(expr, MediumLevelILIf):
+                continue
+            condition = expr.condition
+            if isinstance(condition, MediumLevelILVar):
+                continue
+            if not hasattr(condition, "right"):
+                continue
+            if isinstance(condition.right, MediumLevelILConst):
+                left = condition.left
+                for token in left.tokens:
+                    if token in args_name:
+                        continue
+                if not isinstance(left, MediumLevelILVar):
+                    continue
+                if left.src not in ifTable:
+                    ifTable[left.src] = []
+                if ret_int:
+                    ifTable[left.src].append(condition.right.value.value)
+                else:
+                    ifTable[left.src].append(expr)
+        return ifTable
+
+    def find_define(mlil: MediumLevelILFunction):
+        defineTable = {}
+        for expr in mlil.instructions:
+            if not isinstance(expr, MediumLevelILSetVar):
+                continue
+            if not isinstance(expr.src, MediumLevelILConst):
+                continue
+            for token in expr.tokens:
                 if token in args_name:
-                    return
-            if not isinstance(left, MediumLevelILVar):
-                return
-            if left.src not in ifTable:
-                ifTable[left.src] = []
+                    continue
+            if expr.dest not in defineTable:
+                defineTable[expr.dest] = []
             if ret_int:
-                ifTable[left.src].append(condition.right.value.value)
+                defineTable[expr.dest].append(expr.src.value.value)
             else:
-                ifTable[left.src].append(expr)
+                defineTable[expr.dest].append(expr)
+        return defineTable
 
-    def travse_define(expr):
-        if not isinstance(expr, MediumLevelILSetVar):
-            return
-        if not isinstance(expr.src, MediumLevelILConst):
-            return
-        for token in expr.tokens:
-            if token in args_name:
-                return
-        if expr.dest not in defineTable:
-            defineTable[expr.dest] = []
-        if ret_int:
-            defineTable[expr.dest].append(expr.src.value.value)
-        else:
-            defineTable[expr.dest].append(expr)
-
-    list(mlil.traverse(travse_if_const_compare))
-    list(mlil.traverse(travse_define))
+    ifTable = find_if_const_compare(mlil)
+    defineTable = find_define(mlil)
 
     if not ret_int:
         for x in ifTable:

@@ -78,7 +78,10 @@ class SimpleVisitor(BNILVisitor):
 
     def visit_MLIL_IF(self, expr):
         result: BoolRef = self.visit(expr.condition)
-        r2: bool = simplify(result)
+        r2 = simplify(result)
+        if not isinstance(r2, BoolRef):
+            raise TypeError("if condition is not bool")
+        log_info(f"if condition: {r2} {type(r2)}")
         if r2:
             return (True, expr.true)
         else:
@@ -89,8 +92,7 @@ class SimpleVisitor(BNILVisitor):
 
     def visit_MLIL_SET_VAR(self, expr):
         var = make_variable_z3(expr.dest)
-        value = self.visit(expr.src)
-        value = simplify(value)
+        value = simplify(self.visit(expr.src))
         size = expr.dest.type.width
         if isinstance(value, int):
             value = BitVecVal(value, size * 8)
@@ -108,15 +110,15 @@ class SimpleVisitor(BNILVisitor):
         if expr.src.name in self.vars:
             return self.vars[expr.src.name]["value"]
         else:
-            raise Exception(f"var {expr.src.name} not found")
-            # newVar = make_variable_z3(expr.src)
-            # self.vars[expr.src.name] = {
-            #     "value": newVar,
-            #     "size": expr.src.type.width,
-            #     "var": newVar,
-            # }
-            # log_error(f"new var: {newVar}")
-            # return self.vars[expr.src.name]["value"]
+            # raise Exception(f"var {expr.src.name} not found")
+            newVar = make_variable_z3(expr.src)
+            self.vars[expr.src.name] = {
+                "value": newVar,
+                "size": expr.src.type.width,
+                "var": newVar,
+            }
+            # log_error(f"not found,creat new var: {newVar}")
+            return self.vars[expr.src.name]["value"]
 
     def visit_MLIL_CONST(self, expr):
         if expr.size == 0 and expr.constant in (0, 1):

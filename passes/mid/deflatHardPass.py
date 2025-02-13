@@ -9,6 +9,8 @@ from binaryninja import (
     MediumLevelILInstruction,
     MediumLevelILLabel,
     Variable,
+    MediumLevelILConst,
+    MediumLevelILVar,
 )
 
 from ...utils import (
@@ -39,8 +41,8 @@ def emu_hard(instrs: list[MediumLevelILInstruction], white_vars: list[Variable])
                     walked_instrs.append(instr)
                 case MediumLevelILIf():
                     # if any(var not in white_vars for var in instr.vars_read):
-                        # log_error(f"ck var {instr}")
-                        # return (False, None, [])
+                    # log_error(f"ck var {instr}")
+                    # return (False, None, [])
                     _, nextip = v.visit(instr)
                     if i + 1 < len(instrs) and nextip != instrs[i + 1].instr_index:
                         log_error(
@@ -57,10 +59,27 @@ def emu_hard(instrs: list[MediumLevelILInstruction], white_vars: list[Variable])
                         return (False, None, [])
                     walked_instrs.append(instr)
         except Exception as e:
-            # log_error(f"error:: {instr.instr_index}::{instr}")
-            # log_error(f"{e}")
+            log_error(f"error:: {instr.instr_index}::{instr}")
+            from pprint import pformat
+
+            log_error(pformat(instrs))
+            log_error(pformat(v.vars))
+            log_error(f"{e}")
             return (False, None, [])
     raise  # never reach here
+
+
+def quick_check(
+    instrs: list[MediumLevelILInstruction],
+    mlil: MediumLevelILFunction,
+):
+    define_var: Variable = instrs[0].dest
+    for instr in instrs[1:]:
+        if not isinstance(instr, MediumLevelILSetVar):
+            continue
+        if instr.dest == define_var and isinstance(instr.src, MediumLevelILConst):
+            return False
+    return True
 
 
 def pass_deflate_hard(analysis_context: AnalysisContext):
@@ -111,9 +130,10 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
             define_state_var = def_instr.vars_written[0]
             if_state_var = if_instr.vars_read[0]
             instrs = [mlil[i] for i in path_full]
-            r, target_idx, unused_instrs = emu_hard(
-                instrs, [define_state_var, if_state_var]
-            )
+            r = quick_check(instrs, mlil)
+            if not r:
+                continue
+            r, target_idx, unused_instrs = emu_hard(instrs, state_vars)
             if not r:
                 continue
             # log_error(f"r: {r}, target_idx: {target_idx}, unused_instrs: {unused_instrs}")

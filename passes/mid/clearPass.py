@@ -262,17 +262,6 @@ def pass_swap_if(analysis_context: AnalysisContext):
     if mlil is None:
         return
 
-    def traverse_find_if(instr):
-        if isinstance(instr, MediumLevelILIf) and not isinstance(
-            instr.condition, MediumLevelILVar
-        ):
-            if hasattr(instr.condition, "left") and hasattr(instr.condition, "right"):
-                if isinstance(instr.condition.left, MediumLevelILConst) and isinstance(
-                    instr.condition.right, MediumLevelILVar
-                ):
-                    return instr
-        return
-
     reverse_operations = {
         MediumLevelILOperation.MLIL_CMP_E: MediumLevelILOperation.MLIL_CMP_E,
         MediumLevelILOperation.MLIL_CMP_NE: MediumLevelILOperation.MLIL_CMP_NE,
@@ -285,7 +274,17 @@ def pass_swap_if(analysis_context: AnalysisContext):
         MediumLevelILOperation.MLIL_CMP_SLE: MediumLevelILOperation.MLIL_CMP_SGE,
         MediumLevelILOperation.MLIL_CMP_SGE: MediumLevelILOperation.MLIL_CMP_SLE,
     }
-    if_instrs: List[MediumLevelILIf] = mlil.traverse(traverse_find_if)
+    if_instrs: List[MediumLevelILIf] = []
+    for block in mlil.basic_blocks:
+        instr = block[-1]
+        if isinstance(instr, MediumLevelILIf) and not isinstance(
+            instr.condition, MediumLevelILVar
+        ):
+            if hasattr(instr.condition, "left") and hasattr(instr.condition, "right"):
+                if isinstance(instr.condition.left, MediumLevelILConst) and isinstance(
+                    instr.condition.right, MediumLevelILVar
+                ):
+                    if_instrs.append(instr)
     updated = False
     for if_instr in if_instrs:
         condition = if_instr.condition

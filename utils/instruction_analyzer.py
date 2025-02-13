@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import Generator, List, Dict, Any
 from pprint import pformat
 from binaryninja import (
     MediumLevelILFunction,
@@ -52,41 +52,31 @@ class InstructionAnalyzer:
     def find_state_transition_instructions(
         local_if_table: List[MediumLevelILIf],
         local_define_table: List[MediumLevelILSetVar],
-    ) -> List[Dict[str, Any]]:
+    ) -> Generator[Dict[str, Any], None, None]:
         """查找状态转换指令
         Args:
             local_if_table (List[MediumLevelILIf]): 本地if指令表
             local_define_table (List[MediumLevelILSetVar]): 本地定义指令表
-        Returns:
-            List[Dict[str, Any]]: 匹配的状态转换指令对列表
+        Yields:
+            Dict[str, Any]: 匹配的状态转换指令对
         """
-        paired_instructions = []
-
-        # 使用字典存储if_instr的key_if值
-        if_dict = {}
-        for if_instr in local_if_table:
-            if_const = if_instr.condition.right
-            if_const_width = if_instr.condition.left.size
-            key_if = if_const.value.value & get_mask(if_const_width)
-            if key_if not in if_dict:
-                if_dict[key_if] = []
-            if_dict[key_if].append(if_instr)
-
         for def_instr in local_define_table:
             t_def_const = def_instr.src
             t_def_const_width = def_instr.size
             key_define = t_def_const.value.value & get_mask(t_def_const_width)
-            if key_define in if_dict:
-                for if_instr in if_dict[key_define]:
-                    paired_instructions.append(
-                        {
-                            "if_instr": if_instr,
-                            "def_instr": def_instr,
-                            "def_const": def_instr.src,
-                            "if_const": if_instr.condition.right,
-                        }
-                    )
-        return paired_instructions
+
+            for if_instr in local_if_table:
+                if_const = if_instr.condition.right
+                if_const_width = if_instr.condition.left.size
+                key_if = if_const.value.value & get_mask(if_const_width)
+
+                if key_define == key_if:
+                    yield {
+                        "if_instr": if_instr,
+                        "def_instr": def_instr,
+                        "def_const": def_instr.src,
+                        "if_const": if_instr.condition.right,
+                    }
 
     @staticmethod
     def find_white_instructions(

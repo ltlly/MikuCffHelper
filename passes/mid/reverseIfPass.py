@@ -14,15 +14,14 @@ def pass_reverse_if(analysis_context: AnalysisContext):
     """
     mlil = analysis_context.function.mlil
 
-    def traverse_find_if(instr):
+    updated = False
+    ifInstrs = []
+    for block in mlil.basic_blocks:
+        instr = block[-1]
         if isinstance(instr, MediumLevelILIf) and isinstance(
             instr.condition, MediumLevelILCmpNe
         ):
-            return instr
-        return
-
-    updated = False
-    ifInstrs = list(mlil.traverse(traverse_find_if))
+            ifInstrs.append(instr)
     for instr in ifInstrs:
         condition = instr.condition
         trueLabel = MediumLevelILLabel()
