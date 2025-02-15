@@ -81,8 +81,7 @@ class SimpleVisitor(BNILVisitor):
         r2 = simplify(result)
         if not isinstance(r2, BoolRef):
             raise TypeError("if condition is not bool")
-        log_info(f"if condition: {r2} {type(r2)}")
-        if r2:
+        if r2.__bool__():
             return (True, expr.true)
         else:
             return (False, expr.false)

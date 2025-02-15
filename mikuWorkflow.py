@@ -20,7 +20,7 @@ def workflow_patch_llil(analysis_context: AnalysisContext):
             return
     except:
         return
-    # pass_copy_common_block(analysis_context)
+    pass_copy_common_block(analysis_context)
     pass_inline_if_cond(analysis_context)
     pass_spilt_if_block(analysis_context)
 

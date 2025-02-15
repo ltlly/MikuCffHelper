@@ -22,20 +22,28 @@ class CFGAnalyzer:
     """控制流图分析器，负责控制流图的分析和操作"""
 
     @staticmethod
-    def create_cfg_graph(mlil: MediumLevelILFunction):
+    def create_cfg_graph(il: MediumLevelILFunction | LowLevelILFunction):
         """创建基本块级别的控制流图
         Args:
             mlil (MediumLevelILFunction): 中间语言函数
         Returns:
             networkx.DiGraph: 生成的控制流图
         """
+        if isinstance(il, MediumLevelILFunction):
+            ifInstrInstance = MediumLevelILIf
+            gotoInstrInstance = MediumLevelILGoto
+        elif isinstance(il, LowLevelILFunction):
+            ifInstrInstance = LowLevelILIf
+            gotoInstrInstance = LowLevelILGoto
+        else:
+            raise TypeError("il must be MediumLevelILFunction or LowLevelILFunction")
         G = nx.DiGraph()
-        for block in mlil.basic_blocks:
+        for block in il.basic_blocks:
             G.add_node(block.start)
-            if isinstance(block[-1], MediumLevelILIf):
+            if isinstance(block[-1], ifInstrInstance):
                 G.add_edge(block.start, block[-1].true, edge_label="true")
                 G.add_edge(block.start, block[-1].false, edge_label="false")
-            elif isinstance(block[-1], MediumLevelILGoto):
+            elif isinstance(block[-1], gotoInstrInstance):
                 G.add_edge(block.start, block[-1].dest, edge_label="goto")
             else:
                 for edge in block.outgoing_edges:
@@ -43,25 +51,33 @@ class CFGAnalyzer:
         return G
 
     @staticmethod
-    def create_full_cfg_graph(mlil: MediumLevelILFunction):
+    def create_full_cfg_graph(il: MediumLevelILFunction | LowLevelILFunction):
         """创建指令级别的完整控制流图
         Args:
             mlil (MediumLevelILFunction): 中间语言函数
         Returns:
             networkx.DiGraph: 生成的完整控制流图
         """
+        if isinstance(il, MediumLevelILFunction):
+            ifInstrInstance = MediumLevelILIf
+            gotoInstrInstance = MediumLevelILGoto
+        elif isinstance(il, LowLevelILFunction):
+            ifInstrInstance = LowLevelILIf
+            gotoInstrInstance = LowLevelILGoto
+        else:
+            raise TypeError("il must be MediumLevelILFunction or LowLevelILFunction")
         G = nx.DiGraph()
-        for block in mlil.basic_blocks:
+        for block in il.basic_blocks:
             for i in range(block.start, block.end):
                 G.add_node(i)
             for i in range(block.start, block.end - 1):
                 G.add_edge(i, i + 1)
-        for block in mlil.basic_blocks:
+        for block in il.basic_blocks:
             lastInstr = block[-1]
-            if isinstance(lastInstr, MediumLevelILIf):
+            if isinstance(lastInstr, ifInstrInstance):
                 G.add_edge(lastInstr.instr_index, lastInstr.true, edge_label="true")
                 G.add_edge(lastInstr.instr_index, lastInstr.false, edge_label="false")
-            elif isinstance(lastInstr, MediumLevelILGoto):
+            elif isinstance(lastInstr, gotoInstrInstance):
                 G.add_edge(lastInstr.instr_index, lastInstr.dest, edge_label="goto")
             else:
                 for edge in block.outgoing_edges:
@@ -69,6 +85,24 @@ class CFGAnalyzer:
                         lastInstr.instr_index, edge.target.start, edge_label="unknown"
                     )
         return G
+
+    @staticmethod
+    def is_node_in_loop(graph: nx.DiGraph, node) -> bool:
+        # 获取所有强连通分量
+        sccs = list(nx.strongly_connected_components(graph))
+
+        # 查找包含目标节点的强连通分量
+        for scc in sccs:
+            if node in scc:
+                # 如果分量大小大于1，节点在循环中
+                if len(scc) > 1:
+                    return True
+                # 分量大小为1时，检查是否存在自环边
+                else:
+                    return graph.has_edge(node, node)
+
+        # 理论上不会执行到这里，因为节点必属于某个分量
+        return False
 
     @staticmethod
     def get_basic_block_at(basic_blocks, index):

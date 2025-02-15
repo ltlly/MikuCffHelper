@@ -68,6 +68,8 @@ def pass_copy_common_block(analysis_context: AnalysisContext):
         return
     for _ in range(len(llil.basic_blocks)):
         updated = False
+        g = CFGAnalyzer.create_cfg_graph(llil)
+
         for bb in llil.basic_blocks:
             pre_blocks = CFGAnalyzer.LLIL_get_incoming_blocks(llil, bb.start)
             if len(pre_blocks) <= 1:
@@ -78,7 +80,9 @@ def pass_copy_common_block(analysis_context: AnalysisContext):
                 for instr in pre_instrs
             ):
                 continue
-            if any(frontier.start == bb.start for frontier in bb.dominance_frontier):
+            # if any(frontier.start == bb.start for frontier in bb.dominance_frontier):
+            #     continue
+            if CFGAnalyzer.is_node_in_loop(g, bb.start):
                 continue
             for j in range(1, len(pre_blocks)):
                 updated = True

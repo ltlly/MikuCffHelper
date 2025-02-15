@@ -368,6 +368,7 @@ def pass_copy_common_block_mid(analysis_context: AnalysisContext):
     mlil = analysis_context.function.mlil
     for _ in range(len(mlil.basic_blocks)):
         updated = False
+        g = CFGAnalyzer.create_cfg_graph(mlil)
         for bb in mlil.basic_blocks:
             if bb.length > 5:
                 continue
@@ -381,7 +382,9 @@ def pass_copy_common_block_mid(analysis_context: AnalysisContext):
                 continue
             if len(pre_blocks) <= 1:
                 continue
-            if any(frontier.start == bb.start for frontier in bb.dominance_frontier):
+            # if any(frontier.start == bb.start for frontier in bb.dominance_frontier):
+            #     continue
+            if CFGAnalyzer.is_node_in_loop(g, bb.start):
                 continue
             for j in range(1, len(pre_blocks)):
                 updated = True

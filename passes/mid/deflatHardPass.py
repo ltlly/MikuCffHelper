@@ -59,12 +59,12 @@ def emu_hard(instrs: list[MediumLevelILInstruction], white_vars: list[Variable])
                         return (False, None, [])
                     walked_instrs.append(instr)
         except Exception as e:
-            log_error(f"error:: {instr.instr_index}::{instr}")
+            # log_error(f"error:: {instr.instr_index}::{instr}")
             from pprint import pformat
 
-            log_error(pformat(instrs))
-            log_error(pformat(v.vars))
-            log_error(f"{e}")
+            # log_error(pformat(instrs))
+            # log_error(pformat(v.vars))
+            # log_error(f"{e}")
             return (False, None, [])
     raise  # never reach here
 
