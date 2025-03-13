@@ -1,94 +1,6 @@
 from binaryninja import *
 
-from .common import ILSourceLocation
 from ..utils import log_error
-
-
-def copy_expr(
-    self, original: MediumLevelILInstruction, loc: ILSourceLocation = None
-) -> ExpressionIndex:
-    return self.expr(
-        original.operation,
-        original.raw_operands[0],
-        original.raw_operands[1],
-        original.raw_operands[2],
-        original.raw_operands[3],
-        original.raw_operands[4],
-        original.size,
-        loc,
-    )
-
-
-def cmp(opration: MediumLevelILOperation):
-    return lambda self, left, right, size, loc: self.expr(
-        opration, left, right, 0, 0, 0, size, loc
-    )
-
-
-def if_expr(
-    self,
-    operand: ExpressionIndex,
-    t: MediumLevelILLabel,
-    f: MediumLevelILLabel,
-    loc: ILSourceLocation = None,
-) -> ExpressionIndex:
-    if loc is not None and loc.valid:
-        return ExpressionIndex(
-            core.BNMediumLevelILIfWithLocation(
-                self.handle, operand, t.handle, f.handle, loc.address, loc.sourceOperand
-            )
-        )
-    return ExpressionIndex(
-        core.BNMediumLevelILIf(self.handle, operand, t.handle, f.handle)
-    )
-
-
-def goto(
-    self, label: MediumLevelILLabel, loc: ILSourceLocation = None
-) -> ExpressionIndex:
-    if loc is not None and loc.valid:
-        return ExpressionIndex(
-            core.BNMediumLevelILGotoWithLocation(
-                self.handle, label.handle, loc.address, loc.sourceOperand
-            )
-        )
-    return ExpressionIndex(core.BNMediumLevelILGoto(self.handle, label.handle))
-
-
-def expr(
-    self,
-    operation: MediumLevelILOperation,
-    a: int = 0,
-    b: int = 0,
-    c: int = 0,
-    d: int = 0,
-    e: int = 0,
-    size: int = 0,
-    loc: ILSourceLocation = None,
-) -> ExpressionIndex:
-    _operation = operation
-    if isinstance(operation, str):
-        _operation = MediumLevelILOperation[operation]
-    elif isinstance(operation, MediumLevelILOperation):
-        _operation = operation.value
-    if loc is not None and loc.valid:
-        return ExpressionIndex(
-            core.BNMediumLevelILAddExprWithLocation(
-                self.handle,
-                _operation,
-                loc.address,
-                loc.sourceOperand,
-                size,
-                a,
-                b,
-                c,
-                d,
-                e,
-            )
-        )
-    return ExpressionIndex(
-        core.BNMediumLevelILAddExpr(self.handle, _operation, size, a, b, c, d, e)
-    )
 
 
 def get_basic_block_at(self, index: int) -> Optional["basicblock.BasicBlock"]:
@@ -107,19 +19,36 @@ def get_basic_block_at(self, index: int) -> Optional["basicblock.BasicBlock"]:
     return None
 
 
-MediumLevelILFunction.get_basic_block_at = get_basic_block_at
+def if_expr(
+    self,
+    operand: ExpressionIndex,
+    t: MediumLevelILLabel,
+    f: MediumLevelILLabel,
+    loc: ILSourceLocation = None,
+) -> ExpressionIndex:
+    if loc:
+        return ExpressionIndex(
+            core.BNMediumLevelILIfWithLocation(
+                self.handle, operand, t.handle, f.handle, loc.address, loc.source_operand
+            )
+        )
+    return ExpressionIndex(
+        core.BNMediumLevelILIf(self.handle, operand, t.handle, f.handle)
+    )
 
-MediumLevelILFunction.expr = expr
-MediumLevelILFunction.copy_expr = copy_expr
+
+def goto(
+    self, label: MediumLevelILLabel, loc: ILSourceLocation = None
+) -> ExpressionIndex:
+    if loc:
+        return ExpressionIndex(
+            core.BNMediumLevelILGotoWithLocation(
+                self.handle, label.handle, loc.address,  loc.source_operand
+            )
+        )
+    return ExpressionIndex(core.BNMediumLevelILGoto(self.handle, label.handle))
+
+
+MediumLevelILFunction.get_basic_block_at = get_basic_block_at
 MediumLevelILFunction.if_expr = if_expr
 MediumLevelILFunction.goto = goto
-MediumLevelILFunction.cmp_e = cmp(MediumLevelILOperation.MLIL_CMP_E)
-MediumLevelILFunction.cmp_ne = cmp(MediumLevelILOperation.MLIL_CMP_NE)
-MediumLevelILFunction.cmp_slt = cmp(MediumLevelILOperation.MLIL_CMP_SLT)
-MediumLevelILFunction.cmp_sle = cmp(MediumLevelILOperation.MLIL_CMP_SLE)
-MediumLevelILFunction.cmp_sge = cmp(MediumLevelILOperation.MLIL_CMP_SGE)
-MediumLevelILFunction.cmp_sgt = cmp(MediumLevelILOperation.MLIL_CMP_SGT)
-MediumLevelILFunction.cmp_ult = cmp(MediumLevelILOperation.MLIL_CMP_ULT)
-MediumLevelILFunction.cmp_ule = cmp(MediumLevelILOperation.MLIL_CMP_ULE)
-MediumLevelILFunction.cmp_uge = cmp(MediumLevelILOperation.MLIL_CMP_UGE)
-MediumLevelILFunction.cmp_ugt = cmp(MediumLevelILOperation.MLIL_CMP_UGT)

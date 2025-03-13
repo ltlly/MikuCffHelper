@@ -9,8 +9,9 @@ from binaryninja import (
     MediumLevelILConst,
     MediumLevelILVar,
     MediumLevelILOperation,
+    ILSourceLocation,
 )
-from ...utils import ILSourceLocation, CFGAnalyzer
+from ...utils import CFGAnalyzer
 from ...utils import log_error
 
 
@@ -137,9 +138,7 @@ def pass_clear_if(analysis_context: AnalysisContext):
                 false_label.operand = false_target.instr_index
                 # 创建新的if指令
                 new_if = mlil.if_expr(
-                    mlil.copy_expr(
-                        if_instr.condition, ILSourceLocation.from_instruction(if_instr)
-                    ),
+                    mlil.copy_expr(if_instr.condition),
                     true_label,
                     false_label,
                     ILSourceLocation.from_instruction(if_instr),
@@ -179,7 +178,7 @@ def merge_block(
 
     # Copy instructions to new block
     for instr in instrs:
-        mlil.append(mlil.copy_expr(instr, ILSourceLocation.from_instruction(instr)))
+        mlil.append(mlil.copy_expr(instr))
 
     # Redirect control flow from predecessors
     for pre_instr in pre_instrs:
@@ -210,9 +209,7 @@ def merge_block(
             false_label = create_label(false_idx)
 
             # Create replacement If expression
-            new_cond = mlil.copy_expr(
-                pre_instr.condition, ILSourceLocation.from_instruction(pre_instr)
-            )
+            new_cond = mlil.copy_expr(pre_instr.condition)
             new_if = mlil.if_expr(
                 new_cond,
                 true_label,
@@ -290,10 +287,8 @@ def pass_swap_if(analysis_context: AnalysisContext):
         condition = if_instr.condition
         new_condition = mlil.expr(
             reverse_operations[condition.operation],
-            mlil.copy_expr(
-                condition.right, ILSourceLocation.from_instruction(if_instr)
-            ),
-            mlil.copy_expr(condition.left, ILSourceLocation.from_instruction(if_instr)),
+            mlil.copy_expr(condition.right),
+            mlil.copy_expr(condition.left),
             0,
             0,
             0,
@@ -336,7 +331,6 @@ def handle_pre_last_instr(mlil: MediumLevelILFunction, pre_last_instr, bb, copy_
                 mlil.if_expr(
                     mlil.copy_expr(
                         pre_last_instr.condition,
-                        ILSourceLocation.from_instruction(pre_last_instr),
                     ),
                     copy_label,
                     fix_false_label,
@@ -351,7 +345,6 @@ def handle_pre_last_instr(mlil: MediumLevelILFunction, pre_last_instr, bb, copy_
                 mlil.if_expr(
                     mlil.copy_expr(
                         pre_last_instr.condition,
-                        ILSourceLocation.from_instruction(pre_last_instr),
                     ),
                     fix_true_label,
                     copy_label,
@@ -393,11 +386,7 @@ def pass_copy_common_block_mid(analysis_context: AnalysisContext):
                 copy_label = MediumLevelILLabel()
                 mlil.mark_label(copy_label)
                 for l in range(bb.start, bb.end):
-                    mlil.append(
-                        mlil.copy_expr(
-                            mlil[l], ILSourceLocation.from_instruction(mlil[l])
-                        )
-                    )
+                    mlil.append(mlil.copy_expr(mlil[l]))
                 handle_pre_last_instr(mlil, pre_last_instr, bb, copy_label)
         if updated:
             mlil.finalize()

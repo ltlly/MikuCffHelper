@@ -10,7 +10,6 @@ from .instruction_analyzer import (
     SimpleVisitor,
 )
 from .mikuPlugin import suggest_stateVar, log_info, log_warn, log_error, make_stateVar
-from ..fix_binaryninja_api.common import ILSourceLocation
 
 __all__ = [
     "CFGAnalyzer",
@@ -23,5 +22,4 @@ __all__ = [
     "log_info",
     "log_warn",
     "log_error",
-    "ILSourceLocation",
 ]

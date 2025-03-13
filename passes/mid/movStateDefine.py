@@ -3,10 +3,11 @@ from binaryninja import (
     MediumLevelILSetVar,
     MediumLevelILInstruction,
     MediumLevelILBasicBlock,
+    ILSourceLocation,
 )
 
 from ...utils import collect_stateVar_info, StateMachine
-from ...utils import log_error, log_info, ILSourceLocation
+from ...utils import log_error, log_info
 
 
 def pass_mov_state_define(analysis_context: AnalysisContext):
@@ -65,7 +66,7 @@ def pass_mov_state_define(analysis_context: AnalysisContext):
             continue
         # 移动语句
         defines_copy = [
-            mlil.copy_expr(define, ILSourceLocation.from_instruction(define))
+            mlil.copy_expr(define)
             for define in defines
         ]
         not_defines_copy = list(range(block.start, block.end - 1))
@@ -74,7 +75,7 @@ def pass_mov_state_define(analysis_context: AnalysisContext):
             x for x in not_defines_copy if x not in [d.instr_index for d in defines]
         ]
         not_defines_copy = [
-            mlil.copy_expr(mlil[x], ILSourceLocation.from_instruction(mlil[x]))
+            mlil.copy_expr(mlil[x])
             for x in not_defines_copy
         ]
         will_copy = not_defines_copy + defines_copy

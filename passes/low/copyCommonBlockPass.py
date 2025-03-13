@@ -6,9 +6,9 @@ from binaryninja import (
     LowLevelILInstruction,
     LowLevelILBasicBlock,
     AnalysisContext,
+    ILSourceLocation,
 )
 
-from ...fix_binaryninja_api.common import ILSourceLocation
 from ...utils import CFGAnalyzer, log_error
 
 
@@ -34,7 +34,6 @@ def fix_pre_bb(
                 llil.if_expr(
                     llil.copy_expr(
                         pre_last_instr.condition,
-                        ILSourceLocation.from_instruction(pre_last_instr),
                     ),
                     copy_label,
                     fix_false_label,
@@ -49,7 +48,6 @@ def fix_pre_bb(
                 llil.if_expr(
                     llil.copy_expr(
                         pre_last_instr.condition,
-                        ILSourceLocation.from_instruction(pre_last_instr),
                     ),
                     fix_true_label,
                     copy_label,
@@ -91,11 +89,7 @@ def pass_copy_common_block(analysis_context: AnalysisContext):
                 copy_label = LowLevelILLabel()
                 llil.mark_label(copy_label)
                 for l in range(bb.start, bb.end):
-                    llil.append(
-                        llil.copy_expr(
-                            llil[l], ILSourceLocation.from_instruction(llil[l])
-                        )
-                    )
+                    llil.append(llil.copy_expr(llil[l]))
                 fix_pre_bb(llil, pre_last_instr, bb, copy_label)
         if updated:
             llil.finalize()

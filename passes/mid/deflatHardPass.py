@@ -11,6 +11,7 @@ from binaryninja import (
     Variable,
     MediumLevelILConst,
     MediumLevelILVar,
+    ILSourceLocation,
 )
 
 from ...utils import (
@@ -19,7 +20,6 @@ from ...utils import (
     CFGAnalyzer,
     StateMachine,
     InstructionAnalyzer,
-    ILSourceLocation,
     SimpleVisitor,
 )
 
@@ -45,9 +45,9 @@ def emu_hard(instrs: list[MediumLevelILInstruction], white_vars: list[Variable])
                     # return (False, None, [])
                     _, nextip = v.visit(instr)
                     if i + 1 < len(instrs) and nextip != instrs[i + 1].instr_index:
-                        log_error(
-                            f"path not eq! want{instrs[i + 1].instr_index} but {nextip}"
-                        )
+                        # log_error(
+                        #     f"path not eq! want{instrs[i + 1].instr_index} but {nextip}"
+                        # )
                         return (False, None, [])
                     elif i == len(instrs) - 1:
                         return (True, nextip, walked_instrs)
@@ -148,7 +148,7 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
             mlil.mark_label(new_block_label)
             for instr in unused_instrs:
                 mlil.append(
-                    mlil.copy_expr(instr, ILSourceLocation.from_instruction(instr))
+                    mlil.copy_expr(instr)
                 )
             mlil.append(mlil.goto(target_label))
 

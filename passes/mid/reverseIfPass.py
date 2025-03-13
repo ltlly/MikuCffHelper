@@ -4,8 +4,8 @@ from binaryninja import (
     MediumLevelILOperation,
     AnalysisContext,
     MediumLevelILLabel,
+    ILSourceLocation,
 )
-from ...utils import ILSourceLocation
 
 
 def pass_reverse_if(analysis_context: AnalysisContext):

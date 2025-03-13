@@ -1,9 +1,9 @@
 # Make sure ifInstr is a single block
 
 
-from binaryninja import LowLevelILIf, LowLevelILLabel, AnalysisContext
+from binaryninja import LowLevelILIf, LowLevelILLabel, AnalysisContext, ILSourceLocation
 
-from ...utils import log_info, ILSourceLocation
+from ...utils import log_info
 
 
 def pass_spilt_if_block(analysis_context: AnalysisContext):
@@ -17,7 +17,7 @@ def pass_spilt_if_block(analysis_context: AnalysisContext):
             continue
         goto_label = LowLevelILLabel()
         llil.mark_label(goto_label)
-        llil.append(llil.copy_expr(ifinstr, ILSourceLocation.from_instruction(ifinstr)))
+        llil.append(llil.copy_expr(ifinstr))
         llil.replace_expr(
             ifinstr.expr_index,
             llil.goto(goto_label, ILSourceLocation.from_instruction(ifinstr)),

@@ -6,9 +6,8 @@ from binaryninja import (
     LowLevelILSetFlagSsa,
     LowLevelILFlagPhi,
     LowLevelILLabel,
+    ILSourceLocation,
 )
-
-from ...utils import ILSourceLocation
 
 
 def pass_inline_if_cond(analysis_context: AnalysisContext):
@@ -36,7 +35,7 @@ def pass_inline_if_cond(analysis_context: AnalysisContext):
         newFalseLabel = LowLevelILLabel()
         newFalseLabel.operand = ifInstr.false
         newIfinstr = llil.if_expr(
-            llil.copy_expr(defineInstr.src, ILSourceLocation.from_instruction(ifInstr)),
+            llil.copy_expr(defineInstr.src),
             newTrueLabel,
             newFalseLabel,
             ILSourceLocation.from_instruction(ifInstr),

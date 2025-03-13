@@ -6,6 +6,7 @@ from binaryninja import (
     Function,
     AnalysisContext,
     MediumLevelILSetVar,
+    ILSourceLocation,
     MediumLevelILInstruction,
     MediumLevelILLabel,
 )
@@ -16,7 +17,6 @@ from ...utils import (
     CFGAnalyzer,
     StateMachine,
     InstructionAnalyzer,
-    ILSourceLocation,
 )
 
 # todo sub_1f310
