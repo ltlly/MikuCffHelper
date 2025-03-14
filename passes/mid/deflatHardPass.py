@@ -147,9 +147,7 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
             new_block_label = MediumLevelILLabel()
             mlil.mark_label(new_block_label)
             for instr in unused_instrs:
-                mlil.append(
-                    mlil.copy_expr(instr)
-                )
+                mlil.append(mlil.copy_expr(instr))
             mlil.append(mlil.goto(target_label))
 
             mlil.replace_expr(

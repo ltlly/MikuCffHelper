@@ -65,19 +65,13 @@ def pass_mov_state_define(analysis_context: AnalysisContext):
         if not can_move:
             continue
         # 移动语句
-        defines_copy = [
-            mlil.copy_expr(define)
-            for define in defines
-        ]
+        defines_copy = [mlil.copy_expr(define) for define in defines]
         not_defines_copy = list(range(block.start, block.end - 1))
         # 最后一句不copy
         not_defines_copy = [
             x for x in not_defines_copy if x not in [d.instr_index for d in defines]
         ]
-        not_defines_copy = [
-            mlil.copy_expr(mlil[x])
-            for x in not_defines_copy
-        ]
+        not_defines_copy = [mlil.copy_expr(mlil[x]) for x in not_defines_copy]
         will_copy = not_defines_copy + defines_copy
         for i in range(block.start, block.end - 1):
             mlil.replace_expr(mlil[i].expr_index, will_copy[i - block.start])
