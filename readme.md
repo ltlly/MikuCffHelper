@@ -26,16 +26,35 @@ Only some functions in the example/arm64-v8a.so work well because the feature to
 ##  原理
 
 
-通过binaryninja 的workflow来修改各级il，从而实现去除控制流平坦化
+原始IL → LLIL优化（代码克隆/条件拆分） 
+     → MLIL优化（状态识别/路径消解）
+     → HLIL优化（语义恢复）
 
-fix_binaryninja_api 通过使用monkey_patch来修改binaryninja的api，从而修复部分bug（如 get_block_at在某些情况下 标准api实现不正确 llil的copy_expr在某些情况下会报错），实现在cpp的api中实现了而在python中未实现的功能（如新增instr的同时指定该instr的地址）
+### ​低级优化层
 
-passes/low  实现 复制公共基础块，将if语句放置在单独的block中，内联if(cond) 语句，从而利于在mlil中进行处理
-passes/mid  实现 清理Pass（如合并连续的goto，if（true）等语句，合并block，将if（123==a）反转为if(a==123) ）实现将stateVar赋值语句放在当前block尾部，实现将if a!=1 反转为 if a==1, 实现去平坦化
+公共代码块复制（pass_copy_common_block）
 
-去平坦化: 收集所有为变量赋值为大常数的语句，与if中比较大常数的语句，通过统计学特征来统计出高置信度的stateVar变量，使用nx将cfg抽象为有向有环无权图（唯一入口点，多个出口点），通过nx的路径搜索，得出路径，然后部分模拟执行该路径，如果可达则patch该路径
+If条件内联（pass_inline_if_cond）
 
-缺点：应该实现动态追踪stateVar赋值来源，使用更多的特征来收集stateVar，在某些高混淆的情况下，nx搜索出的路径不可达的情况较多，
+分支块独立化（pass_spilt_if_block）
 
-优点： 相比于D810，性能较优，同时可以处理多层平坦化嵌套的情况
+### 中级优化层
+
+
+基于NetworkX的CFG路径搜索
+
+部分路径模拟执行（emu_hard）
+
+✅ 已实现功能：
+
+控制流平坦化解构
+跨架构基础支持
+核心优化流水线
+
+
+⚠️ 已知限制：
+
+需手动选择目标函数
+依赖预定义的状态变量特征
+
 (来自2025届本科生正在开发的毕设项目)
