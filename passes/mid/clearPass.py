@@ -111,7 +111,6 @@ def pass_clear_if(analysis_context: AnalysisContext):
     当if语句的then或else分支指向goto时，直接修改为指向goto的目标
     """
     mlil = analysis_context.mlil
-
     def get_final_target(instr) -> MediumLevelILInstruction:
         """
         获取指令的最终目标，处理连续goto
@@ -136,7 +135,6 @@ def pass_clear_if(analysis_context: AnalysisContext):
                 false_label = MediumLevelILLabel()
                 true_label.operand = true_target.instr_index
                 false_label.operand = false_target.instr_index
-                # 创建新的if指令
                 new_if = mlil.if_expr(
                     mlil.copy_expr(if_instr.condition),
                     true_label,
@@ -145,6 +143,7 @@ def pass_clear_if(analysis_context: AnalysisContext):
                 )
                 mlil.replace_expr(if_instr.expr_index, new_if)
                 updated = True
+                break
         if updated:
             mlil.finalize()
             mlil.generate_ssa_form()
@@ -258,7 +257,6 @@ def pass_swap_if(analysis_context: AnalysisContext):
     mlil = func.mlil
     if mlil is None:
         return
-
     reverse_operations = {
         MediumLevelILOperation.MLIL_CMP_E: MediumLevelILOperation.MLIL_CMP_E,
         MediumLevelILOperation.MLIL_CMP_NE: MediumLevelILOperation.MLIL_CMP_NE,
@@ -375,8 +373,6 @@ def pass_copy_common_block_mid(analysis_context: AnalysisContext):
                 continue
             if len(pre_blocks) <= 1:
                 continue
-            # if any(frontier.start == bb.start for frontier in bb.dominance_frontier):
-            #     continue
             if CFGAnalyzer.is_node_in_loop(g, bb.start):
                 continue
             for j in range(1, len(pre_blocks)):
@@ -388,6 +384,7 @@ def pass_copy_common_block_mid(analysis_context: AnalysisContext):
                 for l in range(bb.start, bb.end):
                     mlil.append(mlil.copy_expr(mlil[l]))
                 handle_pre_last_instr(mlil, pre_last_instr, bb, copy_label)
+            break
         if updated:
             mlil.finalize()
             mlil.generate_ssa_form()

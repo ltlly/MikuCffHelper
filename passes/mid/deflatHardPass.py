@@ -52,8 +52,10 @@ def emu_hard(instrs: list[MediumLevelILInstruction], white_vars: list[Variable])
                     elif i == len(instrs) - 1:
                         return (True, nextip, walked_instrs)
                 case _:
-                    if any(var in white_vars for var in instr.vars_read) or any(
-                        var in white_vars for var in instr.vars_written
+                    vars_read = instr.vars_read
+                    vars_written = instr.vars_written
+                    if any(var in white_vars for var in vars_read) or any(
+                        var in white_vars for var in vars_written
                     ):
                         log_error(f"ck _ {instr.instr_index}::{instr}")
                         return (False, None, [])
@@ -90,8 +92,8 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
         return
 
     # 保存已处理的 define 与 if 指令，避免重复处理
-    worked_define = []
-    worked_if = []
+    worked_define = set()
+    worked_if = set()
     # 最多遍历基本块数量的两倍次，若无更新则提前退出
     for _ in range(len(mlil.basic_blocks) * 2):
         updated = False
@@ -149,7 +151,6 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
             for instr in unused_instrs:
                 mlil.append(mlil.copy_expr(instr))
             mlil.append(mlil.goto(target_label))
-
             mlil.replace_expr(
                 will_patch_instr.expr_index,
                 mlil.goto(
@@ -157,7 +158,6 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
                 ),
             )
             updated = True
-
         # 若本轮有更新，则重新生成 MLIL SSA 形式，否则退出循环
         if updated:
             mlil.finalize()
