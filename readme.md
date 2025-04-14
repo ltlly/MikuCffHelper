@@ -1,5 +1,10 @@
 # MikuCffHelper
 
+## 0.bug
+
+4.0.7045 以上版本会闪退 不知道什么原因
+
+
 ## 1. Introduction
 
 This is a helper for CFF(Control flow flattening). It can help you to deflat the OLLVM CFF obfuscated code.
