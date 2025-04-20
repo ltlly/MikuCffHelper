@@ -71,6 +71,63 @@ def quick_check(
     return True
 
 
+def find_valid_paths(G, source, target, mlil, state_vars, max_paths=10):
+    """
+    自定义路径搜索算法，在搜索过程中应用剪枝策略
+    
+    Args:
+        G: 控制流图
+        source: 起始节点
+        target: 目标节点
+        mlil: MediumLevelILFunction
+        state_vars: 状态变量列表
+        max_paths: 最大返回路径数
+        
+    Returns:
+        有效路径列表
+    """
+    # 使用广度优先搜索，同时记录历史路径
+    queue = [(source, [source])]
+    valid_paths = []
+    visited_prefixes = set()  # 记录已经访问过的无效路径前缀
+    define_instr = mlil[source]
+    define_il_var = define_instr.dest
+    define_const_val = define_instr.src.constant
+    while queue and len(valid_paths) < max_paths:
+        node, path = queue.pop(0)
+        if node == target:
+            instrs = [mlil[i] for i in path]
+            if quick_check(instrs, mlil):
+                try:
+                    r, target_idx, unused_instrs = emu_hard(instrs, state_vars)
+                    if r:
+                        valid_paths.append((path, target_idx, unused_instrs))
+                except Exception:
+                    pass
+            continue
+        neighbors = list(G.neighbors(node))
+        path_prefix = tuple(path)
+        if path_prefix in visited_prefixes:
+            continue
+        valid_extension = False
+        for neighbor in neighbors:
+            # 避免环路
+            if neighbor in path:
+                continue
+                
+            extended_path = path + [neighbor]
+            if isinstance(mlil[neighbor], MediumLevelILSetVar):
+                n_instr = mlil[neighbor]
+                if isinstance(n_instr, MediumLevelILSetVar) and n_instr.dest == define_il_var:
+                    if isinstance(n_instr.src, MediumLevelILConst) and n_instr.src.constant != define_const_val:
+                        continue
+            queue.append((neighbor, extended_path))
+            valid_extension = True
+        if not valid_extension:
+            visited_prefixes.add(path_prefix)
+    return valid_paths
+
+
 def pass_deflate_hard(analysis_context: AnalysisContext):
     function: Function = analysis_context.function
     mlil: MediumLevelILFunction | None = function.mlil
@@ -109,18 +166,13 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
             ]
             if_instr: MediumLevelILInstruction | MediumLevelILIf = trans["if_instr"]
             try:
-                path_generator = nx.shortest_simple_paths(
-                    G_full, def_instr.instr_index, if_instr.instr_index
+                # 使用自定义路径搜索算法替代 NetworkX 的 shortest_simple_paths
+                valid_paths = find_valid_paths(
+                    G_full, def_instr.instr_index, if_instr.instr_index, mlil, state_vars
                 )
-
-                for path_full in path_generator:
-                    instrs = [mlil[i] for i in path_full]
-                    r = quick_check(instrs, mlil)
-                    if not r:
-                        continue
-                    r, target_idx, unused_instrs = emu_hard(instrs, state_vars)
-                    if not r:
-                        continue
+                assert len(valid_paths)  <= 1, "too many paths"
+                for path_data in valid_paths:
+                    path_full, target_idx, unused_instrs = path_data
                     target_label = MediumLevelILLabel()
                     target_label.operand = target_idx
                     will_patch_instr = mlil[path_full[0]]
@@ -139,12 +191,11 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
                     break
             except nx.NetworkXNoPath:
                 continue
-        if updated:
-            mlil.finalize()
-            mlil.generate_ssa_form()
-        else:
+            if updated:
+                mlil.finalize()
+                mlil.generate_ssa_form()
+                break
+        if not updated:
             break
-
-    # 最后再次 finalize 与生成 SSA
     mlil.finalize()
     mlil.generate_ssa_form()

@@ -4,7 +4,6 @@
 from binaryninja import LowLevelILIf, LowLevelILLabel, AnalysisContext, ILSourceLocation
 
 
-
 def pass_spilt_if_block(analysis_context: AnalysisContext):
     llil = analysis_context.function.llil
     updated = False
