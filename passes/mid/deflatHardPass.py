@@ -54,6 +54,11 @@ def emu_hard(instrs: list[MediumLevelILInstruction], white_vars: list[Variable])
                         return (False, None, [])
                     walked_instrs.append(instr)
         except Exception as e:
+            log_text = ""
+            log_text+= f"Exception in emu_hard: {e}\n"
+            for instr in instrs:
+                log_text += f"{instr.instr_index}::{instr}\n"
+            log_error(log_text)
             return (False, None, [])
     raise 
 
@@ -100,6 +105,9 @@ def find_valid_paths(G, source, target, mlil, state_vars, max_paths=10):
             if quick_check(instrs, mlil):
                 try:
                     r, target_idx, unused_instrs = emu_hard(instrs, state_vars)
+                    log_error(
+                        f"emu_hard: {r},{instrs}"
+                    )
                     if r:
                         valid_paths.append((path, target_idx, unused_instrs))
                 except Exception:
@@ -114,12 +122,13 @@ def find_valid_paths(G, source, target, mlil, state_vars, max_paths=10):
             # 避免环路
             if neighbor in path:
                 continue
-                
             extended_path = path + [neighbor]
             if isinstance(mlil[neighbor], MediumLevelILSetVar):
                 n_instr = mlil[neighbor]
                 if isinstance(n_instr, MediumLevelILSetVar) and n_instr.dest == define_il_var:
                     if isinstance(n_instr.src, MediumLevelILConst) and n_instr.src.constant != define_const_val:
+                        continue
+                    if isinstance(n_instr.src, MediumLevelILVar):
                         continue
             queue.append((neighbor, extended_path))
             valid_extension = True

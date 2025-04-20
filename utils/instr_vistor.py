@@ -34,20 +34,14 @@ class BNILVisitor(object):
         super(BNILVisitor, self).__init__()
 
     def visit(self, expression) -> Any:
-        try:
-            method_name = "visit_{}".format(expression.operation.name)
-            if hasattr(self, method_name):
-                value = getattr(self, method_name)(expression)
-            else:
-                log_error(f"{repr(expression.operation)} not implemented")
-                raise NotImplementedError
-            return value
-        except Exception as e:
-            # log_error(
-            #     f"[{expression.instr_index}]::Error in {repr(expression.operation)} "
-            # )
-            # log_error(f"{e}")
-            raise e
+        method_name = "visit_{}".format(expression.operation.name)
+        if hasattr(self, method_name):
+            value = getattr(self, method_name)(expression)
+        else:
+            log_error(f"{repr(expression.operation)} not implemented")
+            raise NotImplementedError
+        return value
+        
 
 
 def make_variable_z3(var: Variable) -> Union[BitVecRef, BoolRef, BitVecNumRef]:
