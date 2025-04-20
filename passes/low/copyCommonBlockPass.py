@@ -78,8 +78,6 @@ def pass_copy_common_block(analysis_context: AnalysisContext):
                 for instr in pre_instrs
             ):
                 continue
-            # if any(frontier.start == bb.start for frontier in bb.dominance_frontier):
-            #     continue
             if CFGAnalyzer.is_node_in_loop(g, bb.start):
                 continue
             for j in range(1, len(pre_blocks)):
@@ -88,8 +86,8 @@ def pass_copy_common_block(analysis_context: AnalysisContext):
                 pre_last_instr = llil[pre_block.end - 1]
                 copy_label = LowLevelILLabel()
                 llil.mark_label(copy_label)
-                for l in range(bb.start, bb.end):
-                    llil.append(llil.copy_expr(llil[l]))
+                for instr_index in range(bb.start, bb.end):
+                    llil.append(llil.copy_expr(llil[instr_index]))
                 fix_pre_bb(llil, pre_last_instr, bb, copy_label)
         if updated:
             llil.finalize()

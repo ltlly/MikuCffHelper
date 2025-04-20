@@ -1,5 +1,6 @@
 from typing import List
 from binaryninja import (
+    MediumLevelILCmpE,
     MediumLevelILFunction,
     MediumLevelILGoto,
     AnalysisContext,
@@ -7,10 +8,13 @@ from binaryninja import (
     MediumLevelILIf,
     MediumLevelILInstruction,
     MediumLevelILConst,
+    MediumLevelILSetVar,
     MediumLevelILVar,
     MediumLevelILOperation,
     ILSourceLocation,
 )
+
+from ...utils.state_machine import StateMachine
 from ...utils import CFGAnalyzer
 from ...utils import log_error
 
@@ -39,6 +43,72 @@ def pass_clear_const_if(analysis_context: AnalysisContext):
             const_val = condition.constant
             if const_val not in (0, 1):
                 continue
+            label = MediumLevelILLabel()
+            label.operand = if_instr.true if const_val else if_instr.false
+            goto_instr = mlil.goto(label, ILSourceLocation.from_instruction(if_instr))
+            mlil.replace_expr(if_instr.expr_index, goto_instr)
+            updated = True
+        if updated:
+            mlil.finalize()
+            mlil.generate_ssa_form()
+        else:
+            break
+    mlil.finalize()
+    mlil.generate_ssa_form()
+
+
+def pass_clear_SSA_const_if(analysis_context: AnalysisContext):
+    """
+    清除可以通过SSA推断出是const的if
+
+    >>> current_il_instruction
+    <MediumLevelILIf: if (state-1#5 == 0xc176f739) then 61 @ 0x403bec else 62 @ 0x403bd0>
+    >>> current_il_instruction.condition.left
+    <MediumLevelILVarSsa: state-1#5>
+    >>> current_mlil.get_ssa_var_definition(_)
+    <MediumLevelILSetVar: state-1 = -0x3e8908c7>
+    参数：
+        analysis_context: 包含MLIL中间表示的分析上下文
+    返回值：
+        无
+    """
+    mlil = analysis_context.mlil
+    function = analysis_context.function
+    for _ in range(len(mlil.basic_blocks)):
+        updated = False
+        state_vars = StateMachine.find_state_var(function)
+        for bb in mlil.basic_blocks:
+            if_instr = bb[-1]
+            if not isinstance(if_instr, MediumLevelILIf):
+                continue
+            condition = if_instr.condition
+            if not isinstance(condition, MediumLevelILCmpE):
+                continue
+            if not hasattr(condition, "left"):
+                continue
+            left_il_var = condition.left
+            if not isinstance(left_il_var, MediumLevelILVar):
+                continue
+            if left_il_var.var not in state_vars:
+                continue
+            right_const_il = condition.right
+            if not isinstance(right_const_il, MediumLevelILConst):
+                continue
+
+            if_val = right_const_il.constant & 0xFFFFFFFF
+
+            state_il_var = left_il_var
+            state_il_var_ssa = state_il_var.ssa_form
+
+            def_instr = mlil.get_ssa_var_definition(state_il_var_ssa)
+            if not isinstance(def_instr, MediumLevelILSetVar):
+                continue
+            if not isinstance(def_instr.src, MediumLevelILConst):
+                continue
+            if def_instr.dest.type.width != 4:
+                continue
+            define_val = def_instr.src.constant & 0xFFFFFFFF
+            const_val = if_val == define_val
             label = MediumLevelILLabel()
             label.operand = if_instr.true if const_val else if_instr.false
             goto_instr = mlil.goto(label, ILSourceLocation.from_instruction(if_instr))
@@ -111,6 +181,7 @@ def pass_clear_if(analysis_context: AnalysisContext):
     当if语句的then或else分支指向goto时，直接修改为指向goto的目标
     """
     mlil = analysis_context.mlil
+
     def get_final_target(instr) -> MediumLevelILInstruction:
         """
         获取指令的最终目标，处理连续goto
@@ -401,3 +472,4 @@ def pass_clear(analysis_context: AnalysisContext):
     pass_swap_if(analysis_context)
     pass_merge_block(analysis_context)
     pass_copy_common_block_mid(analysis_context)
+    pass_clear_SSA_const_if(analysis_context)
