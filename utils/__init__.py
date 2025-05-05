@@ -3,7 +3,7 @@
 """
 
 from .cfg_analyzer import CFGAnalyzer
-from .state_machine import StateMachine, collect_stateVar_info
+from .state_machine import StateMachine
 from .instruction_analyzer import (
     InstructionAnalyzer,
     unsigned_to_signed_32bit,
@@ -17,7 +17,6 @@ __all__ = [
     "StateMachine",
     "InstructionAnalyzer",
     "suggest_stateVar",
-    "collect_stateVar_info",
     "unsigned_to_signed_32bit",
     "log_info",
     "log_warn",

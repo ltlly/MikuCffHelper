@@ -12,85 +12,6 @@ from binaryninja import (
 )
 
 
-def collect_stateVar_info(func: Function, ret_int: bool = True):
-    """收集函数中的状态变量信息
-    Args:
-        func (Function): 目标函数
-        ret_int (bool): 是否返回整数值
-    Returns:
-        Tuple[Dict, Dict]: 包含if表和定义表的元组
-    """
-    args = func.parameter_vars
-    args_name = [var.name for var in args]
-    mlil = func.medium_level_il
-    if not mlil:
-        return {}, {}
-    ifTable: Dict[
-        MediumLevelILVar | Any, List[MediumLevelILInstruction] | List[int] | Any
-    ] = {}
-    defineTable: Dict[
-        MediumLevelILVar | Any, List[MediumLevelILInstruction] | List[int] | Any
-    ] = {}
-
-    def find_if_const_compare(mlil: MediumLevelILFunction):
-        ifTable = {}
-        for bb in mlil.basic_blocks:
-            expr = bb[-1]
-            if not isinstance(expr, MediumLevelILIf):
-                continue
-            condition = expr.condition
-            if isinstance(condition, MediumLevelILVar):
-                continue
-            if not hasattr(condition, "right"):
-                continue
-            if isinstance(condition.right, MediumLevelILConst):
-                left = condition.left
-                for token in left.tokens:
-                    if token in args_name:
-                        continue
-                if not isinstance(left, MediumLevelILVar):
-                    continue
-                if left.src not in ifTable:
-                    ifTable[left.src] = []
-                if ret_int:
-                    ifTable[left.src].append(condition.right.value.value)
-                else:
-                    ifTable[left.src].append(expr)
-        return ifTable
-
-    def find_define(mlil: MediumLevelILFunction):
-        defineTable = {}
-        for expr in mlil.instructions:
-            if not isinstance(expr, MediumLevelILSetVar):
-                continue
-            if not isinstance(expr.src, MediumLevelILConst):
-                continue
-            for token in expr.tokens:
-                if token in args_name:
-                    continue
-            if expr.dest not in defineTable:
-                defineTable[expr.dest] = []
-            if ret_int:
-                defineTable[expr.dest].append(expr.src.value.value)
-            else:
-                defineTable[expr.dest].append(expr)
-        return defineTable
-
-    ifTable = find_if_const_compare(mlil)
-    defineTable = find_define(mlil)
-
-    if not ret_int:
-        for x in ifTable:
-            ifTable[x] = [
-                instr for instr in ifTable[x] if instr.instr_index < len(mlil)
-            ]
-        for x in defineTable:
-            defineTable[x] = [
-                instr for instr in defineTable[x] if instr.instr_index < len(mlil)
-            ]
-    return ifTable, defineTable
-
-
 class StateMachine:
     """状态机分析器，负责状态机分析和状态变量检测"""
 
@@ -140,3 +61,82 @@ class StateMachine:
                 and var.src.name.startswith("state-")
             ):
                 return var.src
+
+    @staticmethod
+    def collect_stateVar_info(func: Function, ret_int: bool = True):
+        """收集函数中的状态变量信息
+        Args:
+            func (Function): 目标函数
+            ret_int (bool): 是否返回整数值
+        Returns:
+            Tuple[Dict, Dict]: 包含if表和定义表的元组
+        """
+        args = func.parameter_vars
+        args_name = [var.name for var in args]
+        mlil = func.medium_level_il
+        if not mlil:
+            return {}, {}
+        ifTable: Dict[
+            MediumLevelILVar | Any, List[MediumLevelILInstruction] | List[int] | Any
+        ] = {}
+        defineTable: Dict[
+            MediumLevelILVar | Any, List[MediumLevelILInstruction] | List[int] | Any
+        ] = {}
+
+        def find_if_const_compare(mlil: MediumLevelILFunction):
+            ifTable = {}
+            for bb in mlil.basic_blocks:
+                expr = bb[-1]
+                if not isinstance(expr, MediumLevelILIf):
+                    continue
+                condition = expr.condition
+                if isinstance(condition, MediumLevelILVar):
+                    continue
+                if not hasattr(condition, "right"):
+                    continue
+                if isinstance(condition.right, MediumLevelILConst):
+                    left = condition.left
+                    for token in left.tokens:
+                        if token in args_name:
+                            continue
+                    if not isinstance(left, MediumLevelILVar):
+                        continue
+                    if left.src not in ifTable:
+                        ifTable[left.src] = []
+                    if ret_int:
+                        ifTable[left.src].append(condition.right.value.value)
+                    else:
+                        ifTable[left.src].append(expr)
+            return ifTable
+
+        def find_define(mlil: MediumLevelILFunction):
+            defineTable = {}
+            for expr in mlil.instructions:
+                if not isinstance(expr, MediumLevelILSetVar):
+                    continue
+                if not isinstance(expr.src, MediumLevelILConst):
+                    continue
+                for token in expr.tokens:
+                    if token in args_name:
+                        continue
+                if expr.dest not in defineTable:
+                    defineTable[expr.dest] = []
+                if ret_int:
+                    defineTable[expr.dest].append(expr.src.value.value)
+                else:
+                    defineTable[expr.dest].append(expr)
+            return defineTable
+
+        ifTable = find_if_const_compare(mlil)
+        defineTable = find_define(mlil)
+
+        if not ret_int:
+            for x in ifTable:
+                ifTable[x] = [
+                    instr for instr in ifTable[x] if instr.instr_index < len(mlil)
+                ]
+            for x in defineTable:
+                defineTable[x] = [
+                    instr for instr in defineTable[x] if instr.instr_index < len(mlil)
+                ]
+        return ifTable, defineTable

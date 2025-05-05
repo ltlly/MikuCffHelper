@@ -6,7 +6,7 @@ from binaryninja import (
     ILSourceLocation,
 )
 
-from ...utils import collect_stateVar_info, StateMachine
+from ...utils import StateMachine
 from ...utils import log_error, log_info
 
 
@@ -19,7 +19,7 @@ def pass_mov_state_define(analysis_context: AnalysisContext):
 
     updated = False
     state_vars = StateMachine.find_state_var(func)
-    _, define_table = collect_stateVar_info(func, False)
+    _, define_table = StateMachine.collect_stateVar_info(func, False)
     l_define_table = []
     for k, v in define_table.items():
         l_define_table += v

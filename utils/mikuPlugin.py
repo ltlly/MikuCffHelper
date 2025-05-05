@@ -76,7 +76,7 @@ def suggest_stateVar(bv: BinaryView, func: Function):
             return
     except:
         return
-    from .state_machine import collect_stateVar_info
+    from .state_machine import StateMachine
 
     # State variable recognition rules
     state_var_rules = [
@@ -103,7 +103,7 @@ def suggest_stateVar(bv: BinaryView, func: Function):
             var.name.startswith("state-") and "_" in var.name
         ),
     ]
-    ifTable, defineTable = collect_stateVar_info(func)
+    ifTable, defineTable = StateMachine.collect_stateVar_info(func)
     # Check all variables
     for var in set(list(ifTable.keys()) + list(defineTable.keys())):
         # Skip already marked state variables

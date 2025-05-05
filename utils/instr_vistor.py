@@ -1,10 +1,15 @@
+from dataclasses import dataclass
 import binaryninja
 from binaryninja import (
-    BinaryView,
     Variable,
     VariableSourceType,
+    BinaryView,
+    Function,
+    MediumLevelILIf,
+    MediumLevelILSetVar,
+    MediumLevelILVar,
+    MediumLevelILConst,
 )
-
 
 from z3 import (
     UGT,
@@ -19,6 +24,8 @@ from z3 import (
     Extract,
     ZeroExt,
     simplify,
+    is_true,
+    is_false,
     BitVecNumRef,
     BoolRef,
 )
@@ -38,10 +45,9 @@ class BNILVisitor(object):
         if hasattr(self, method_name):
             value = getattr(self, method_name)(expression)
         else:
-            log_error(f"{repr(expression.operation)} not implemented")
+            log_info(f"{repr(expression.operation)} not implemented")
             raise NotImplementedError
         return value
-        
 
 
 def make_variable_z3(var: Variable) -> Union[BitVecRef, BoolRef, BitVecNumRef]:
@@ -59,6 +65,16 @@ def make_variable_z3(var: Variable) -> Union[BitVecRef, BoolRef, BitVecNumRef]:
         return BitVec(var.name, var.type.width * 8)
 
 
+@dataclass
+class IfResult:
+    condition: BoolRef
+    is_boolean: bool = False
+    bool_result: bool = False
+    target_index: int = -1
+    true_target_index: int = -1
+    false_target_index: int = -1
+
+
 class SimpleVisitor(BNILVisitor):
     def __init__(self, view: BinaryView, function: binaryninja.Function):
         self.view = view
@@ -70,15 +86,25 @@ class SimpleVisitor(BNILVisitor):
     def visit_MLIL_GOTO(self, expr):
         pass
 
-    def visit_MLIL_IF(self, expr):
-        result: BoolRef = self.visit(expr.condition)
+    def visit_MLIL_IF(self, expr: MediumLevelILIf):
+        # evaluate and simplify condition
+        result = self.visit(expr.condition)
         r2 = simplify(result)
-        if not isinstance(r2, BoolRef):
-            raise TypeError("if condition is not bool")
-        if r2.__bool__():
-            return (True, expr.true)
+        res = IfResult(condition=r2)
+        res.true_target_index = expr.true
+        res.false_target_index = expr.false
+        # check for concrete boolean value
+        if is_true(r2):
+            res.bool_result = True
+            res.is_boolean = True
+            res.target_index = expr.true
+        elif is_false(r2):
+            res.bool_result = False
+            res.is_boolean = True
+            res.target_index = expr.false
         else:
-            return (False, expr.false)
+            res.is_boolean = False
+        return res
 
     def visit_both_sides(self, expr):
         return self.visit(expr.left), self.visit(expr.right)
@@ -103,14 +129,12 @@ class SimpleVisitor(BNILVisitor):
         if expr.src.name in self.vars:
             return self.vars[expr.src.name]["value"]
         else:
-            # raise Exception(f"var {expr.src.name} not found")
             newVar = make_variable_z3(expr.src)
             self.vars[expr.src.name] = {
                 "value": newVar,
                 "size": expr.src.type.width,
                 "var": newVar,
             }
-            # log_error(f"not found,creat new var: {newVar}")
             return self.vars[expr.src.name]["value"]
 
     def visit_MLIL_CONST(self, expr):
