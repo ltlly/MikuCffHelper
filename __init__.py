@@ -2,8 +2,8 @@ import json
 from binaryninja import PluginCommand, Workflow, Activity
 from .mikuWorkflow import workflow_patch_llil, workflow_patch_mlil, workflow_patch_hlil
 from .utils import log_info
-from .fix_binaryninja_api import lowlevelil
-from .fix_binaryninja_api import mediumlevelil
+from .fix_binaryninja_api import lowlevelil  # noqa: F401
+from .fix_binaryninja_api import mediumlevelil  # noqa: F401
 
 
 def register_workflow():

@@ -1,11 +1,10 @@
-from typing import List, Dict, Any
+from typing import Callable, List, Dict, Tuple
 from binaryninja import (
     Function,
     Variable,
     MediumLevelILFunction,
     MediumLevelILSetVar,
     MediumLevelILVar,
-    MediumLevelILOperation,
     MediumLevelILIf,
     MediumLevelILConst,
     MediumLevelILInstruction,
@@ -16,75 +15,31 @@ class StateMachine:
     """状态机分析器，负责状态机分析和状态变量检测"""
 
     @staticmethod
-    def find_state_var(func: Function):
-        """查找函数中的状态变量
-        Args:
-            func (Function): 目标函数
-        Returns:
-            List[Variable]: 找到的状态变量列表
-        """
-        vars = func.vars
-        vars_name = [var.name for var in vars]
-        if all([not var.startswith("state-") for var in vars_name]):
-            from .mikuPlugin import suggest_stateVar
-
-            suggest_stateVar(func.view, func)
-        state_vars = [var for var in vars if var.name.startswith("state-")]
-        return state_vars
-
-    @staticmethod
-    def find_paired_state_var(state_var: Variable, mlil: MediumLevelILFunction):
-        """查找与给定状态变量配对的另一个状态变量
-        Args:
-            state_var (Variable): 目标状态变量
-            mlil (MediumLevelILFunction): 中间语言函数
-        Returns:
-            Variable: 找到的配对状态变量，如果不存在返回None
-        """
-        if not state_var.name.startswith("state-"):
-            return None
-        defines = mlil.get_var_definitions(state_var)
-        if all(
-            [
-                defi.src.operation == MediumLevelILOperation.MLIL_CONST
-                for defi in defines
-            ]
-        ):
-            return None
-        for define in defines:
-            if not isinstance(define, MediumLevelILSetVar):
-                continue
-            var = define.src
-            if (
-                isinstance(var, MediumLevelILVar)
-                and var.src != state_var
-                and var.src.name.startswith("state-")
-            ):
-                return var.src
-
-    @staticmethod
-    def collect_stateVar_info(func: Function, ret_int: bool = True):
+    def collect_stateVar_info(
+        func: Function, ret_int: bool = True
+    ) -> Tuple[
+        Dict[Variable, List[MediumLevelILInstruction] | List[int]],
+        Dict[Variable, List[MediumLevelILInstruction] | List[int]],
+    ]:
         """收集函数中的状态变量信息
         Args:
             func (Function): 目标函数
             ret_int (bool): 是否返回整数值
         Returns:
-            Tuple[Dict, Dict]: 包含if表和定义表的元组
+            Tuple[Dict[Variable, List[MediumLevelILInstruction] | List[int]],
+                  Dict[Variable, List[MediumLevelILInstruction] | List[int]]]
+            : 返回的字典包含变量和对应的指令列表或整数值列表
         """
         args = func.parameter_vars
         args_name = [var.name for var in args]
         mlil = func.medium_level_il
         if not mlil:
             return {}, {}
-        ifTable: Dict[
-            MediumLevelILVar | Any, List[MediumLevelILInstruction] | List[int] | Any
-        ] = {}
-        defineTable: Dict[
-            MediumLevelILVar | Any, List[MediumLevelILInstruction] | List[int] | Any
-        ] = {}
 
-        def find_if_const_compare(mlil: MediumLevelILFunction):
-            ifTable = {}
+        def find_if_const_compare(
+            mlil: MediumLevelILFunction,
+        ) -> Dict[Variable, List[MediumLevelILInstruction] | List[int]]:
+            ifTable: Dict[Variable, List[MediumLevelILInstruction] | List[int]] = {}
             for bb in mlil.basic_blocks:
                 expr = bb[-1]
                 if not isinstance(expr, MediumLevelILIf):
@@ -109,8 +64,10 @@ class StateMachine:
                         ifTable[left.src].append(expr)
             return ifTable
 
-        def find_define(mlil: MediumLevelILFunction):
-            defineTable = {}
+        def find_define(
+            mlil: MediumLevelILFunction,
+        ) -> Dict[Variable, List[MediumLevelILInstruction] | List[int]]:
+            defineTable: Dict[Variable, List[MediumLevelILInstruction] | List[int]] = {}
             for expr in mlil.instructions:
                 if not isinstance(expr, MediumLevelILSetVar):
                     continue
@@ -129,7 +86,6 @@ class StateMachine:
 
         ifTable = find_if_const_compare(mlil)
         defineTable = find_define(mlil)
-
         if not ret_int:
             for x in ifTable:
                 ifTable[x] = [
@@ -140,3 +96,58 @@ class StateMachine:
                     instr for instr in defineTable[x] if instr.instr_index < len(mlil)
                 ]
         return ifTable, defineTable
+
+    @staticmethod
+    def find_state_var(func: Function) -> List[Variable]:
+        """查找函数中的状态变量
+        Args:
+            func (Function): 目标函数
+        """
+        mlil = func.medium_level_il
+        if not mlil:
+            return []
+        from .state_machine import StateMachine
+
+        # State variable recognition rules
+        state_var_rules: List[
+            Callable[
+                [
+                    Variable,
+                    Dict[Variable, List[MediumLevelILInstruction] | List[int]],
+                    Dict[Variable, List[MediumLevelILInstruction] | List[int]],
+                ],
+                bool,
+            ]
+        ] = [
+            # Rule 1: Variable appears in both ifTable and defineTable with same value count >= 3
+            lambda var, ifTable, defineTable: (
+                var in ifTable
+                and var in defineTable
+                and len(defineTable[var]) == len(ifTable[var])
+                and len(defineTable[var]) >= 3
+            ),
+            # Rule 2: Variable in defineTable with value count >= 3 and average > 0x10000000
+            lambda var, ifTable, defineTable: (
+                var in defineTable
+                and len(defineTable[var]) >= 3
+                and sum(defineTable[var]) // len(defineTable[var]) > 0x10000000
+            ),
+            # Rule 3: Variable in ifTable with value count >= 3 and average > 0x10000000
+            lambda var, ifTable, defineTable: (
+                var in ifTable
+                and len(ifTable[var]) >= 3
+                and sum(ifTable[var]) // len(ifTable[var]) > 0x10000000
+            ),
+            lambda var, ifTable, defineTable: (
+                var.name.startswith("state-") and "_" in var.name
+            ),
+        ]
+        state_vars: List[Variable] = []
+        ifTable, defineTable = StateMachine.collect_stateVar_info(func)
+        # Check all variables
+        for mlil_var in set(list(ifTable.keys()) + list(defineTable.keys())):
+            for rule in state_var_rules:
+                if rule(mlil_var, ifTable, defineTable):
+                    state_vars.append(mlil_var)
+                    break
+        return state_vars

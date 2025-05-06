@@ -67,7 +67,6 @@ def pass_copy_common_block(analysis_context: AnalysisContext):
     for _ in range(len(llil.basic_blocks)):
         updated = False
         g = CFGAnalyzer.create_cfg_graph(llil)
-
         for bb in llil.basic_blocks:
             pre_blocks = CFGAnalyzer.LLIL_get_incoming_blocks(llil, bb.start)
             if len(pre_blocks) <= 1:

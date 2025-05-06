@@ -1,6 +1,7 @@
-from binaryninja import *
+from binaryninja import basicblock, LowLevelILFunction
 
 from ..utils import log_error
+from typing import Optional
 
 
 def get_basic_block_at(self, index: int) -> Optional["basicblock.BasicBlock"]:

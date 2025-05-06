@@ -1,4 +1,5 @@
-from binaryninja import *
+from binaryninja import basicblock, MediumLevelILFunction
+from typing import Optional
 
 from ..utils import log_error
 

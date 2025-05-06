@@ -65,55 +65,13 @@ def set_stateVar(bv: BinaryView, func: Function):
 
 
 def suggest_stateVar(bv: BinaryView, func: Function):
-    """建议可能的状态变量
-    Args:
-        bv (BinaryView): 二进制视图
-        func (Function): 目标函数
-    """
-    try:
-        mlil = func.medium_level_il
-        if not mlil:
-            return
-    except:
-        return
     from .state_machine import StateMachine
 
-    # State variable recognition rules
-    state_var_rules = [
-        # Rule 1: Variable appears in both ifTable and defineTable with same value count >= 3
-        lambda var, ifTable, defineTable: (
-            var in ifTable
-            and var in defineTable
-            and len(defineTable[var]) == len(ifTable[var])
-            and len(defineTable[var]) >= 3
-        ),
-        # Rule 2: Variable in defineTable with value count >= 3 and average > 0x10000000
-        lambda var, ifTable, defineTable: (
-            var in defineTable
-            and len(defineTable[var]) >= 3
-            and sum(defineTable[var]) // len(defineTable[var]) > 0x10000000
-        ),
-        # Rule 3: Variable in ifTable with value count >= 3 and average > 0x10000000
-        lambda var, ifTable, defineTable: (
-            var in ifTable
-            and len(ifTable[var]) >= 3
-            and sum(ifTable[var]) // len(ifTable[var]) > 0x10000000
-        ),
-        lambda var, ifTable, defineTable: (
-            var.name.startswith("state-") and "_" in var.name
-        ),
-    ]
-    ifTable, defineTable = StateMachine.collect_stateVar_info(func)
-    # Check all variables
-    for var in set(list(ifTable.keys()) + list(defineTable.keys())):
-        # Skip already marked state variables
-        if var.name.startswith("state-") and "_" not in var.name:
+    state_vars = StateMachine.find_state_var(func)
+    for var in state_vars:
+        if var.name.startswith("state-"):
             continue
-        # Check all rules
-        for rule in state_var_rules:
-            if rule(var, ifTable, defineTable):
-                make_stateVar(func, var)
-                break
+        make_stateVar(func, var)
     func_dict[func.start] = {}
 
 
