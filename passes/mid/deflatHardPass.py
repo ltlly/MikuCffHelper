@@ -14,7 +14,7 @@ from binaryninja import (
     ILSourceLocation,
 )
 import z3
-
+from dataclasses import dataclass
 
 from ...utils.instr_vistor import IfResult
 
@@ -26,24 +26,35 @@ from ...utils import (
     InstructionAnalyzer,
     SimpleVisitor,
 )
-# todo sub_407d8c
-# [MikuCffHelper] emu_hard: False,[<MediumLevelILSetVar: x12_92 = 0x26bd6ae0>, <MediumLevelILSetVar: state-1 = 0x160d5cc>, <MediumLevelILGoto: goto 11 @ 0x407e18>, <MediumLevelILSetVar: state-0 = state-1>, <MediumLevelILGoto: goto 13>, <MediumLevelILIf: if (state-1 s> 0x26bd6adf) then 14 @ 0x407e58 else 15 @ 0x407e28>, <MediumLevelILIf: if (state-0 s<= 0x47691216) then 16 @ 0x407eb4 else 18 @ 0x407e64>, <MediumLevelILSetVar: state-1 = -0x7a8eb0b7>, <MediumLevelILGoto: goto 23>, <MediumLevelILIf: if (state-0 == 0x26bd6ae0) then 11 @ 0x407e18 else 29 @ 0x407ebc>]
-# [MikuCffHelper] emu_hard: False,[<MediumLevelILSetVar: x12_92 = 0x47691217>, <MediumLevelILSetVar: state-1 = 0x160d5cc>, <MediumLevelILGoto: goto 11 @ 0x407e18>, <MediumLevelILSetVar: state-0 = state-1>, <MediumLevelILGoto: goto 13>, <MediumLevelILIf: if (state-1 s> 0x26bd6adf) then 14 @ 0x407e58 else 15 @ 0x407e28>, <MediumLevelILIf: if (state-0 s<= 0x47691216) then 16 @ 0x407eb4 else 18 @ 0x407e64>, <MediumLevelILSetVar: state-1 = -0x125b9f00>, <MediumLevelILGoto: goto 24>, <MediumLevelILIf: if (state-0 == 0x47691217) then 11 @ 0x407e18 else 31 @ 0x407e70>]
-# [MikuCffHelper] emu_hard: False,[<MediumLevelILSetVar: state-1 = -0x7a8eb0b7>, <MediumLevelILGoto: goto 23>, <MediumLevelILIf: if (state-0 == 0x26bd6ae0) then 11 @ 0x407e18 else 29 @ 0x407ebc>, <MediumLevelILSetVar: state-0 = state-1>, <MediumLevelILGoto: goto 13>, <MediumLevelILIf: if (state-1 s> 0x26bd6adf) then 14 @ 0x407e58 else 15 @ 0x407e28>, <MediumLevelILIf: if (state-0 s> 0xfe4c27a1) then 20 @ 0x407e90 else 22 @ 0x407e30>, <MediumLevelILIf: if (state-0 == 0x85714f49) then 26 @ 0x407ed8 else 28 @ 0x407e38>]
-# [MikuCffHelper] emu_hard: True,[<MediumLevelILSetVar: state-1 = -0x32ed9066>, <MediumLevelILGoto: goto 11 @ 0x407e18>, <MediumLevelILSetVar: state-0 = state-1>, <MediumLevelILGoto: goto 13>, <MediumLevelILIf: if (state-1 s> 0x26bd6adf) then 14 @ 0x407e58 else 15 @ 0x407e28>, <MediumLevelILIf: if (state-0 s> 0xfe4c27a1) then 20 @ 0x407e90 else 22 @ 0x407e30>, <MediumLevelILIf: if (state-0 == 0x85714f49) then 26 @ 0x407ed8 else 28 @ 0x407e38>, <MediumLevelILIf: if (state-0 == 0xcd126f9a) then 33 @ 0x407ee0 else 41 @ 0x407e3c>]
-# [MikuCffHelper] emu_hard: False,[<MediumLevelILSetVar: x12_92 = 0x26bd6ae0>, <MediumLevelILSetVar: state-1 = 0x160d5cc>, <MediumLevelILGoto: goto 11 @ 0x407e18>, <MediumLevelILSetVar: state-0 = state-1>, <MediumLevelILGoto: goto 13>, <MediumLevelILIf: if (state-1 s> 0x26bd6adf) then 14 @ 0x407e58 else 15 @ 0x407e28>, <MediumLevelILIf: if (state-0 s<= 0x47691216) then 16 @ 0x407eb4 else 18 @ 0x407e64>, <MediumLevelILSetVar: state-1 = -0x7a8eb0b7>, <MediumLevelILGoto: goto 23>, <MediumLevelILIf: if (state-0 == 0x26bd6ae0) then 11 @ 0x407e18 else 29 @ 0x407ebc>]
-# [MikuCffHelper] emu_hard: False,[<MediumLevelILSetVar: x12_92 = 0x47691217>, <MediumLevelILSetVar: state-1 = 0x160d5cc>, <MediumLevelILGoto: goto 11 @ 0x407e18>, <MediumLevelILSetVar: state-0 = state-1>, <MediumLevelILGoto: goto 13>, <MediumLevelILIf: if (state-1 s> 0x26bd6adf) then 14 @ 0x407e58 else 15 @ 0x407e28>, <MediumLevelILIf: if (state-0 s<= 0x47691216) then 16 @ 0x407eb4 else 18 @ 0x407e64>, <MediumLevelILSetVar: state-1 = -0x125b9f00>, <MediumLevelILGoto: goto 24>, <MediumLevelILIf: if (state-0 == 0x47691217) then 11 @ 0x407e18 else 31 @ 0x407e70>]
-# [MikuCffHelper] emu_hard: False,[<MediumLevelILSetVar: state-1 = -0x7a8eb0b7>, <MediumLevelILGoto: goto 23>, <MediumLevelILIf: if (state-0 == 0x26bd6ae0) then 11 @ 0x407e18 else 29 @ 0x407ebc>, <MediumLevelILSetVar: state-0 = state-1>, <MediumLevelILGoto: goto 13>, <MediumLevelILIf: if (state-1 s> 0x26bd6adf) then 14 @ 0x407e58 else 15 @ 0x407e28>, <MediumLevelILIf: if (state-0 s> 0xfe4c27a1) then 20 @ 0x407e90 else 22 @ 0x407e30>, <MediumLevelILIf: if (state-0 == 0x85714f49) then 26 @ 0x407ed8 else 28 @ 0x407e38>]
-# [MikuCffHelper] emu_hard: True,[<MediumLevelILSetVar: state-1 = -0x7a8eb0b7>, <MediumLevelILGoto: goto 11 @ 0x407e18>, <MediumLevelILSetVar: state-0 = state-1>, <MediumLevelILGoto: goto 13>, <MediumLevelILIf: if (state-1 s> 0x26bd6adf) then 14 @ 0x407e58 else 15 @ 0x407e28>, <MediumLevelILIf: if (state-0 s> 0xfe4c27a1) then 20 @ 0x407e90 else 22 @ 0x407e30>, <MediumLevelILIf: if (state-0 == 0x85714f49) then 26 @ 0x407ed8 else 28 @ 0x407e38>]
-# [MikuCffHelper] emu_hard: False,[<MediumLevelILSetVar: x12_92 = 0x26bd6ae0>, <MediumLevelILSetVar: state-1 = 0x160d5cc>, <MediumLevelILGoto: goto 11 @ 0x407e18>, <MediumLevelILSetVar: state-0 = state-1>, <MediumLevelILGoto: goto 13>, <MediumLevelILIf: if (state-1 s> 0x26bd6adf) then 14 @ 0x407e58 else 15 @ 0x407e28>, <MediumLevelILIf: if (state-0 s<= 0x47691216) then 16 @ 0x407eb4 else 18 @ 0x407e64>, <MediumLevelILSetVar: state-1 = -0x7a8eb0b7>, <MediumLevelILGoto: goto 23>, <MediumLevelILIf: if (state-0 == 0x26bd6ae0) then 11 @ 0x407e18 else 29 @ 0x407ebc>]
-# [MikuCffHelper] emu_hard: False,[<MediumLevelILSetVar: x12_92 = 0x47691217>, <MediumLevelILSetVar: state-1 = 0x160d5cc>, <MediumLevelILGoto: goto 11 @ 0x407e18>, <MediumLevelILSetVar: state-0 = state-1>, <MediumLevelILGoto: goto 13>, <MediumLevelILIf: if (state-1 s> 0x26bd6adf) then 14 @ 0x407e58 else 15 @ 0x407e28>, <MediumLevelILIf: if (state-0 s<= 0x47691216) then 16 @ 0x407eb4 else 18 @ 0x407e64>, <MediumLevelILSetVar: state-1 = -0x125b9f00>, <MediumLevelILGoto: goto 24>, <MediumLevelILIf: if (state-0 == 0x47691217) then 11 @ 0x407e18 else 31 @ 0x407e70>]
-# [MikuCffHelper] emu_hard: False,[<MediumLevelILSetVar: state-1 = -0x7a8eb0b7>, <MediumLevelILGoto: goto 23>, <MediumLevelILIf: if (state-0 == 0x26bd6ae0) then 11 @ 0x407e18 else 29 @ 0x407ebc>, <MediumLevelILSetVar: state-0 = state-1>, <MediumLevelILGoto: goto 13>, <MediumLevelILIf: if (state-1 s> 0x26bd6adf) then 14 @ 0x407e58 else 15 @ 0x407e28>, <MediumLevelILIf: if (state-0 s> 0xfe4c27a1) then 20 @ 0x407e90 else 22 @ 0x407e30>, <MediumLevelILIf: if (state-0 == 0x85714f49) then 26 @ 0x407ed8 else 28 @ 0x407e38>]
-# [MikuCffHelper] emu_hard: False,[<MediumLevelILSetVar: x12_92 = 0x26bd6ae0>, <MediumLevelILSetVar: state-1 = 0x160d5cc>, <MediumLevelILGoto: goto 11 @ 0x407e18>, <MediumLevelILSetVar: state-0 = state-1>, <MediumLevelILGoto: goto 13>, <MediumLevelILIf: if (state-1 s> 0x26bd6adf) then 14 @ 0x407e58 else 15 @ 0x407e28>, <MediumLevelILIf: if (state-0 s<= 0x47691216) then 16 @ 0x407eb4 else 18 @ 0x407e64>, <MediumLevelILSetVar: state-1 = -0x7a8eb0b7>, <MediumLevelILGoto: goto 23>, <MediumLevelILIf: if (state-0 == 0x26bd6ae0) then 11 @ 0x407e18 else 29 @ 0x407ebc>]
-# [MikuCffHelper] emu_hard: False,[<MediumLevelILSetVar: x12_92 = 0x47691217>, <MediumLevelILSetVar: state-1 = 0x160d5cc>, <MediumLevelILGoto: goto 11 @ 0x407e18>, <MediumLevelILSetVar: state-0 = state-1>, <MediumLevelILGoto: goto 13>, <MediumLevelILIf: if (state-1 s> 0x26bd6adf) then 14 @ 0x407e58 else 15 @ 0x407e28>, <MediumLevelILIf: if (state-0 s<= 0x47691216) then 16 @ 0x407eb4 else 18 @ 0x407e64>, <MediumLevelILSetVar: state-1 = -0x125b9f00>, <MediumLevelILGoto: goto 24>, <MediumLevelILIf: if (state-0 == 0x47691217) then 11 @ 0x407e18 else 31 @ 0x407e70>]
-# [MikuCffHelper] emu_hard: False,[<MediumLevelILSetVar: state-1 = -0x7a8eb0b7>, <MediumLevelILGoto: goto 23>, <MediumLevelILIf: if (state-0 == 0x26bd6ae0) then 11 @ 0x407e18 else 29 @ 0x407ebc>, <MediumLevelILSetVar: state-0 = state-1>, <MediumLevelILGoto: goto 13>, <MediumLevelILIf: if (state-1 s> 0x26bd6adf) then 14 @ 0x407e58 else 15 @ 0x407e28>, <MediumLevelILIf: if (state-0 s> 0xfe4c27a1) then 20 @ 0x407e90 else 22 @ 0x407e30>, <MediumLevelILIf: if (state-0 == 0x85714f49) then 26 @ 0x407ed8 else 28 @ 0x407e38>]
+
+#todo 407d8c 
+@dataclass
+class PatchInfo:
+    """
+    用于存储补丁信息的类
+    """
+
+    instr: MediumLevelILInstruction
+    target: MediumLevelILInstruction
+    type: str  # 补丁类型 goto 或 if
+    branch: bool  # 修补if的true分支还是false分支
 
 
-def emu_hard(instrs: list[MediumLevelILInstruction], state_vars: list[Variable]):
+@dataclass
+class EmuHardResult:
+    """
+    emu_hard 函数的返回值类型
+    """
+
+    success: bool  # 是否存在有效路径
+    unused_instrs: list[MediumLevelILInstruction]  # 无关指令列表
+    patchInfo: PatchInfo  # 补丁信息
+    visitor: SimpleVisitor  # 访问器
+
+
+def emu_hard(
+    instrs: list[MediumLevelILInstruction], state_vars: list[Variable]
+) -> EmuHardResult:
     """
     处理状态机的指令，判断是否存在有效路径
 
@@ -54,11 +65,13 @@ def emu_hard(instrs: list[MediumLevelILInstruction], state_vars: list[Variable])
         state_vars: 状态变量列表
     """
     func = instrs[0].function.source_function
+    mlil = func.mlil
     v = SimpleVisitor(func.view, func)
     walked_instrs = []
     s = z3.Solver()
     conditions = []
-    false_ret = (False, -1, [], v)
+    false_ret = EmuHardResult(False, [], PatchInfo(None, None, "", False), v)
+    true_ret = false_ret
     for i, instr in enumerate(instrs):
         log_info(f"visit {instr} {v.vars}")
         try:
@@ -75,35 +88,29 @@ def emu_hard(instrs: list[MediumLevelILInstruction], state_vars: list[Variable])
                     if res.is_boolean:
                         nextip = res.target_index
                         if i + 1 < len(instrs) and nextip != instrs[i + 1].instr_index:
-                            log_error(
-                                f"emu_hard false at i={i}, instr={instr} {nextip} != {instrs[i + 1].instr_index}"
-                            )
-                            return (False, i, walked_instrs, v)
+                            return false_ret
                         elif i == len(instrs) - 1 and len(conditions) == 0:
-                            return (True, nextip, walked_instrs, v)
+                            true_ret = EmuHardResult(
+                                True,
+                                walked_instrs,
+                                PatchInfo(instrs[0], mlil[nextip], "goto", False),
+                                v,
+                            )
                     else:
                         vars = instr.vars_written + instr.vars_read
                         if not all([var in state_vars for var in vars]):
-                            log_error(
-                                f"emu_hard false at i={i}, instr={instr} not state_vars"
-                            )
-                            return (False, i, walked_instrs, v)
+                            return false_ret
                         if instrs[i + 1].instr_index == res.true_target_index:
                             conditions.append(res.condition)
-                            log_error(f"add {res.condition}")
                         else:
                             conditions.append(z3.Not(res.condition))
-                            log_error(f"add not {res.condition}")
                 case _:
                     vars_read = instr.vars_read
                     vars_written = instr.vars_written
                     if any(var in state_vars for var in vars_read) or any(
                         var in state_vars for var in vars_written
                     ):
-                        log_error(
-                            f"emu_hard false at i={i}, instr={instr} state var usage"
-                        )
-                        return (False, i, walked_instrs, v)
+                        return false_ret
                     walked_instrs.append(instr)
         except Exception as e:
             if not isinstance(e, NotImplementedError):
@@ -111,9 +118,9 @@ def emu_hard(instrs: list[MediumLevelILInstruction], state_vars: list[Variable])
                 log_text += f"Exception in emu_hard: {e}\n"
                 for instr in instrs:
                     log_text += f"{instr.instr_index}::{instr}\n"
-                log_error(log_text)
-            log_error(f"emu_hard false in exception at i={i}, instr={instr}")
-            return (False, i, walked_instrs, v)
+            return false_ret
+    if len(conditions) == 0:
+        return true_ret
     s.add(*conditions)
     log_error(f"期望成立 {s.check()} {s.model()}")
     return false_ret
@@ -136,7 +143,9 @@ def quick_check(
     return True
 
 
-def find_valid_paths(G, source, target, mlil, state_vars, max_paths=10):
+def find_valid_paths(
+    G, source, target, mlil, state_vars, max_paths=10
+) -> list[EmuHardResult]:
     """
     自定义路径搜索算法，在搜索过程中应用剪枝策略
 
@@ -163,13 +172,17 @@ def find_valid_paths(G, source, target, mlil, state_vars, max_paths=10):
         if node == target:
             instrs = [mlil[i] for i in path]
             if quick_check(instrs, define_const_val):
-                r, target_idx, unused_instrs, v = emu_hard(instrs, state_vars)
+                ret = emu_hard(instrs, state_vars)
                 import pprint
 
-                text = pprint.pformat(f"{r}::{path}::{instrs}\n{v.vars} \n{'=' * 20}")
+                text = pprint.pformat(
+                    f"{ret.success}::{path}::{instrs}\n{ret.unused_instrs} \n{'=' * 20}"
+                )
                 log_info(text)
-                if r:
-                    valid_paths.append((path, target_idx, unused_instrs))
+                if ret.success:
+                    valid_paths.append(ret)
+                    # (path, ret.patchInfo.target.instr_index, ret.walked_instrs)
+                    # )
             continue
         neighbors = list(G.neighbors(node))
         path_prefix = tuple(path)
@@ -206,17 +219,14 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
     if mlil is None:
         log_error(f"Function {function.name} has no MLIL")
         return
-    # 保存已处理的 define 与 if 指令，避免重复处理
     worked_define = set()
     worked_if = set()
-    # 最多遍历基本块数量的两倍次，若无更新则提前退出
-    for _ in range(len(mlil.basic_blocks) * 2):
+    max_iterations = len(mlil.basic_blocks) * 2
+    for _ in range(max_iterations):
         updated = False
-        # 构建完整的控制流图
         G_full = CFGAnalyzer.create_full_cfg_graph(mlil)
         state_vars = StateMachine.find_state_var(function)
         if_table, define_table = StateMachine.collect_stateVar_info(function, False)
-        # 整理所有 if 指令和 define 指令，并过滤掉已处理项
         l_if_table = [
             instr for v in if_table.values() for instr in v if instr not in worked_if
         ]
@@ -226,16 +236,12 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
             for instr in v
             if instr not in worked_define
         ]
-
-        # 查找状态转换指令对
         trans_dict = InstructionAnalyzer.find_state_transition_instructions(
             l_if_table, l_define_table
         )
         for trans in trans_dict:
-            def_instr: MediumLevelILInstruction | MediumLevelILSetVar = trans[
-                "def_instr"
-            ]
-            if_instr: MediumLevelILInstruction | MediumLevelILIf = trans["if_instr"]
+            def_instr: MediumLevelILSetVar = trans["def_instr"]
+            if_instr: MediumLevelILIf = trans["if_instr"]
             try:
                 valid_paths = find_valid_paths(
                     G_full,
@@ -246,13 +252,14 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
                 )
                 assert len(valid_paths) <= 1, "too many paths"
                 for path_data in valid_paths:
-                    path_full, target_idx, unused_instrs = path_data
+                    worked_if.add(trans["if_instr"])
+                    worked_define.add(trans["def_instr"])
                     target_label = MediumLevelILLabel()
-                    target_label.operand = target_idx
-                    will_patch_instr = mlil[path_full[0]]
+                    target_label.operand = path_data.patchInfo.target.instr_index
+                    will_patch_instr = path_data.patchInfo.instr
                     new_block_label = MediumLevelILLabel()
                     mlil.mark_label(new_block_label)
-                    for instr in unused_instrs:
+                    for instr in path_data.unused_instrs:
                         mlil.append(mlil.copy_expr(instr))
                     mlil.append(mlil.goto(target_label))
                     mlil.replace_expr(
@@ -266,11 +273,15 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
                     break
             except nx.NetworkXNoPath:
                 continue
+            except Exception:
+                continue
             if updated:
                 mlil.finalize()
                 mlil.generate_ssa_form()
                 break
         if not updated:
             break
+        # mlil.finalize()
+        # mlil.generate_ssa_form()
     mlil.finalize()
     mlil.generate_ssa_form()
