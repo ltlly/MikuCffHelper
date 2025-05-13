@@ -1,13 +1,11 @@
 from binaryninja import (
     AnalysisContext,
     MediumLevelILSetVar,
-    MediumLevelILInstruction,
     MediumLevelILBasicBlock,
-    ILSourceLocation,
 )
 
 from ...utils import StateMachine
-from ...utils import log_error, log_info
+from ...utils import log_error
 
 
 def pass_mov_state_define(analysis_context: AnalysisContext):
@@ -18,7 +16,6 @@ def pass_mov_state_define(analysis_context: AnalysisContext):
         return
 
     updated = False
-    state_vars = StateMachine.find_state_var(func)
     _, define_table = StateMachine.collect_stateVar_info(func, False)
     l_define_table = []
     for k, v in define_table.items():

@@ -7,9 +7,9 @@ from .state_machine import StateMachine
 from .instruction_analyzer import (
     InstructionAnalyzer,
     unsigned_to_signed_32bit,
-    SimpleVisitor,
 )
-from .mikuPlugin import suggest_stateVar, log_info, log_warn, log_error, make_stateVar
+from .instr_vistor import SimpleVisitor
+from .mikuPlugin import suggest_stateVar, log_info, log_warn, log_error
 
 __all__ = [
     "CFGAnalyzer",

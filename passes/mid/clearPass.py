@@ -452,8 +452,8 @@ def pass_copy_common_block_mid(analysis_context: AnalysisContext):
                 pre_last_instr = mlil[pre_block.end - 1]
                 copy_label = MediumLevelILLabel()
                 mlil.mark_label(copy_label)
-                for l in range(bb.start, bb.end):
-                    mlil.append(mlil.copy_expr(mlil[l]))
+                for copy_instr_index in range(bb.start, bb.end):
+                    mlil.append(mlil.copy_expr(mlil[copy_instr_index]))
                 handle_pre_last_instr(mlil, pre_last_instr, bb, copy_label)
             break
         if updated:

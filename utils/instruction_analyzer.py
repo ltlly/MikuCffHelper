@@ -1,5 +1,4 @@
 from typing import Generator, List, Dict, Any
-from pprint import pformat
 from binaryninja import (
     MediumLevelILFunction,
     MediumLevelILIf,
@@ -8,8 +7,6 @@ from binaryninja import (
     MediumLevelILOperation,
     Variable,
 )
-from .mikuPlugin import log_info, log_error
-from .instr_vistor import SimpleVisitor
 
 
 def unsigned_to_signed_32bit(n):
