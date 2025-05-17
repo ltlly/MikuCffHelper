@@ -4,11 +4,7 @@ from binaryninja import (
     Variable,
     VariableSourceType,
     BinaryView,
-    Function,
     MediumLevelILIf,
-    MediumLevelILSetVar,
-    MediumLevelILVar,
-    MediumLevelILConst,
 )
 
 from z3 import (
@@ -80,7 +76,6 @@ class SimpleVisitor(BNILVisitor):
         self.view = view
         self.func = function
         super().__init__()
-        addr_size = self.view.address_size
         self.vars: dict[str, Any] = {}
 
     def visit_MLIL_GOTO(self, expr):

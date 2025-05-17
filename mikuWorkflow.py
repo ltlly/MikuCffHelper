@@ -2,7 +2,7 @@ from binaryninja import (
     AnalysisContext,
 )
 
-from .utils import log_error, log_info
+from .utils import log_error
 from .passes.low.spiltIfPass import pass_spilt_if_block
 from .passes.low.copyCommonBlockPass import pass_copy_common_block
 from .passes.low.inlineIfCondPass import pass_inline_if_cond
@@ -14,11 +14,8 @@ from .passes.mid.movStateDefine import pass_mov_state_define
 
 def workflow_patch_llil(analysis_context: AnalysisContext):
     function = analysis_context.function
-    try:
-        llil = function.llil
-        if llil is None:
-            return
-    except:
+    llil = function.llil
+    if llil is None:
         return
     pass_copy_common_block(analysis_context)
     pass_inline_if_cond(analysis_context)

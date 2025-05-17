@@ -12,6 +12,7 @@ from binaryninja import (
     MediumLevelILConst,
     MediumLevelILVar,
     ILSourceLocation,
+    MediumLevelILVarSsa,
 )
 import z3
 from dataclasses import dataclass
@@ -26,6 +27,9 @@ from ...utils import (
     InstructionAnalyzer,
     SimpleVisitor,
 )
+
+
+# todo 407d8c
 
 
 # todo 407d8c
@@ -53,93 +57,102 @@ class EmuHardResult:
     visitor: SimpleVisitor  # 访问器
 
 
-def emu_hard(
-    instrs: list[MediumLevelILInstruction], state_vars: list[Variable]
-) -> EmuHardResult:
-    """
-    处理状态机的指令，判断是否存在有效路径
+class SimpleEmu:
+    def __init__(self, mlil: MediumLevelILFunction, state_vars: list[Variable]):
+        self.func = mlil.source_function
+        self.mlil = mlil
+        self.visitor = SimpleVisitor(mlil.view, self.func)
+        self.solver = z3.Solver()
+        self.state_vars = state_vars
 
-    Returns:
-        (是否存在有效路径, 目标指令索引, 遍历到的指令列表)
-    Args:
-        instrs: 指令列表
-        state_vars: 状态变量列表
-    """
-    func = instrs[0].function.source_function
-    mlil = func.mlil
-    v = SimpleVisitor(func.view, func)
-    walked_instrs = []
-    s = z3.Solver()
-    conditions = []
-    false_ret = EmuHardResult(False, [], PatchInfo(None, None, "", False), v)
-    true_ret = false_ret
-    last_if = [None, False]
-    for i, instr in enumerate(instrs):
-        log_info(f"visit {instr} {v.vars}")
-        try:
-            match instr:
-                case MediumLevelILGoto():
-                    continue
-                case MediumLevelILSetVar():
-                    left = instr.dest
-                    if left in state_vars:
-                        v.visit(instr)
-                    walked_instrs.append(instr)
-                case MediumLevelILIf():
-                    res: IfResult = v.visit(instr)
-                    if res.is_boolean:
-                        nextip = res.target_index
-                        if i + 1 < len(instrs) and nextip != instrs[i + 1].instr_index:
-                            return false_ret
-                        elif i == len(instrs) - 1:
-                            true_ret = EmuHardResult(
-                                True,
-                                walked_instrs,
-                                PatchInfo(instrs[0], mlil[nextip], "goto", False),
-                                v,
-                            )
-                    else:
-                        vars = instr.vars_written + instr.vars_read
-                        if not all([var in state_vars for var in vars]):
-                            return false_ret
-                        if instrs[i + 1].instr_index == res.true_target_index:
-                            conditions.append(res.condition)
-                            last_if = [instr, True]
+    def emu_instrs(self, instrs: list[MediumLevelILInstruction]):
+        """
+        处理状态机的指令，判断是否存在有效路径
+
+        Returns:
+            (是否存在有效路径, 目标指令索引, 遍历到的指令列表)
+        Args:
+            instrs: 指令列表
+            state_vars: 状态变量列表
+        """
+        func = instrs[0].function.source_function
+        mlil = func.mlil
+        v = SimpleVisitor(func.view, func)
+        walked_instrs = []
+        s = z3.Solver()
+        conditions = []
+        false_ret = EmuHardResult(False, [], PatchInfo(None, None, "", False), v)
+        true_ret = false_ret
+        last_if = [None, False]
+        for i, instr in enumerate(instrs):
+            log_info(f"visit {instr} {v.vars}")
+            try:
+                match instr:
+                    case MediumLevelILGoto():
+                        continue
+                    case MediumLevelILSetVar():
+                        left = instr.dest
+                        if left in self.state_vars:
+                            v.visit(instr)
+                        walked_instrs.append(instr)
+                    case MediumLevelILIf():
+                        res: IfResult = v.visit(instr)
+                        if res.is_boolean:
+                            nextip = res.target_index
+                            if (
+                                i + 1 < len(instrs)
+                                and nextip != instrs[i + 1].instr_index
+                            ):
+                                return false_ret
+                            elif i == len(instrs) - 1:
+                                true_ret = EmuHardResult(
+                                    True,
+                                    walked_instrs,
+                                    PatchInfo(instrs[0], mlil[nextip], "goto", False),
+                                    v,
+                                )
                         else:
-                            conditions.append(z3.Not(res.condition))
-                            last_if = [instr, False]
-                case _:
-                    vars_read = instr.vars_read
-                    vars_written = instr.vars_written
-                    if any(var in state_vars for var in vars_read) or any(
-                        var in state_vars for var in vars_written
-                    ):
-                        return false_ret
-                    walked_instrs.append(instr)
-        except Exception as e:
-            if not isinstance(e, NotImplementedError):
-                log_text = ""
-                log_text += f"Exception in emu_hard: {e}\n"
-                for instr in instrs:
-                    log_text += f"{instr.instr_index}::{instr}\n"
-            return false_ret
-    if len(conditions) == 0:
-        return true_ret
-    s.add(*conditions)
-    log_error(f"期望成立 {s.check()} {s.model()}")
-    last_if_index = instrs.index(last_if[0])
-    new_instrs = instrs[last_if_index:]
-    new_walked_instrs = []
-    for instr in walked_instrs:
-        if instr in new_instrs:
-            new_walked_instrs.append(instr)
-    # return false_ret
-    return EmuHardResult(
-        True,
-        new_walked_instrs,
-        PatchInfo(last_if[0], true_ret.patchInfo.target, "if", last_if[1]),
-        v,
-    )
+                            vars = instr.vars_written + instr.vars_read
+                            if not all([var in self.state_vars for var in vars]):
+                                return false_ret
+                            if instrs[i + 1].instr_index == res.true_target_index:
+                                conditions.append(res.condition)
+                                last_if = [instr, True]
+                            else:
+                                conditions.append(z3.Not(res.condition))
+                                last_if = [instr, False]
+                    case _:
+                        vars_read = instr.vars_read
+                        vars_written = instr.vars_written
+                        if any(var in self.state_vars for var in vars_read) or any(
+                            var in self.state_vars for var in vars_written
+                        ):
+                            return false_ret
+                        walked_instrs.append(instr)
+            except Exception as e:
+                if not isinstance(e, NotImplementedError):
+                    log_text = ""
+                    log_text += f"Exception in emu_hard: {e}\n"
+                    for instr in instrs:
+                        log_text += f"{instr.instr_index}::{instr}\n"
+                return false_ret
+        if len(conditions) == 0:
+            return true_ret
+        s.add(*conditions)
+        log_error(f"期望成立 {s.check()} {s.model()}")
+        last_if_index = instrs.index(last_if[0])
+        new_instrs = instrs[last_if_index:]
+        new_walked_instrs = []
+        for instr in walked_instrs:
+            if instr in new_instrs:
+                new_walked_instrs.append(instr)
+        # return false_ret
+        return EmuHardResult(
+            True,
+            new_walked_instrs,
+            PatchInfo(last_if[0], true_ret.patchInfo.target, "if", last_if[1]),
+            v,
+        )
 
 
 def quick_check(
@@ -157,6 +170,22 @@ def quick_check(
         ):
             return False
     return True
+
+
+def check_valid_if_instr(instrs: list[MediumLevelILInstruction]):
+    instr_indexs = [instr.instr_index for instr in instrs]
+    for instr in instrs:
+        if not isinstance(instr, MediumLevelILIf):
+            continue
+        mlil_vars = []
+
+        def visitor(operand_name, inst, instr_type_name, parent):
+            match inst:
+                case MediumLevelILVarSsa():
+                    mlil_vars.append(inst)
+
+        list(instr.ssa_form.visit(visitor))
+        print(mlil_vars)
 
 
 def find_valid_paths(
@@ -198,7 +227,8 @@ def find_valid_paths(
             instrs = [mlil[i] for i in path]
             if should_quick_check and not quick_check(instrs, define_const_val):
                 continue
-            ret = emu_hard(instrs, state_vars)
+            emu = SimpleEmu(mlil, state_vars)
+            ret = emu.emu_instrs(instrs)
             import pprint
 
             text = pprint.pformat(
