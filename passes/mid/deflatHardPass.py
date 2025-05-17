@@ -27,7 +27,8 @@ from ...utils import (
     SimpleVisitor,
 )
 
-#todo 407d8c 
+
+# todo 407d8c
 @dataclass
 class PatchInfo:
     """
@@ -72,6 +73,7 @@ def emu_hard(
     conditions = []
     false_ret = EmuHardResult(False, [], PatchInfo(None, None, "", False), v)
     true_ret = false_ret
+    last_if = [None, False]
     for i, instr in enumerate(instrs):
         log_info(f"visit {instr} {v.vars}")
         try:
@@ -89,7 +91,7 @@ def emu_hard(
                         nextip = res.target_index
                         if i + 1 < len(instrs) and nextip != instrs[i + 1].instr_index:
                             return false_ret
-                        elif i == len(instrs) - 1 and len(conditions) == 0:
+                        elif i == len(instrs) - 1:
                             true_ret = EmuHardResult(
                                 True,
                                 walked_instrs,
@@ -102,8 +104,10 @@ def emu_hard(
                             return false_ret
                         if instrs[i + 1].instr_index == res.true_target_index:
                             conditions.append(res.condition)
+                            last_if = [instr, True]
                         else:
                             conditions.append(z3.Not(res.condition))
+                            last_if = [instr, False]
                 case _:
                     vars_read = instr.vars_read
                     vars_written = instr.vars_written
@@ -123,7 +127,19 @@ def emu_hard(
         return true_ret
     s.add(*conditions)
     log_error(f"期望成立 {s.check()} {s.model()}")
-    return false_ret
+    last_if_index = instrs.index(last_if[0])
+    new_instrs = instrs[last_if_index:]
+    new_walked_instrs = []
+    for instr in walked_instrs:
+        if instr in new_instrs:
+            new_walked_instrs.append(instr)
+    # return false_ret
+    return EmuHardResult(
+        True,
+        new_walked_instrs,
+        PatchInfo(last_if[0], true_ret.patchInfo.target, "if", last_if[1]),
+        v,
+    )
 
 
 def quick_check(
@@ -159,30 +175,38 @@ def find_valid_paths(
 
     Returns:
         有效路径列表
+    407994
     """
     # 使用广度优先搜索，同时记录历史路径
     queue = [(source, [source])]
     valid_paths = []
     visited_prefixes = set()  # 记录已经访问过的无效路径前缀
-    define_instr = mlil[source]
-    define_il_var = define_instr.dest
+    define_instr: MediumLevelILSetVar = mlil[source]
+    define_il_var: Variable = define_instr.dest
     define_const_val = define_instr.src.constant
+    if_instr: MediumLevelILIf = mlil[target]
+    if_il_var: Variable = if_instr.condition.left.var
+    should_quick_check = False
+    if define_il_var == if_il_var:
+        should_quick_check = True
+    log_error(
+        f"finding::::: {source} {target} {define_instr} {define_il_var} {define_const_val}"
+    )
     while queue and len(valid_paths) < max_paths:
         node, path = queue.pop(0)
         if node == target:
             instrs = [mlil[i] for i in path]
-            if quick_check(instrs, define_const_val):
-                ret = emu_hard(instrs, state_vars)
-                import pprint
+            if should_quick_check and not quick_check(instrs, define_const_val):
+                continue
+            ret = emu_hard(instrs, state_vars)
+            import pprint
 
-                text = pprint.pformat(
-                    f"{ret.success}::{path}::{instrs}\n{ret.unused_instrs} \n{'=' * 20}"
-                )
-                log_info(text)
-                if ret.success:
-                    valid_paths.append(ret)
-                    # (path, ret.patchInfo.target.instr_index, ret.walked_instrs)
-                    # )
+            text = pprint.pformat(
+                f"{ret.success}::{path}::{instrs}\n{ret.unused_instrs} \n{'=' * 20}"
+            )
+            log_info(text)
+            if ret.success:
+                valid_paths.append(ret)
             continue
         neighbors = list(G.neighbors(node))
         path_prefix = tuple(path)
@@ -193,19 +217,9 @@ def find_valid_paths(
             if neighbor in path:
                 continue
             extended_path = path + [neighbor]
-            if isinstance(mlil[neighbor], MediumLevelILSetVar):
-                n_instr = mlil[neighbor]
-                if (
-                    isinstance(n_instr, MediumLevelILSetVar)
-                    and n_instr.dest == define_il_var
-                ):
-                    if (
-                        isinstance(n_instr.src, MediumLevelILConst)
-                        and n_instr.src.constant != define_const_val
-                    ):
-                        continue
-                    if isinstance(n_instr.src, MediumLevelILVar):
-                        continue
+            instrs = [mlil[i] for i in extended_path]
+            if should_quick_check and not quick_check(instrs, define_const_val):
+                continue
             queue.append((neighbor, extended_path))
             valid_extension = True
         if not valid_extension:
@@ -221,7 +235,7 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
         return
     worked_define = set()
     worked_if = set()
-    max_iterations = len(mlil.basic_blocks) * 2
+    max_iterations = len(mlil.basic_blocks) * 33
     for _ in range(max_iterations):
         updated = False
         G_full = CFGAnalyzer.create_full_cfg_graph(mlil)
@@ -254,26 +268,63 @@ def pass_deflate_hard(analysis_context: AnalysisContext):
                 for path_data in valid_paths:
                     worked_if.add(trans["if_instr"])
                     worked_define.add(trans["def_instr"])
-                    target_label = MediumLevelILLabel()
-                    target_label.operand = path_data.patchInfo.target.instr_index
-                    will_patch_instr = path_data.patchInfo.instr
-                    new_block_label = MediumLevelILLabel()
-                    mlil.mark_label(new_block_label)
-                    for instr in path_data.unused_instrs:
-                        mlil.append(mlil.copy_expr(instr))
-                    mlil.append(mlil.goto(target_label))
-                    mlil.replace_expr(
-                        will_patch_instr.expr_index,
-                        mlil.goto(
-                            new_block_label,
-                            ILSourceLocation.from_instruction(will_patch_instr),
-                        ),
-                    )
-                    updated = True
-                    break
+                    if path_data.patchInfo.type == "goto":
+                        target_label = MediumLevelILLabel()
+                        target_label.operand = path_data.patchInfo.target.instr_index
+                        will_patch_instr = path_data.patchInfo.instr
+                        new_block_label = MediumLevelILLabel()
+                        mlil.mark_label(new_block_label)
+                        for instr in path_data.unused_instrs:
+                            mlil.append(mlil.copy_expr(instr))
+                        mlil.append(mlil.goto(target_label))
+                        mlil.replace_expr(
+                            will_patch_instr.expr_index,
+                            mlil.goto(
+                                new_block_label,
+                                ILSourceLocation.from_instruction(will_patch_instr),
+                            ),
+                        )
+                        updated = True
+                        break
+                    elif path_data.patchInfo.type == "if":
+                        target_label = MediumLevelILLabel()
+                        target_label.operand = path_data.patchInfo.target.instr_index
+                        will_patch_instr: MediumLevelILIf = path_data.patchInfo.instr
+                        new_block_label = MediumLevelILLabel()
+                        mlil.mark_label(new_block_label)
+                        for instr in path_data.unused_instrs:
+                            mlil.append(mlil.copy_expr(instr))
+                        mlil.append(mlil.goto(target_label))
+                        if path_data.patchInfo.branch:
+                            false_label = MediumLevelILLabel()
+                            false_label.operand = will_patch_instr.false
+                            new_if_instr = mlil.if_expr(
+                                mlil.copy_expr(will_patch_instr.condition),
+                                new_block_label,
+                                false_label,
+                                ILSourceLocation.from_instruction(will_patch_instr),
+                            )
+                        else:
+                            true_label = MediumLevelILLabel()
+                            true_label.operand = will_patch_instr.true
+                            new_if_instr = mlil.if_expr(
+                                mlil.copy_expr(will_patch_instr.condition),
+                                true_label,
+                                new_block_label,
+                                ILSourceLocation.from_instruction(will_patch_instr),
+                            )
+                        mlil.replace_expr(def_instr.expr_index, mlil.nop())
+                        mlil.replace_expr(
+                            will_patch_instr.expr_index,
+                            new_if_instr,
+                        )
+                        updated = True
+                        break
+
             except nx.NetworkXNoPath:
                 continue
-            except Exception:
+            except Exception as e:
+                log_error(f"Error in find_valid_paths: {e}")
                 continue
             if updated:
                 mlil.finalize()
