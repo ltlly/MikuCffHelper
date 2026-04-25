@@ -61,6 +61,79 @@ _MIN_TRANSITIONS = 2
 _MAX_SWITCH_ITERS = 8  # 嵌套 dispatcher 最多重构 8 层（实测 sub_407368 有 3+ 层）
 
 
+def _vars_aliased_to(
+    mlil: MediumLevelILFunction,
+    primary,
+    dispatcher_blocks,
+):
+    """收集所有在 dispatcher 内通过 `alias = primary` 形式被赋值的别名变量。
+
+    BN SSA 经常拆出 `x9_1 = x8_2; if (x9_1 == K)` 这种 rename，x9_1 不在
+    state_vars (没 const 赋值) 但实际承载 primary 的值。识别这种别名能让
+    case_values 收集到正确的比较。
+    """
+    from binaryninja import MediumLevelILVar
+    aliases = {primary}
+    # 简单不动点迭代：只要发现 `new_alias = existing_alias` 就加入
+    changed = True
+    while changed:
+        changed = False
+        for bb_start in dispatcher_blocks:
+            bb = mlil.get_basic_block_at(bb_start)
+            if bb is None:
+                continue
+            for idx in range(bb.start, bb.end):
+                instr = mlil[idx]
+                if not isinstance(instr, MediumLevelILSetVar):
+                    continue
+                if instr.dest in aliases:
+                    continue
+                if (
+                    isinstance(instr.src, MediumLevelILVar)
+                    and instr.src.src in aliases
+                ):
+                    aliases.add(instr.dest)
+                    changed = True
+    return aliases
+
+
+def _collect_dispatcher_case_values(
+    mlil: MediumLevelILFunction,
+    dispatcher_blocks,
+    primary,
+):
+    """从 dispatcher 子图收集所有 (alias_of_primary == const) 比较中的 const。
+
+    包含 primary 的 SSA 别名（BN var-rename 拆出的 x9_1=x8_2 类）。这避免
+    sub_4259f4 上 x8_2 的 case_values=0 漏判，又避免 var-agnostic 把内层
+    state machine 的 cmp 也算进来导致 sub_407368 误拒。
+    """
+    from binaryninja import MediumLevelILOperation
+    aliases = _vars_aliased_to(mlil, primary, dispatcher_blocks)
+    values = set()
+    for bb_start in dispatcher_blocks:
+        bb = mlil.get_basic_block_at(bb_start)
+        if bb is None:
+            continue
+        for idx in range(bb.start, bb.end):
+            instr = mlil[idx]
+            if not isinstance(instr, MediumLevelILIf):
+                continue
+            cond = instr.condition
+            if cond.operation != MediumLevelILOperation.MLIL_CMP_E:
+                continue
+            if not (hasattr(cond, "left") and hasattr(cond, "right")):
+                continue
+            if not isinstance(cond.right, MediumLevelILConst):
+                continue
+            left = cond.left
+            if not (hasattr(left, "src") and left.src in aliases):
+                continue
+            size = left.size if hasattr(left, "size") else 4
+            values.add(cond.right.constant & _mask(size or 4))
+    return values
+
+
 def _candidate_state_vars_ranked(
     mlil: MediumLevelILFunction,
     state_vars,
@@ -94,6 +167,10 @@ def _collect_transitions_for_var(
     dispatcher_entry_start: int,
     deadline: float,
 ) -> "Dict[int, int]":
+    """收集 primary state var 的 (state_value → target instr_index) 映射。
+
+    使用 _forward_resolve 从每个 const 赋值出发模拟到第一个真实块入口。
+    """
     transitions: Dict[int, int] = {}
     for instr in mlil.instructions:
         if time.time() > deadline:
@@ -146,7 +223,17 @@ def _try_synthesize_one_dispatcher(
     if not dispatcher_blocks:
         return False
 
-    # 依次尝试每个候选 state var，选第一个能产出 ≥2 distinct target 的
+    # 依次尝试每个候选 state var。一个候选合格当且仅当：
+    #   1) ≥ _MIN_TRANSITIONS 个 case
+    #   2) ≥ 2 个 distinct target
+    #   3) **dispatcher 子图里所有 (primary == const) 比较中的 const 都在
+    #      transitions.keys() 里** —— 这是正确性的关键守卫。
+    #      原本只要求 transitions 非空就用，结果 sub_4259f4 上 dispatcher
+    #      cmp-tree 比较了 ~10 个 const 但 transitions 只解析出 4 个，
+    #      jump_to label_map 不完整，BN 把没列出的 case 路径当不可达清除，
+    #      函数语义被破坏 (call sub_426fd8 整支被丢)。
+    #      改用 dispatcher 里 const 比较值集合作为 ground truth：必须全部
+    #      被覆盖才安全。
     primary = None
     transitions: Dict[int, int] = {}
     for candidate in _candidate_state_vars_ranked(mlil, state_vars):
@@ -156,10 +243,20 @@ def _try_synthesize_one_dispatcher(
             mlil, candidate, state_vars, dispatcher_blocks,
             dispatcher_entry.start, deadline,
         )
-        if len(cand_trans) >= _MIN_TRANSITIONS and len(set(cand_trans.values())) >= 2:
-            primary = candidate
-            transitions = cand_trans
-            break
+        if len(cand_trans) < _MIN_TRANSITIONS:
+            continue
+        if len(set(cand_trans.values())) < 2:
+            continue
+        # 关键安全检查：dispatcher 实际比较的所有 const 都必须有对应映射
+        case_values = _collect_dispatcher_case_values(
+            mlil, dispatcher_blocks, candidate
+        )
+        if case_values and not case_values.issubset(cand_trans.keys()):
+            # dispatcher 比较了某个 const 但我们没解析出它的目标 → 不安全
+            continue
+        primary = candidate
+        transitions = cand_trans
+        break
 
     if primary is None:
         return False
