@@ -104,7 +104,13 @@ bv.update_analysis_and_wait()
 - 单 pass 30s 时间预算，超出停止保留已 patch 部分
 - 复杂度：O(defines × dispatcher_depth)，外层迭代上限 6
 
-### 5.4 实测效果 (arm64-v8a.so)
+### 5.4 等价性手工审计
+
+`docs/audit_407368.md` 给出了 sub_407368 (31→2 块) 的完整手工 trace 对比：
+原版的 5 层嵌套状态机展开后副作用序列为 `*(sp-0x10) = arg1; free(arg1); return`，
+与去混淆后的 5 条 HLIL 逐项等价。
+
+### 5.5 实测效果 (arm64-v8a.so)
 
 | 函数 | 原 MLIL 块 | 去混淆后 | HLIL 指令 | 时间 | 孤立跳转 |
 |---|---|---|---|---|---|
