@@ -37,10 +37,63 @@ bv.update_analysis_and_wait()
 
 ## 4. 整体 Pipeline
 
+提供两条互斥的 MLIL pass 路径，用户在 BN UI 里选其中一个启用：
+
+### 路径 A：deflate_hard (块数最少)
+
 ```
 原始IL → LLIL 优化 (代码克隆 / 条件拆分)
-       → MLIL 优化 (CFF 检测 + 状态识别 + 前向符号执行短路分发)
-       → HLIL 优化 (语义恢复)
+       → MLIL 优化：clear → mov_state_define → deflate_hard
+       → HLIL 显示一连串 goto 直接跳到真实块
+```
+
+把每个 `state = const` SetVar 用 `[copy; goto target]` 替换，块数最少
+但读起来是 goto 链。
+
+### 路径 B：synthesize_switch (像 LLVM IR 平坦化前的 switch)
+
+```
+原始IL → LLIL 优化
+       → MLIL 优化：clear → mov_state_define → synthesize_switch
+       → BN 4.1+ HLIL Restructurer 自动把 jump_to 还原为 switch-case
+```
+
+**保留** dispatcher 但把它的 if-tree 替换为 `MLIL_JUMP_TO(state_var, label_map)`，
+让 BN 自带的 jump-table restructurer 把它还原成 switch 形态。完美贴合
+OLLVM 平坦化前的源码结构。
+
+#### 路径 B 实测样例 (arm64-v8a.so)
+
+**sub_407368** (31 → 23 块, HLIL 41 行)：
+```c
+int32_t x8 = -0x3edd26ae;
+while (true) {
+    switch (x8) {
+        case 0x7fdcd428:
+            ... real ops ...
+            x8 = -0x1ff3f184;
+            continue;
+        case 0xad2b5e0d:
+            ... inner state machine ...
+            continue;
+    }
+}
+```
+
+**sub_40db18** (160 → 70 块, HLIL 103 行)：
+```c
+int32_t x9 = -0x6e2bc3ef;
+while (true) {
+    switch (x9) {
+        case 0x62063dfa: break;
+        case 0x83c8c576:
+            int64_t* x19_2 = sp;
+            sp = x19_2 - 0x20;
+            int64_t* x0_3 = sub_40d900(arg2);
+            x19_2[-2] = x0_3;
+            ... 内层状态机和真实子程序调用都完整保留 ...
+    }
+}
 ```
 
 ### 低级层 (LLIL)
