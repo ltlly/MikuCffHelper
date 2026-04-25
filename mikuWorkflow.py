@@ -7,6 +7,7 @@ from .passes.mid.deflatHardPass import pass_deflate_hard
 from .passes.mid.clearPass import pass_clear
 from .passes.mid.movStateDefine import pass_mov_state_define
 from .passes.mid.synthesizeSwitchPass import pass_synthesize_switch
+from .utils import log_info
 
 
 def workflow_patch_llil(analysis_context: AnalysisContext):
@@ -69,6 +70,7 @@ def workflow_patch_mlil_auto(analysis_context: AnalysisContext):
     if analysis_context.function.mlil is None:
         return
 
+    fname = analysis_context.function.name
     # 共用 prelude
     pass_clear(analysis_context)
     pass_mov_state_define(analysis_context)
@@ -80,10 +82,13 @@ def workflow_patch_mlil_auto(analysis_context: AnalysisContext):
         # B 没动函数 —— 通常意味着函数不符合 B 的合成守卫 (无完整 case_values
         # 或 forward_resolve 解析率太低)。试 A 兜底，A 的 deflate_hard 即使
         # 在 B 拒绝时也常能短路 state SetVar 链
+        log_info(f"[auto] {fname}: B 拒绝，fallback 到 A (deflate_hard)")
         pass_deflate_hard(analysis_context)
         pass_clear(analysis_context)
         pass_mov_state_define(analysis_context)
         pass_deflate_hard(analysis_context)
+    else:
+        log_info(f"[auto] {fname}: B 成功，跳过 A")
 
     pass_clear(analysis_context)
 

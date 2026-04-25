@@ -54,7 +54,7 @@ from binaryninja import (
     Variable,
 )
 
-from ...utils import log_error  # noqa: E402  (放底部以避免循环依赖)
+from ...utils import log_error, log_info  # noqa: E402  (放底部以避免循环依赖)
 
 _MAX_OUTER_ITERS = 6
 _MAX_FORWARD_STEPS = 512
@@ -789,24 +789,34 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
     function_name = function.name
 
     deadline = time.time() + _TIME_BUDGET_SECONDS
+    iter_idx = 0
+    total_patched = 0
 
     for _ in range(_MAX_OUTER_ITERS):
+        iter_idx += 1
         if time.time() > deadline:
+            log_info(f"[deflate] {function_name}: deadline reached at iter {iter_idx}")
             break
 
         # 1. 门控：函数是 CFF 吗？(Blazytko 支配树法)
         dispatcher_entry = _detect_dispatcher_entry(mlil)
         if dispatcher_entry is None:
+            if iter_idx == 1:
+                log_info(f"[deflate] {function_name}: no dispatcher detected (Blazytko score)")
             break
 
         # 2. 状态变量识别
         state_vars = _collect_state_vars(mlil, dispatcher_entry)
         if not state_vars:
+            if iter_idx == 1:
+                log_info(f"[deflate] {function_name}: no state vars at 0x{dispatcher_entry.start:x}")
             break
 
         # 2.5 函数级 CFF 启发式：避免 Rust match / C++ stdlib 等小常量分发
         # 被误判为 OLLVM CFF (task #16 发现的假阳性)
         if not _function_looks_like_cff(mlil, state_vars):
+            if iter_idx == 1:
+                log_info(f"[deflate] {function_name}: failed CFF heuristic")
             break
 
         # 3. 形式化 dispatcher 子图：含 dispatcher_entry 的 SCC ∩ pure-dispatcher 块
@@ -814,6 +824,8 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
             mlil, dispatcher_entry, state_vars
         )
         if not dispatcher_blocks:
+            if iter_idx == 1:
+                log_info(f"[deflate] {function_name}: SCC ∩ pure-dispatcher empty")
             break
 
         # 4. 收集所有 state SetVar (= const)
@@ -833,7 +845,13 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
             patches.append((instr, target))
 
         if not patches:
+            if iter_idx == 1:
+                log_info(
+                    f"[deflate] {function_name}: forward_resolve resolved 0/N "
+                    f"state SetVars at 0x{dispatcher_entry.start:x}"
+                )
             break
+        total_patched += len(patches)
 
         # 4. 修补：相同 (state_var, value, target) 的 patch 共享同一个 mini-block
         #    避免每个 define 都生成独立的 [copy + goto] 块，缓解 mini-block
@@ -881,6 +899,9 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
 
     mlil.finalize()
     mlil.generate_ssa_form()
+
+    if total_patched > 0:
+        log_info(f"[deflate] {function_name}: patched {total_patched} state SetVars across {iter_idx} iters")
 
     # 等价性自动验证：patch 后副作用签名集合应仍 ⊇ patch 前
     side_effects_after = _collect_side_effect_signatures(mlil)

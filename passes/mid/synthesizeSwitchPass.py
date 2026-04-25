@@ -58,6 +58,7 @@ from .deflatHardPass import (
     _mask,
     _verify_no_side_effect_loss,
 )
+from ...utils import log_info, log_warn  # noqa: E402
 
 _TIME_BUDGET_SECONDS = 15.0
 _MIN_TRANSITIONS = 2
@@ -375,18 +376,22 @@ def _try_synthesize_one_dispatcher(
     multi-候选策略：依次尝试 unique 常量赋值数最多的 state var 作为 dispatch
     primary，第一个能给出 ≥_MIN_TRANSITIONS 个 distinct target 的就用它。
     """
+    fname = mlil.source_function.name
     dispatcher_entry = _detect_dispatcher_entry(mlil, exclude=already_rewritten)
     if dispatcher_entry is None:
         return None
     state_vars = _collect_state_vars(mlil, dispatcher_entry)
     if not state_vars:
+        log_info(f"[synth] {fname}: no state vars found at dispatcher 0x{dispatcher_entry.start:x}")
         return None
     if not _function_looks_like_cff(mlil, state_vars):
+        log_info(f"[synth] {fname}: failed CFF heuristic (rust/c++ false positive guard)")
         return None
     dispatcher_blocks = _identify_dispatcher_subgraph(
         mlil, dispatcher_entry, state_vars
     )
     if not dispatcher_blocks:
+        log_info(f"[synth] {fname}: SCC ∩ pure-dispatcher empty")
         return None
 
     # 依次尝试每个候选 state var。一个候选合格当且仅当：
@@ -430,12 +435,17 @@ def _try_synthesize_one_dispatcher(
         break
 
     if primary is None:
+        log_info(
+            f"[synth] {fname}: no qualifying state var at dispatcher "
+            f"0x{dispatcher_entry.start:x} (state_vars={len(state_vars)})"
+        )
         return "fail"
 
     use_clean_path = (
         fully_resolved_for_primary
         and case_values <= set(transitions.keys())
     )
+    unresolved_count = len((case_values | all_assigned_for_primary) - set(transitions.keys()))
 
     try:
         if use_clean_path:
@@ -462,6 +472,10 @@ def _try_synthesize_one_dispatcher(
             already_rewritten.add(dispatcher_entry.start)
             mlil.finalize()
             mlil.generate_ssa_form()
+            log_info(
+                f"[synth] {fname}: P1 clean at 0x{dispatcher_entry.start:x} "
+                f"transitions={len(transitions)}"
+            )
             return "clean"
         else:
             # P2: guarded jump_to fallback
@@ -470,12 +484,22 @@ def _try_synthesize_one_dispatcher(
                 all_assigned_for_primary, dispatcher_entry, dispatcher_blocks,
             )
             if not ok:
+                log_info(
+                    f"[synth] {fname}: P2 install failed (no edges to redirect "
+                    f"or label_map empty) at 0x{dispatcher_entry.start:x}"
+                )
                 return "fail"
             already_rewritten.add(dispatcher_entry.start)
             mlil.finalize()
             mlil.generate_ssa_form()
+            log_info(
+                f"[synth] {fname}: P2 guarded at 0x{dispatcher_entry.start:x} "
+                f"resolved={len(transitions)} unresolved={unresolved_count} "
+                f"(原因: {'fully_resolved=False' if not fully_resolved_for_primary else 'case_values 有未覆盖'})"
+            )
             return "guarded"
-    except Exception:
+    except Exception as e:
+        log_warn(f"[synth] {fname}: exception during rewrite: {e}")
         return "fail"
 
 
