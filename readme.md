@@ -117,6 +117,15 @@ bv.update_analysis_and_wait()
 原版的 5 层嵌套状态机展开后副作用序列为 `*(sp-0x10) = arg1; free(arg1); return`，
 与去混淆后的 5 条 HLIL 逐项等价。
 
+### 5.4.1 泛化测试 (libkste.so + libSeQing.so)
+
+`docs/generalization_test.md` 给出了在两个**未在开发期接触过的** OLLVM CFF
+二进制上的随机抽样测试结果：
+
+- libkste.so 5 个测试函数：3/5 显著改善 (≥18%)
+- libSeQing.so 18 个测试函数：**平均 +35.2% 块数改善**，11/18 显著改善 (≥30%)
+- **0 个 ORPHAN 跳转、0 个 verifier 失败**：算法在新样本上仍保持等价性
+
 ### 5.5 自动等价性验证 (`_verify_no_side_effect_loss`)
 
 每次 pass 调用前后会快照所有副作用指令的 `(op_id, address)` 签名集合，
