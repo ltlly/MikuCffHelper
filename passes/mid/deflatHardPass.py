@@ -785,27 +785,41 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
         if not patches:
             break
 
-        # 4. 修补
+        # 4. 修补：相同 (state_var, value, target) 的 patch 共享同一个 mini-block
+        #    避免每个 define 都生成独立的 [copy + goto] 块，缓解 mini-block
+        #    膨胀（task #15 在 sub_412bec 76→118 上观察到的问题）
+        mini_block_cache: Dict[Tuple[int, int, int], "MediumLevelILLabel"] = {}
         for define, target_idx in patches:
             try:
-                target_label = MediumLevelILLabel()
-                target_label.operand = target_idx
-                new_block_label = MediumLevelILLabel()
-                mlil.mark_label(new_block_label)
-                mlil.append(
-                    mlil.copy_expr(define),
-                    ILSourceLocation.from_instruction(define),
+                # 缓存键：(state_var.identifier, const_value, target_idx)
+                # 同 key 共享一个 mini-block 入口标签
+                key = (
+                    define.dest.identifier,
+                    define.src.constant & _mask(define.size or 4),
+                    target_idx,
                 )
-                mlil.append(
-                    mlil.goto(
-                        target_label,
+                cached_label = mini_block_cache.get(key)
+                if cached_label is None:
+                    target_label = MediumLevelILLabel()
+                    target_label.operand = target_idx
+                    new_block_label = MediumLevelILLabel()
+                    mlil.mark_label(new_block_label)
+                    mlil.append(
+                        mlil.copy_expr(define),
                         ILSourceLocation.from_instruction(define),
                     )
-                )
+                    mlil.append(
+                        mlil.goto(
+                            target_label,
+                            ILSourceLocation.from_instruction(define),
+                        )
+                    )
+                    cached_label = new_block_label
+                    mini_block_cache[key] = cached_label
                 mlil.replace_expr(
                     define.expr_index,
                     mlil.goto(
-                        new_block_label,
+                        cached_label,
                         ILSourceLocation.from_instruction(define),
                     ),
                 )

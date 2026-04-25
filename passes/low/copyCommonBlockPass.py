@@ -61,19 +61,29 @@ def fix_pre_bb(
 
 
 def pass_copy_common_block(analysis_context: AnalysisContext):
+    """复制有多前驱的小块，使每条 dispatcher 路径独占一份。
+
+    爆炸控制：
+    - 总块数硬上限 (>500 直接跳过)
+    - 单块大小上限 (>8 跳过；之前 16 太宽松导致 sub_428b68 这种从 106
+      炸到 405)
+    - 总复制额度上限 (initial_blocks × 1.5)，超出立即停止本 pass
+    """
     llil = analysis_context.function.llil
     if llil is None:
         return
-    # 超大函数跳过以避免复制爆炸；对中等规模放宽限制
-    if len(llil.basic_blocks) > 500:
+    initial_count = len(llil.basic_blocks)
+    if initial_count > 500:
         return
-    max_iterations = min(len(llil.basic_blocks), 200)
+    max_total_blocks = int(initial_count * 1.5) + 16  # 复制额度
+    max_iterations = min(initial_count, 64)
     for _ in range(max_iterations):
+        if len(llil.basic_blocks) > max_total_blocks:
+            break
         updated = False
         g = CFGAnalyzer.create_cfg_graph(llil)
         for bb in llil.basic_blocks:
-            # 块过大时不复制，避免代码膨胀
-            if bb.length > 16:
+            if bb.length > 8:
                 continue
             pre_blocks = CFGAnalyzer.LLIL_get_incoming_blocks(llil, bb.start)
             if len(pre_blocks) <= 1:
@@ -87,6 +97,8 @@ def pass_copy_common_block(analysis_context: AnalysisContext):
             if CFGAnalyzer.is_node_in_loop(g, bb.start):
                 continue
             for j in range(1, len(pre_blocks)):
+                if len(llil.basic_blocks) > max_total_blocks:
+                    break
                 updated = True
                 pre_block = pre_blocks[j]
                 pre_last_instr = llil[pre_block.end - 1]
