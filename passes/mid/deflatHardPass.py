@@ -188,6 +188,7 @@ def _eval_if(if_instr: MediumLevelILIf, env: Dict[Variable, int]) -> Optional[bo
 
 def _detect_dispatcher_entry(
     mlil: MediumLevelILFunction,
+    exclude: Optional[Set[int]] = None,
 ) -> Optional[MediumLevelILBasicBlock]:
     """Blazytko 支配树法。O(N+E) 计算 dominator 子树大小，O(E) 查 back-edge。"""
     bbs = list(mlil.basic_blocks)
@@ -226,14 +227,16 @@ def _detect_dispatcher_entry(
 
     best_score = 0.0
     best_bb: Optional[MediumLevelILBasicBlock] = None
+    excluded = exclude or set()
     for d in bbs:
+        if d.start in excluded:
+            continue
         size = subtree_size.get(d.start, 0)
         if size < 3:
             continue
         score = size / n
         if score < _FLATTENING_SCORE_THRESHOLD:
             continue
-        # back-edge 检查：d 的所有 incoming_edges 中是否有源点在 d 的子树里
         has_back_edge = False
         for edge in d.incoming_edges:
             if _in_subtree(d, edge.source.start):

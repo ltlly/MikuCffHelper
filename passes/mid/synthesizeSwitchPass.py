@@ -58,20 +58,18 @@ from .deflatHardPass import (
 
 _TIME_BUDGET_SECONDS = 15.0
 _MIN_TRANSITIONS = 2
+_MAX_SWITCH_ITERS = 4  # 嵌套 dispatcher 最多重构 4 层
 
 
-def _find_primary_state_var(
+def _candidate_state_vars_ranked(
     mlil: MediumLevelILFunction,
     state_vars,
 ):
-    """挑选被赋予最多 unique 常量值的状态变量作为 jump_to 的 dispatch 变量。
-
-    sub_4075a0 上原本"取 dispatcher_entry 第一条 if 左操作数"会选到 fp
-    (frame pointer)，因为 fp 也被 const-compare 了几次。改为按 unique 常量
-    赋值数排序更可靠 —— 真正的 CFF 状态变量必然被赋值很多次。
+    """返回按 unique 常量赋值数排序的状态变量列表 (从多到少)。允许调用方
+    依次尝试每一个，避免单一启发式失败时整个 pass 放弃。
     """
     if not state_vars:
-        return None
+        return []
     unique_vals: Dict = {var: set() for var in state_vars}
     for instr in mlil.instructions:
         if (
@@ -82,52 +80,21 @@ def _find_primary_state_var(
             unique_vals[instr.dest].add(
                 instr.src.constant & _mask(instr.size or 4)
             )
-    # 取 unique 值最多的
-    best = max(unique_vals, key=lambda v: len(unique_vals[v]))
-    if len(unique_vals[best]) < 3:
-        return None
-    return best
-
-
-def pass_synthesize_switch(analysis_context: AnalysisContext) -> None:
-    function = analysis_context.function
-    mlil = function.mlil
-    if mlil is None:
-        return
-
-    side_effects_before = _collect_side_effect_signatures(mlil)
-    function_name = function.name
-
-    deadline = time.time() + _TIME_BUDGET_SECONDS
-
-    # 1. 检测 CFF
-    dispatcher_entry = _detect_dispatcher_entry(mlil)
-    if dispatcher_entry is None:
-        return
-    state_vars = _collect_state_vars(mlil, dispatcher_entry)
-    if not state_vars:
-        return
-    if not _function_looks_like_cff(mlil, state_vars):
-        return
-    dispatcher_blocks = _identify_dispatcher_subgraph(
-        mlil, dispatcher_entry, state_vars
+    return sorted(
+        [v for v, s in unique_vals.items() if len(s) >= 2],
+        key=lambda v: -len(unique_vals[v]),
     )
-    if not dispatcher_blocks:
-        return
 
-    # 2. 选 primary state var (unique const 赋值数最多的)
-    primary = _find_primary_state_var(mlil, state_vars)
-    if primary is None:
-        return
 
-    # 3. 收集 (state_value → target instr_index) 映射
-    # 排除 target == dispatcher_entry.start：当 dispatcher_entry 本身被 SCC
-    # 副作用筛选挡在 dispatcher_blocks 之外时，forward_resolve 会把它当成
-    # "真实块入口"返回，但其实它就是分发器本身（sub_40db18 上观察到的
-    # bug，所有 transitions 都 target=dispatcher_entry 导致 switch 退化为
-    # 单 case）
+def _collect_transitions_for_var(
+    mlil: MediumLevelILFunction,
+    primary,
+    state_vars,
+    dispatcher_blocks,
+    dispatcher_entry_start: int,
+    deadline: float,
+) -> "Dict[int, int]":
     transitions: Dict[int, int] = {}
-    distinct_targets: set = set()
     for instr in mlil.instructions:
         if time.time() > deadline:
             break
@@ -140,7 +107,7 @@ def pass_synthesize_switch(analysis_context: AnalysisContext) -> None:
         target = _forward_resolve(mlil, instr, state_vars, dispatcher_blocks)
         if target is None:
             continue
-        if target == dispatcher_entry.start:
+        if target == dispatcher_entry_start:
             continue
         target_bb = mlil.get_basic_block_at(target)
         if target_bb is None or target != target_bb.start:
@@ -149,15 +116,54 @@ def pass_synthesize_switch(analysis_context: AnalysisContext) -> None:
             continue
         value = instr.src.constant & _mask(instr.size or 4)
         transitions.setdefault(value, target)
-        distinct_targets.add(target)
+    return transitions
 
-    if len(transitions) < _MIN_TRANSITIONS:
-        return
-    if len(distinct_targets) < 2:
-        # 所有 transition 落到同一个目标 → 不构成 switch (没有分支)
-        return
 
-    # 4. 构造 jump_to(primary, label_map) 替换 dispatcher_entry 入口指令
+def _try_synthesize_one_dispatcher(
+    mlil: MediumLevelILFunction,
+    deadline: float,
+    already_rewritten: set,
+) -> bool:
+    """识别一个 dispatcher 并把它重构为 jump_to。返回是否做了修改。
+
+    通过 already_rewritten 集合跳过本次 pass 已经重构过的 dispatcher
+    (按 dispatcher_entry.start 标识)，避免反复尝试同一个。
+
+    multi-候选策略：依次尝试 unique 常量赋值数最多的 state var 作为 dispatch
+    primary，第一个能给出 ≥_MIN_TRANSITIONS 个 distinct target 的就用它。
+    """
+    dispatcher_entry = _detect_dispatcher_entry(mlil, exclude=already_rewritten)
+    if dispatcher_entry is None:
+        return False
+    state_vars = _collect_state_vars(mlil, dispatcher_entry)
+    if not state_vars:
+        return False
+    if not _function_looks_like_cff(mlil, state_vars):
+        return False
+    dispatcher_blocks = _identify_dispatcher_subgraph(
+        mlil, dispatcher_entry, state_vars
+    )
+    if not dispatcher_blocks:
+        return False
+
+    # 依次尝试每个候选 state var，选第一个能产出 ≥2 distinct target 的
+    primary = None
+    transitions: Dict[int, int] = {}
+    for candidate in _candidate_state_vars_ranked(mlil, state_vars):
+        if time.time() > deadline:
+            break
+        cand_trans = _collect_transitions_for_var(
+            mlil, candidate, state_vars, dispatcher_blocks,
+            dispatcher_entry.start, deadline,
+        )
+        if len(cand_trans) >= _MIN_TRANSITIONS and len(set(cand_trans.values())) >= 2:
+            primary = candidate
+            transitions = cand_trans
+            break
+
+    if primary is None:
+        return False
+
     try:
         label_map: Dict[int, MediumLevelILLabel] = {}
         for value, target_idx in transitions.items():
@@ -179,11 +185,38 @@ def pass_synthesize_switch(analysis_context: AnalysisContext) -> None:
         )
         mlil.replace_expr(first_instr.expr_index, jump_to_expr)
     except Exception:
-        return
+        return False
 
+    already_rewritten.add(dispatcher_entry.start)
     mlil.finalize()
     mlil.generate_ssa_form()
+    return True
 
-    # 等价性验证
+
+def pass_synthesize_switch(analysis_context: AnalysisContext) -> None:
+    """多迭代 synthesize_switch：每次重构一个 dispatcher。第一遍通常是最
+    外层 dispatcher，重构后内层（嵌套）dispatcher 成为新的 detect 候选，
+    第二遍处理内层，依此类推。最多 _MAX_SWITCH_ITERS 层。
+
+    对应 sub_407368 这种"外层 switch x8, case 内含内层 switch i"的多层
+    OLLVM CFF。
+    """
+    function = analysis_context.function
+    mlil = function.mlil
+    if mlil is None:
+        return
+
+    side_effects_before = _collect_side_effect_signatures(mlil)
+    function_name = function.name
+
+    deadline = time.time() + _TIME_BUDGET_SECONDS
+    already_rewritten: set = set()
+
+    for _ in range(_MAX_SWITCH_ITERS):
+        if time.time() > deadline:
+            break
+        if not _try_synthesize_one_dispatcher(mlil, deadline, already_rewritten):
+            break
+
     side_effects_after = _collect_side_effect_signatures(mlil)
     _verify_no_side_effect_loss(side_effects_before, side_effects_after, function_name)
