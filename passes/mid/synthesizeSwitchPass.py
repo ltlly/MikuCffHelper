@@ -264,15 +264,16 @@ def _try_synthesize_one_dispatcher(
         # 运行时该 state 值进 jump_to 时 undefined，函数被破坏
         if not fully_resolved:
             continue
-        # 完整性 2：dispatcher 内通过 (alias_of_candidate == const) 的所有
-        # 比较 const 也必须在 transitions 里 —— 即便 const 在函数里没显式
-        # 赋值 (来自参数/内存读)，dispatcher 的检查告诉我们它确实可能取到
+        # 完整性 2：candidate 必须 *实际是* dispatcher 的路由变量。看
+        # dispatcher 内是否有 (candidate 或其别名) == const 的比较。空集
+        # 意味着 candidate 不是真正的 dispatch var (sub_408b94 上 lr_1
+        # 被错选)。
+        # 注：不要求 case_values ⊆ transitions —— dispatcher 可能含 *dead
+        # check* (case 值在函数里从来不被赋值)，强制覆盖会拒绝合法合成
         case_values = _collect_dispatcher_case_values(
             mlil, dispatcher_blocks, candidate
         )
         if not case_values:
-            continue
-        if not case_values.issubset(cand_trans.keys()):
             continue
         primary = candidate
         transitions = cand_trans
