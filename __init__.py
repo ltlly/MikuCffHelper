@@ -1,6 +1,11 @@
 import json
 from binaryninja import PluginCommand, Workflow, Activity
-from .mikuWorkflow import workflow_patch_llil, workflow_patch_mlil, workflow_patch_hlil
+from .mikuWorkflow import (
+    workflow_patch_llil,
+    workflow_patch_mlil,
+    workflow_patch_hlil,
+    workflow_patch_mlil_switch,
+)
 from .utils import log_info
 from .fix_binaryninja_api import lowlevelil  # noqa: F401
 from .fix_binaryninja_api import mediumlevelil  # noqa: F401
@@ -28,14 +33,28 @@ def register_workflow():
     configuration_mlil = json.dumps(
         {
             "name": "analysis.plugins.workflow_patch_mlil",
-            "description": "A activity to patch mlil",
+            "description": "Deflate CFF: 把 dispatcher 绕过，输出最少块数的 goto 形态",
             "eligibility": {"auto": {"default": False}},
         }
     )
-
     cff_workflow.register_activity(
         Activity(configuration_mlil, action=workflow_patch_mlil)
     )
+
+    # 互斥的另一条路径：保留 dispatcher 但重构为 MLIL JUMP_TO，让 BN HLIL
+    # restructurer 显示成 switch-case 结构。两个 mlil pass 互斥，用户只能
+    # 启用一个
+    configuration_mlil_switch = json.dumps(
+        {
+            "name": "analysis.plugins.workflow_patch_mlil_switch",
+            "description": "Synthesize switch: 把 dispatcher 重构为 MLIL JUMP_TO，HLIL 显示 switch-case",
+            "eligibility": {"auto": {"default": False}},
+        }
+    )
+    cff_workflow.register_activity(
+        Activity(configuration_mlil_switch, action=workflow_patch_mlil_switch)
+    )
+
     configuration_hlil = json.dumps(
         {
             "name": "analysis.plugins.workflow_patch_hlil",
@@ -52,7 +71,10 @@ def register_workflow():
     )
     cff_workflow.insert(
         "core.function.analyzeConditionalNoReturns",
-        ["analysis.plugins.workflow_patch_mlil"],
+        [
+            "analysis.plugins.workflow_patch_mlil",
+            "analysis.plugins.workflow_patch_mlil_switch",
+        ],
     )
     cff_workflow.insert(
         "core.function.runCompletionCallbacks", ["analysis.plugins.workflow_patch_hlil"]
