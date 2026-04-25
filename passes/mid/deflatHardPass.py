@@ -54,9 +54,9 @@ from binaryninja import (
     Variable,
 )
 
-_MAX_OUTER_ITERS = 6
-_MAX_FORWARD_STEPS = 1024
-_TIME_BUDGET_SECONDS = 30.0
+_MAX_OUTER_ITERS = 3
+_MAX_FORWARD_STEPS = 512
+_TIME_BUDGET_SECONDS = 15.0
 _FLATTENING_SCORE_THRESHOLD = 0.3
 _MIN_BLOCKS_FOR_CFF = 5
 
@@ -314,6 +314,35 @@ def _is_state_only_instr(
     return False
 
 
+def _seed_env_from_block(
+    mlil: MediumLevelILFunction,
+    define_instr: MediumLevelILSetVar,
+    state_vars: Set[Variable],
+) -> Dict[Variable, int]:
+    """组装前向模拟的初始环境：当前 define 的常量值 + 同 block 内、当前指令
+    之前对其它状态变量的常量赋值。
+
+    这处理 task #8 的"多状态变量交互"：dispatcher 可能同时检查多个状态变量
+    （例如 if (state1 == X && state2 == Y)），如果只 seed 一个变量，其它
+    变量未知会导致 if 无法决断。
+    """
+    env: Dict[Variable, int] = {}
+    bb = mlil.get_basic_block_at(define_instr.instr_index)
+    if bb is not None:
+        for idx in range(bb.start, define_instr.instr_index):
+            instr = mlil[idx]
+            if (
+                isinstance(instr, MediumLevelILSetVar)
+                and instr.dest in state_vars
+                and isinstance(instr.src, MediumLevelILConst)
+            ):
+                env[instr.dest] = instr.src.constant & _mask(instr.size or 4)
+    env[define_instr.dest] = define_instr.src.constant & _mask(
+        define_instr.size or 4
+    )
+    return env
+
+
 def _forward_resolve(
     mlil: MediumLevelILFunction,
     define_instr: MediumLevelILSetVar,
@@ -329,9 +358,7 @@ def _forward_resolve(
     """
     if not isinstance(define_instr.src, MediumLevelILConst):
         return None
-    env: Dict[Variable, int] = {
-        define_instr.dest: define_instr.src.constant & _mask(define_instr.size or 4)
-    }
+    env = _seed_env_from_block(mlil, define_instr, state_vars)
     visited: Set[int] = set()
     current = define_instr.instr_index + 1
     n = len(mlil)
