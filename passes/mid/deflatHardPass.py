@@ -54,7 +54,9 @@ from binaryninja import (
     Variable,
 )
 
-_MAX_OUTER_ITERS = 3
+from ...utils import log_error  # noqa: E402  (放底部以避免循环依赖)
+
+_MAX_OUTER_ITERS = 6
 _MAX_FORWARD_STEPS = 512
 _TIME_BUDGET_SECONDS = 15.0
 _FLATTENING_SCORE_THRESHOLD = 0.3
@@ -300,7 +302,7 @@ def _collect_state_vars(
 
 
 # --------------------------------------------------------------------------
-# Tarjan SCC + 副作用筛选：形式化的 dispatcher 子图识别
+# 副作用集合：用于 dispatcher 子图识别 + patch 前后等价性验证
 # --------------------------------------------------------------------------
 
 # 有外部副作用的 MLIL 操作。一个块若含其中任何一个，就一定不是 dispatcher 块。
@@ -330,6 +332,112 @@ _SIDE_EFFECT_OPS: Set = {
     MediumLevelILOperation.MLIL_INTRINSIC,
     MediumLevelILOperation.MLIL_INTRINSIC_SSA,
 }
+
+
+def _collect_side_effect_signatures(mlil: MediumLevelILFunction) -> Set[Tuple[int, int]]:
+    """收集 MLIL 中所有副作用指令的 (op_id, address) 签名。
+
+    递归遍历每条顶层指令的子表达式：因为 call 经常作为 SetVar 的 src 出现
+    （`var = func()`），不能只扫描顶层。
+
+    用于 patch 前后的等价性验证：deflate 不应丢失任何副作用。
+    """
+    sigs: Set[Tuple[int, int]] = set()
+
+    def visitor(operand_name, expr, type_name, parent):
+        if isinstance(expr, MediumLevelILInstruction) and expr.operation in _SIDE_EFFECT_OPS:
+            sigs.add((int(expr.operation), expr.address))
+
+    for top in mlil.instructions:
+        try:
+            list(top.traverse(visitor))
+        except Exception:
+            # traverse 在某些 BN 版本上可能 raise；退化为只扫顶层
+            if top.operation in _SIDE_EFFECT_OPS:
+                sigs.add((int(top.operation), top.address))
+    return sigs
+
+
+def _verify_no_side_effect_loss(
+    before: Set[Tuple[int, int]],
+    after: Set[Tuple[int, int]],
+    function_name: str,
+) -> bool:
+    """验证 patch 后副作用集合 ⊇ patch 前。
+
+    dispatcher 内部的状态写入不属于副作用集合（不在 _SIDE_EFFECT_OPS 中），
+    所以 deflate 删除/重排状态写入不会减少签名集。
+    若发现丢失，返回 False 并 log，但不能回滚（MLIL 已修改）。
+    """
+    lost = before - after
+    if not lost:
+        return True
+    log_error(
+        f"[deflate verifier] Function {function_name}: lost {len(lost)} "
+        f"side-effect signatures after patch! Logical equivalence broken."
+    )
+    for op_id, addr in sorted(lost, key=lambda x: x[1])[:10]:
+        log_error(f"  lost: op_id={op_id} addr={hex(addr)}")
+    return False
+
+
+# --------------------------------------------------------------------------
+# 真实块转移图重建：synthesis 风格的 fallback / 诊断
+# --------------------------------------------------------------------------
+
+
+def build_real_block_transition_graph(
+    mlil: MediumLevelILFunction,
+) -> Dict[int, Set[int]]:
+    """重建真实块之间的直接转移图 (synthesis 风格)。
+
+    对每个真实块 R，枚举它内部所有 "state = const" SetVar，对每个常量值
+    forward_resolve 找出对应的下一个真实块 R'，把 R → R' 加入图。
+
+    这不会修改 MLIL；它给出的是 *deflate 想表达的真实控制流骨架*，可用作：
+      - 失败诊断：哪些真实块之间的转移没被 patch
+      - 合成 fallback：未来用这个骨架做 program synthesis 直接生成新函数
+        (类似 Chisel 的 CFS - Control-Flow Skeleton)
+
+    返回 {real_block_start: set(reachable_real_block_starts)}
+    """
+    dispatcher_entry = _detect_dispatcher_entry(mlil)
+    if dispatcher_entry is None:
+        return {}
+    state_vars = _collect_state_vars(mlil, dispatcher_entry)
+    if not state_vars:
+        return {}
+    dispatcher_blocks = _identify_dispatcher_subgraph(
+        mlil, dispatcher_entry, state_vars
+    )
+    if not dispatcher_blocks:
+        return {}
+
+    graph: Dict[int, Set[int]] = {}
+    real_blocks = [
+        b for b in mlil.basic_blocks if b.start not in dispatcher_blocks
+    ]
+
+    for R in real_blocks:
+        succ_real_blocks: Set[int] = set()
+        # 直接边 (R 直接 goto/if 到另一个真实块，没经过 dispatcher)
+        for edge in R.outgoing_edges:
+            if edge.target.start not in dispatcher_blocks:
+                succ_real_blocks.add(edge.target.start)
+        # 通过 dispatcher 的间接边
+        for idx in range(R.start, R.end):
+            instr = mlil[idx]
+            if (
+                isinstance(instr, MediumLevelILSetVar)
+                and instr.dest in state_vars
+                and isinstance(instr.src, MediumLevelILConst)
+            ):
+                tgt = _forward_resolve(mlil, instr, state_vars, dispatcher_blocks)
+                if tgt is not None:
+                    succ_real_blocks.add(tgt)
+        if succ_real_blocks:
+            graph[R.start] = succ_real_blocks
+    return graph
 
 
 def _tarjan_scc(adj: Dict[int, List[int]]) -> List[List[int]]:
@@ -631,6 +739,10 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
     if mlil is None:
         return
 
+    # patch 前快照外部副作用签名集合，pass 结束后对比验证等价性
+    side_effects_before = _collect_side_effect_signatures(mlil)
+    function_name = function.name
+
     deadline = time.time() + _TIME_BUDGET_SECONDS
 
     for _ in range(_MAX_OUTER_ITERS):
@@ -705,3 +817,7 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
 
     mlil.finalize()
     mlil.generate_ssa_form()
+
+    # 等价性自动验证：patch 后副作用签名集合应仍 ⊇ patch 前
+    side_effects_after = _collect_side_effect_signatures(mlil)
+    _verify_no_side_effect_loss(side_effects_before, side_effects_after, function_name)

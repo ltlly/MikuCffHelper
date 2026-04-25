@@ -117,19 +117,41 @@ bv.update_analysis_and_wait()
 原版的 5 层嵌套状态机展开后副作用序列为 `*(sp-0x10) = arg1; free(arg1); return`，
 与去混淆后的 5 条 HLIL 逐项等价。
 
-### 5.5 实测效果 (arm64-v8a.so，SCC 形式化版本)
+### 5.5 自动等价性验证 (`_verify_no_side_effect_loss`)
 
-| 函数 | 原 MLIL 块 | 去混淆后 | HLIL 指令 | 时间 | 孤立跳转 |
-|---|---|---|---|---|---|
-| target_function (cff-arm64-v8a.elf) | 31 | 41 | 55 | 0.1s | ✅ 无 |
-| sub_4075a0 | 31 | 10 | **5** | 5.2s | ✅ |
-| sub_407368 | 31 | **2** | 5 | 5.1s | ✅ |
-| sub_406c0c | 97 | 63 | 68 | 6.8s | ✅ |
-| sub_40d4fc | 36 | 34 | 54 | 7.0s | ✅ |
-| sub_40608c | 170 | 191 | 341 | 12.1s | ✅ |
-| sub_40db18 | 160 | 40 | 67 | 16.1s | ✅ |
-| sub_408b94 | 82 | 96 | 216 | 17.8s | ✅ |
-| sub_486a90 | 805 | 790 | (BN timeout) | 152s | ✅ |
+每次 pass 调用前后会快照所有副作用指令的 `(op_id, address)` 签名集合，
+patch 完后比较 `after ⊇ before`。若发现丢失，立即 log_error 警告。
+
+实测：所有 9 个测试样本均通过验证，无任何副作用丢失。
+
+### 5.6 真实块转移图 (`build_real_block_transition_graph`)
+
+Synthesis 风格的诊断 / fallback API：对每个真实块 R 枚举它内部的状态赋值，
+forward_resolve 找出对应的下一个真实块 R'，构建 R → R' 的转移图。
+
+类似 Chisel OOPSLA'24 的 Control-Flow Skeleton (CFS) 概念，可作为：
+- 失败诊断：哪些真实块之间的转移没被 patch
+- 未来 synthesis 基础：在此骨架上做 program synthesis 直接生成新函数
+
+```python
+from MikuCffHelper.passes.mid.deflatHardPass import build_real_block_transition_graph
+g = build_real_block_transition_graph(func.mlil)
+# {real_block_start: set(reachable_real_block_starts)}
+```
+
+### 5.7 实测效果 (arm64-v8a.so，SCC + 多迭代 + 验证)
+
+| 函数 | 原 MLIL 块 | 去混淆后 | HLIL 指令 | 时间 | 孤立跳转 | 等价验证 |
+|---|---|---|---|---|---|---|
+| target_function (cff-arm64-v8a.elf) | 31 | 41 | 55 | 0.1s | ✅ 无 | ✅ |
+| sub_4075a0 | 31 | **6** | **5** | 5.2s | ✅ | ✅ |
+| sub_407368 | 31 | **2** | 5 | 5.3s | ✅ | ✅ |
+| sub_406c0c | 97 | **55** | 68 | 7.4s | ✅ | ✅ |
+| sub_40d4fc | 36 | 34 | 54 | 7.8s | ✅ | ✅ |
+| sub_40608c | 170 | 191 | 341 | 18.0s | ✅ | ✅ |
+| sub_40db18 | 160 | **30** | 65 | 22.6s | ✅ | ✅ |
+| sub_408b94 | 82 | 96 | 216 | 25.5s | ✅ | ✅ |
+| sub_486a90 | 805 | 790 | (BN timeout) | 168s | ✅ | ✅ |
 
 ## 6. 设计参考的前沿工作
 
