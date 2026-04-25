@@ -72,16 +72,23 @@ bv.update_analysis_and_wait()
    从 D 的后继 BFS 收集"常量比较"的左操作数变量
    要求每个变量被赋予 ≥2 个 unique 常量值（过滤"SSA 拆解出的常量传播副本"假阳性）
 
-3. 整型解释器前向模拟:
-   对每个 "state = const" SetVar，从该指令出发，
-   仅在 goto / 状态相关 if / 状态 SetVar 组成的子图内做整型解释，
-   直到走出 dispatcher 子图
+3. *形式化 dispatcher 子图识别 (Tarjan SCC + 副作用筛选)*:
+   - 用迭代 Tarjan 算法找含 D 的最大 SCC
+   - 在该 SCC 中筛选 "pure-dispatcher" 块：所有指令的副作用仅限状态变量
+     (禁止 call / store / ret / intrinsic / trap / 写非状态变量的 SetVar)
+   - 形式判据: B ∈ Dispatcher ⟺ B ∈ SCC(D) ∧ side_effects(B) ⊆ state_vars
+   参照 Chisel OOPSLA'24 中"dispatcher 不引入新可见副作用"的本质
 
-4. 安全约束 (避免孤立跳转):
+4. 块级前向模拟 (在 dispatcher 子图内):
+   - _walk_block_tail: 走完 define 所在块剩余指令 (要求只含 state SetVar/goto/if)
+   - 进入 dispatcher 后逐基本块走 _walk_dispatcher_block，
+     直到落到一个真实块入口（不在 dispatcher_blocks 集合中的块）
+
+5. 安全约束 (避免孤立跳转):
    走出 dispatcher 时落点必须 == basic_block.start，
    否则放弃 patch（避免跳到块中段产生 jump(addr) 间接跳转）
 
-5. Patch 形式:
+6. Patch 形式:
    把状态赋值替换为 [原赋值副本; goto target_real_block_start]
    保留赋值副本以维持外部可见副作用
 ```
@@ -110,19 +117,19 @@ bv.update_analysis_and_wait()
 原版的 5 层嵌套状态机展开后副作用序列为 `*(sp-0x10) = arg1; free(arg1); return`，
 与去混淆后的 5 条 HLIL 逐项等价。
 
-### 5.5 实测效果 (arm64-v8a.so)
+### 5.5 实测效果 (arm64-v8a.so，SCC 形式化版本)
 
 | 函数 | 原 MLIL 块 | 去混淆后 | HLIL 指令 | 时间 | 孤立跳转 |
 |---|---|---|---|---|---|
 | target_function (cff-arm64-v8a.elf) | 31 | 41 | 55 | 0.1s | ✅ 无 |
-| sub_4075a0 | 31 | 10 | 15 | 5.6s | ✅ |
-| sub_407368 | 31 | **2** | 5 | 5.5s | ✅ |
-| sub_406c0c | 97 | 35 | 47 | 6.2s | ✅ |
-| sub_40d4fc | 36 | 34 | 54 | 6.5s | ✅ |
-| sub_40608c | 170 | 115 | 251 | 11.1s | ✅ |
-| sub_40db18 | 160 | **30** | 65 | 13.3s | ✅ |
-| sub_408b94 | 82 | 96 | 216 | 16.4s | ✅ |
-| sub_486a90 | 805 | 820 | (timeout) | >60s | ✅ 保守不动 |
+| sub_4075a0 | 31 | 10 | **5** | 5.2s | ✅ |
+| sub_407368 | 31 | **2** | 5 | 5.1s | ✅ |
+| sub_406c0c | 97 | 63 | 68 | 6.8s | ✅ |
+| sub_40d4fc | 36 | 34 | 54 | 7.0s | ✅ |
+| sub_40608c | 170 | 191 | 341 | 12.1s | ✅ |
+| sub_40db18 | 160 | 40 | 67 | 16.1s | ✅ |
+| sub_408b94 | 82 | 96 | 216 | 17.8s | ✅ |
+| sub_486a90 | 805 | 790 | (BN timeout) | 152s | ✅ |
 
 ## 6. 设计参考的前沿工作
 

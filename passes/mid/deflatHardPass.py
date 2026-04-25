@@ -299,19 +299,165 @@ def _collect_state_vars(
 # --------------------------------------------------------------------------
 
 
-def _is_state_only_instr(
-    instr: MediumLevelILInstruction, state_vars: Set[Variable]
+# --------------------------------------------------------------------------
+# Tarjan SCC + 副作用筛选：形式化的 dispatcher 子图识别
+# --------------------------------------------------------------------------
+
+# 有外部副作用的 MLIL 操作。一个块若含其中任何一个，就一定不是 dispatcher 块。
+# 参照 Chisel OOPSLA'24 的 CFE 形式化：dispatcher 不能引入新的可见副作用。
+_SIDE_EFFECT_OPS: Set = {
+    MediumLevelILOperation.MLIL_CALL,
+    MediumLevelILOperation.MLIL_CALL_UNTYPED,
+    MediumLevelILOperation.MLIL_CALL_SSA,
+    MediumLevelILOperation.MLIL_CALL_UNTYPED_SSA,
+    MediumLevelILOperation.MLIL_TAILCALL,
+    MediumLevelILOperation.MLIL_TAILCALL_UNTYPED,
+    MediumLevelILOperation.MLIL_TAILCALL_SSA,
+    MediumLevelILOperation.MLIL_TAILCALL_UNTYPED_SSA,
+    MediumLevelILOperation.MLIL_SYSCALL,
+    MediumLevelILOperation.MLIL_SYSCALL_UNTYPED,
+    MediumLevelILOperation.MLIL_SYSCALL_SSA,
+    MediumLevelILOperation.MLIL_SYSCALL_UNTYPED_SSA,
+    MediumLevelILOperation.MLIL_STORE,
+    MediumLevelILOperation.MLIL_STORE_SSA,
+    MediumLevelILOperation.MLIL_STORE_STRUCT,
+    MediumLevelILOperation.MLIL_STORE_STRUCT_SSA,
+    MediumLevelILOperation.MLIL_RET,
+    MediumLevelILOperation.MLIL_RET_HINT,
+    MediumLevelILOperation.MLIL_NORET,
+    MediumLevelILOperation.MLIL_TRAP,
+    MediumLevelILOperation.MLIL_BP,
+    MediumLevelILOperation.MLIL_INTRINSIC,
+    MediumLevelILOperation.MLIL_INTRINSIC_SSA,
+}
+
+
+def _tarjan_scc(adj: Dict[int, List[int]]) -> List[List[int]]:
+    """迭代版 Tarjan SCC。避免大函数 (>1000 块) 的递归栈溢出。
+
+    输入：邻接表 adj[node_id] = [successor_id, ...]
+    输出：SCC 列表，每个 SCC 是 node_id 列表
+    """
+    index_counter = [0]
+    stack: List[int] = []
+    lowlinks: Dict[int, int] = {}
+    index_map: Dict[int, int] = {}
+    on_stack: Dict[int, bool] = {}
+    sccs: List[List[int]] = []
+
+    for root in list(adj.keys()):
+        if root in index_map:
+            continue
+        # 显式栈帧：(node, child_iterator)
+        work: List[Tuple[int, "iter"]] = [(root, iter(adj.get(root, [])))]
+        index_map[root] = index_counter[0]
+        lowlinks[root] = index_counter[0]
+        index_counter[0] += 1
+        stack.append(root)
+        on_stack[root] = True
+
+        while work:
+            u, it = work[-1]
+            advanced = False
+            for w in it:
+                if w not in adj:
+                    continue
+                if w not in index_map:
+                    index_map[w] = index_counter[0]
+                    lowlinks[w] = index_counter[0]
+                    index_counter[0] += 1
+                    stack.append(w)
+                    on_stack[w] = True
+                    work.append((w, iter(adj.get(w, []))))
+                    advanced = True
+                    break
+                if on_stack.get(w, False):
+                    lowlinks[u] = min(lowlinks[u], index_map[w])
+            if not advanced:
+                # u 的所有后继处理完毕
+                work.pop()
+                if lowlinks[u] == index_map[u]:
+                    scc: List[int] = []
+                    while True:
+                        w = stack.pop()
+                        on_stack[w] = False
+                        scc.append(w)
+                        if w == u:
+                            break
+                    sccs.append(scc)
+                if work:
+                    parent = work[-1][0]
+                    lowlinks[parent] = min(lowlinks[parent], lowlinks[u])
+
+    return sccs
+
+
+def _block_is_pure_dispatcher(
+    mlil: MediumLevelILFunction,
+    b: MediumLevelILBasicBlock,
+    state_vars: Set[Variable],
 ) -> bool:
-    """该指令本身是否属于 dispatcher 子图。"""
-    if isinstance(instr, MediumLevelILGoto):
-        return True
-    if isinstance(instr, MediumLevelILIf):
-        return set(instr.vars_read).issubset(state_vars)
-    if isinstance(instr, MediumLevelILSetVar):
-        if instr.dest not in state_vars:
+    """块的副作用是否仅限于状态变量。
+
+    判据 (CFE 形式化)：
+      - 不含任何外部副作用指令 (call / store / ret / intrinsic / trap)
+      - 所有 SetVar 的目标必须是状态变量
+      - if 的条件 *允许读非状态变量*：因为条件求值不产生副作用，
+        且 if 的两个分支都还在 dispatcher SCC 内（由 SCC 约束保证）
+
+    比之前的 _is_state_only_instr 更严格（显式禁止副作用 op）也更宽松（允许
+    if 读非状态变量），更贴近"dispatcher 不引入新可见副作用"的本质。
+    """
+    for idx in range(b.start, b.end):
+        instr = mlil[idx]
+        op = instr.operation
+        if op in _SIDE_EFFECT_OPS:
             return False
-        return set(instr.vars_read).issubset(state_vars)
-    return False
+        if isinstance(instr, MediumLevelILSetVar):
+            if instr.dest not in state_vars:
+                return False
+            continue
+        # MLIL_GOTO / MLIL_IF / 等等，没有副作用，OK
+    return True
+
+
+def _identify_dispatcher_subgraph(
+    mlil: MediumLevelILFunction,
+    dispatcher_entry: MediumLevelILBasicBlock,
+    state_vars: Set[Variable],
+) -> Set[int]:
+    """形式化识别 dispatcher 子图：含 dispatcher_entry 的 SCC ∩ pure-dispatcher 块。
+
+    返回 block.start 集合。
+    """
+    bbs = list(mlil.basic_blocks)
+    bb_by_start = {b.start: b for b in bbs}
+
+    # 构建邻接表
+    adj: Dict[int, List[int]] = {}
+    for b in bbs:
+        adj[b.start] = [e.target.start for e in b.outgoing_edges]
+
+    sccs = _tarjan_scc(adj)
+
+    # 找含 dispatcher_entry 的 SCC
+    dispatcher_scc: Optional[Set[int]] = None
+    for scc in sccs:
+        if dispatcher_entry.start in scc:
+            dispatcher_scc = set(scc)
+            break
+    if dispatcher_scc is None or len(dispatcher_scc) < 2:
+        return set()
+
+    # SCC ∩ pure-dispatcher 块
+    result: Set[int] = set()
+    for start in dispatcher_scc:
+        b = bb_by_start.get(start)
+        if b is None:
+            continue
+        if _block_is_pure_dispatcher(mlil, b, state_vars):
+            result.add(start)
+    return result
 
 
 def _seed_env_from_block(
@@ -343,51 +489,67 @@ def _seed_env_from_block(
     return env
 
 
-def _forward_resolve(
+def _walk_block_tail(
     mlil: MediumLevelILFunction,
-    define_instr: MediumLevelILSetVar,
+    bb: MediumLevelILBasicBlock,
+    after_idx: int,
+    env: Dict[Variable, int],
     state_vars: Set[Variable],
 ) -> Optional[int]:
-    """从 state SetVar 出发沿 dispatcher 子图前向模拟，返回离开 dispatcher 子图
-    时进入的真实块入口 instr_index。
+    """从同一个 block 内的 after_idx+1 开始，往后走到块的终结指令，返回控制
+    流去向的下一个 instr_index。
 
-    安全约束：
-      - 路径上每条指令必须是 state-only（goto / 状态相关 if / 状态 SetVar）
-      - 离开 dispatcher 时，落点 *必须是基本块入口* (即 instr.dest 跳转到的)，
-        否则放弃 patch（避免 jump 到块中段）
+    沿途允许遇到：
+      - 状态变量的 SetVar (更新 env)
+      - 终结的 goto / if (返回去向)
+    禁止遇到：
+      - 非状态 SetVar / call / store / 其它有副作用的指令（说明 define 不在
+        块尾，简单 patch 会漏掉这些副作用）
     """
-    if not isinstance(define_instr.src, MediumLevelILConst):
-        return None
-    env = _seed_env_from_block(mlil, define_instr, state_vars)
-    visited: Set[int] = set()
-    current = define_instr.instr_index + 1
-    n = len(mlil)
-
-    for _ in range(_MAX_FORWARD_STEPS):
-        if current >= n or current in visited:
-            return None
-        visited.add(current)
+    current = after_idx + 1
+    while current < bb.end:
         instr = mlil[current]
-
-        # 离开 dispatcher 子图（碰到第一条非 state-only 指令）
-        if not _is_state_only_instr(instr, state_vars):
-            bb = mlil.get_basic_block_at(current)
-            if bb is None:
-                return None
-            # 必须落到块入口才能 goto 这里
-            if current != bb.start:
-                return None
-            return current
-
         if isinstance(instr, MediumLevelILGoto):
-            current = instr.dest
-            continue
+            return instr.dest
         if isinstance(instr, MediumLevelILIf):
             branch = _eval_if(instr, env)
             if branch is None:
                 return None
-            current = instr.true if branch else instr.false
+            return instr.true if branch else instr.false
+        if isinstance(instr, MediumLevelILSetVar):
+            if instr.dest not in state_vars:
+                return None  # 真实赋值，不能跳过
+            v = _eval(instr.src, env)
+            if v is None:
+                env.pop(instr.dest, None)
+            else:
+                env[instr.dest] = v & _mask(instr.size or 4)
+            current += 1
             continue
+        return None  # call/store/...
+    return None
+
+
+def _walk_dispatcher_block(
+    mlil: MediumLevelILFunction,
+    bb: MediumLevelILBasicBlock,
+    env: Dict[Variable, int],
+    state_vars: Set[Variable],
+) -> Optional[int]:
+    """走完一个 dispatcher 块，返回它的下一个 instr_index 去向。
+    dispatcher 块内只可能有 goto / 状态相关 if / 状态 SetVar (由 SCC 副作用
+    筛选保证)。
+    """
+    current = bb.start
+    while current < bb.end:
+        instr = mlil[current]
+        if isinstance(instr, MediumLevelILGoto):
+            return instr.dest
+        if isinstance(instr, MediumLevelILIf):
+            branch = _eval_if(instr, env)
+            if branch is None:
+                return None
+            return instr.true if branch else instr.false
         if isinstance(instr, MediumLevelILSetVar):
             v = _eval(instr.src, env)
             if v is None:
@@ -397,6 +559,63 @@ def _forward_resolve(
             current += 1
             continue
         return None
+    return None
+
+
+def _forward_resolve(
+    mlil: MediumLevelILFunction,
+    define_instr: MediumLevelILSetVar,
+    state_vars: Set[Variable],
+    dispatcher_blocks: Set[int],
+) -> Optional[int]:
+    """从 state SetVar 出发，先走完 define 所在块的尾巴（必须是 state-only 的
+    尾），进入 dispatcher 子图后逐 *基本块* 模拟，直到落到一个真实块入口。
+
+    步骤：
+      1. seed env (含 define 常量 + 同 block 内之前对其它 state var 的常量赋值)
+      2. _walk_block_tail：走完 define 所在块剩余部分，返回下一个 instr_index
+      3. 进入循环：判断该 instr_index 所在块。若是真实块 → 它就是 target。
+         若是 dispatcher 块 → _walk_dispatcher_block 走完，再进下一轮。
+
+    安全约束：target 必须是 bb.start（落到块入口而非块中段）。
+    """
+    if not isinstance(define_instr.src, MediumLevelILConst):
+        return None
+    env = _seed_env_from_block(mlil, define_instr, state_vars)
+
+    define_bb = mlil.get_basic_block_at(define_instr.instr_index)
+    if define_bb is None:
+        return None
+
+    # Step 1: 走完 define 所在块的尾巴
+    current = _walk_block_tail(
+        mlil, define_bb, define_instr.instr_index, env, state_vars
+    )
+    if current is None:
+        return None
+
+    # Step 2: 在 dispatcher 子图内逐块模拟
+    visited_blocks: Set[int] = {define_bb.start}
+    for _ in range(_MAX_FORWARD_STEPS):
+        bb = mlil.get_basic_block_at(current)
+        if bb is None:
+            return None
+        # 必须落到块入口
+        if current != bb.start:
+            return None
+        if bb.start in visited_blocks:
+            return None  # 闭环
+        visited_blocks.add(bb.start)
+
+        if bb.start not in dispatcher_blocks:
+            # 到达真实块入口
+            return current
+
+        # dispatcher 块：走完它
+        nxt = _walk_dispatcher_block(mlil, bb, env, state_vars)
+        if nxt is None:
+            return None
+        current = nxt
 
     return None
 
@@ -418,17 +637,24 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
         if time.time() > deadline:
             break
 
-        # 1. 门控：函数是 CFF 吗？
+        # 1. 门控：函数是 CFF 吗？(Blazytko 支配树法)
         dispatcher_entry = _detect_dispatcher_entry(mlil)
         if dispatcher_entry is None:
             break
 
-        # 2. 状态变量
+        # 2. 状态变量识别 (unique-value 强化)
         state_vars = _collect_state_vars(mlil, dispatcher_entry)
         if not state_vars:
             break
 
-        # 3. 收集所有 state SetVar (= const)
+        # 3. 形式化 dispatcher 子图：含 dispatcher_entry 的 SCC ∩ pure-dispatcher 块
+        dispatcher_blocks = _identify_dispatcher_subgraph(
+            mlil, dispatcher_entry, state_vars
+        )
+        if not dispatcher_blocks:
+            break
+
+        # 4. 收集所有 state SetVar (= const)
         patches: List[Tuple[MediumLevelILSetVar, int]] = []
         for instr in mlil.instructions:
             if time.time() > deadline:
@@ -439,7 +665,7 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
                 or not isinstance(instr.src, MediumLevelILConst)
             ):
                 continue
-            target = _forward_resolve(mlil, instr, state_vars)
+            target = _forward_resolve(mlil, instr, state_vars, dispatcher_blocks)
             if target is None or target == instr.instr_index:
                 continue
             patches.append((instr, target))
