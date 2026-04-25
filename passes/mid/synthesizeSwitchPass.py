@@ -166,12 +166,17 @@ def _collect_transitions_for_var(
     dispatcher_blocks,
     dispatcher_entry_start: int,
     deadline: float,
-) -> "Dict[int, int]":
+):
     """收集 primary state var 的 (state_value → target instr_index) 映射。
 
-    使用 _forward_resolve 从每个 const 赋值出发模拟到第一个真实块入口。
+    返回 (transitions, all_assigned_values, fully_resolved):
+      - transitions: 成功解析的 value → target
+      - all_assigned_values: 函数中所有 `primary = const` 赋值的 const 值集合
+      - fully_resolved: 所有 const 都有一个 SUCCESS 结果
     """
     transitions: Dict[int, int] = {}
+    all_assigned: Set[int] = set()
+    failed_values: Set[int] = set()
     for instr in mlil.instructions:
         if time.time() > deadline:
             break
@@ -181,19 +186,27 @@ def _collect_transitions_for_var(
             or not isinstance(instr.src, MediumLevelILConst)
         ):
             continue
+        value = instr.src.constant & _mask(instr.size or 4)
+        all_assigned.add(value)
         target = _forward_resolve(mlil, instr, state_vars, dispatcher_blocks)
         if target is None:
+            failed_values.add(value)
             continue
         if target == dispatcher_entry_start:
+            failed_values.add(value)
             continue
         target_bb = mlil.get_basic_block_at(target)
         if target_bb is None or target != target_bb.start:
+            failed_values.add(value)
             continue
         if target_bb.start in dispatcher_blocks:
+            failed_values.add(value)
             continue
-        value = instr.src.constant & _mask(instr.size or 4)
         transitions.setdefault(value, target)
-    return transitions
+    # 一个值即使在某个位置失败，只要在另一个位置成功 (transitions 里有)，
+    # 就视为已解析 —— 同 value 不同位置假设产出同 target (CFF 保证)
+    fully_resolved = (failed_values - set(transitions.keys())) == set()
+    return transitions, all_assigned, fully_resolved
 
 
 def _try_synthesize_one_dispatcher(
@@ -239,7 +252,7 @@ def _try_synthesize_one_dispatcher(
     for candidate in _candidate_state_vars_ranked(mlil, state_vars):
         if time.time() > deadline:
             break
-        cand_trans = _collect_transitions_for_var(
+        cand_trans, all_assigned, fully_resolved = _collect_transitions_for_var(
             mlil, candidate, state_vars, dispatcher_blocks,
             dispatcher_entry.start, deadline,
         )
@@ -247,12 +260,19 @@ def _try_synthesize_one_dispatcher(
             continue
         if len(set(cand_trans.values())) < 2:
             continue
-        # 关键安全检查：dispatcher 实际比较的所有 const 都必须有对应映射
+        # 完整性 1：函数所有 `candidate = const` 赋值都必须有 target，否则
+        # 运行时该 state 值进 jump_to 时 undefined，函数被破坏
+        if not fully_resolved:
+            continue
+        # 完整性 2：dispatcher 内通过 (alias_of_candidate == const) 的所有
+        # 比较 const 也必须在 transitions 里 —— 即便 const 在函数里没显式
+        # 赋值 (来自参数/内存读)，dispatcher 的检查告诉我们它确实可能取到
         case_values = _collect_dispatcher_case_values(
             mlil, dispatcher_blocks, candidate
         )
-        if case_values and not case_values.issubset(cand_trans.keys()):
-            # dispatcher 比较了某个 const 但我们没解析出它的目标 → 不安全
+        if not case_values:
+            continue
+        if not case_values.issubset(cand_trans.keys()):
             continue
         primary = candidate
         transitions = cand_trans

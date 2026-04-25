@@ -657,8 +657,13 @@ def _walk_block_tail(
       - 状态变量的 SetVar (更新 env)
       - 终结的 goto / if (返回去向)
     禁止遇到：
-      - 非状态 SetVar / call / store / 其它有副作用的指令（说明 define 不在
-        块尾，简单 patch 会漏掉这些副作用）
+      - 非状态 SetVar / call / store / 其它有副作用的指令
+
+    严格策略：哪怕是看似无害的本地 SetVar，也保守拒绝。原本以为可以跳
+    过 var_88=arg2 这种 prologue 让 forward_resolve 解析率上升，但实测
+    sub_40831c 上反而引入了 SE_LOST=11 大破坏（推测 BN 见到 jump_to 后
+    把某些值认为不可达而清掉，让原始未列入 case 的副作用消失）。回到
+    严格语义保证等价。
     """
     current = after_idx + 1
     while current < bb.end:
@@ -722,16 +727,15 @@ def _forward_resolve(
     state_vars: Set[Variable],
     dispatcher_blocks: Set[int],
 ) -> Optional[int]:
-    """从 state SetVar 出发，先走完 define 所在块的尾巴（必须是 state-only 的
-    尾），进入 dispatcher 子图后逐 *基本块* 模拟，直到落到一个真实块入口。
+    """从 state SetVar 出发，先走完 define 所在块的尾巴，进入 dispatcher
+    子图后逐 *基本块* 模拟，直到落到一个真实块入口。
 
-    步骤：
-      1. seed env (含 define 常量 + 同 block 内之前对其它 state var 的常量赋值)
-      2. _walk_block_tail：走完 define 所在块剩余部分，返回下一个 instr_index
-      3. 进入循环：判断该 instr_index 所在块。若是真实块 → 它就是 target。
-         若是 dispatcher 块 → _walk_dispatcher_block 走完，再进下一轮。
-
-    安全约束：target 必须是 bb.start（落到块入口而非块中段）。
+    安全约束：
+      - target 必须是 bb.start（落到块入口而非块中段）
+      - cycle 检测用 block_start：保守，避免 chain transition 时被错认为
+        新路径而走出错误的目标 (sub_40831c 上观察到 visited_states 用
+        (block, env) 时 SE_LOST=11，因为 BN 见到我们错误的 jump_to 后
+        把"原本经过 chain 才到的"handler 当不可达清掉)
     """
     if not isinstance(define_instr.src, MediumLevelILConst):
         return None
@@ -741,31 +745,26 @@ def _forward_resolve(
     if define_bb is None:
         return None
 
-    # Step 1: 走完 define 所在块的尾巴
     current = _walk_block_tail(
         mlil, define_bb, define_instr.instr_index, env, state_vars
     )
     if current is None:
         return None
 
-    # Step 2: 在 dispatcher 子图内逐块模拟
     visited_blocks: Set[int] = {define_bb.start}
     for _ in range(_MAX_FORWARD_STEPS):
         bb = mlil.get_basic_block_at(current)
         if bb is None:
             return None
-        # 必须落到块入口
         if current != bb.start:
             return None
         if bb.start in visited_blocks:
-            return None  # 闭环
+            return None
         visited_blocks.add(bb.start)
 
         if bb.start not in dispatcher_blocks:
-            # 到达真实块入口
             return current
 
-        # dispatcher 块：走完它
         nxt = _walk_dispatcher_block(mlil, bb, env, state_vars)
         if nxt is None:
             return None
