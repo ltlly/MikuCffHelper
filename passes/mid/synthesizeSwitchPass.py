@@ -533,11 +533,10 @@ def pass_synthesize_switch(analysis_context: AnalysisContext) -> bool:
         if result is None or result == "fail":
             break
         transformed = True
-        if result == "guarded":
-            # P2 模式：原 cmp-tree 仍然在场，再叠 guard 会触发 BN 内部状态
-            # 不一致 segfault；停止迭代。嵌套 dispatcher 通过 P1 chain 时
-            # 才安全
-            break
+        # 注：早期版本在 P2 后强制 break (嵌套 P2 mark_label(fallback_label)
+        # 会 segfault)。当前 P2 简化为只 mark_label(guard_label) 一次，
+        # 未解析 case 直接路由到 dispatcher_entry —— 没有第二个 mark_label，
+        # 嵌套不再 segfault，可继续迭代尝试嵌套 dispatcher。
 
     side_effects_after = _collect_side_effect_signatures(mlil)
     _verify_no_side_effect_loss(side_effects_before, side_effects_after, function_name)
