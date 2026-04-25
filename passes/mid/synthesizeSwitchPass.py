@@ -57,7 +57,7 @@ from .deflatHardPass import (
 )
 
 _TIME_BUDGET_SECONDS = 15.0
-_MIN_TRANSITIONS = 3
+_MIN_TRANSITIONS = 2
 
 
 def _find_primary_state_var(
@@ -121,7 +121,13 @@ def pass_synthesize_switch(analysis_context: AnalysisContext) -> None:
         return
 
     # 3. 收集 (state_value → target instr_index) 映射
+    # 排除 target == dispatcher_entry.start：当 dispatcher_entry 本身被 SCC
+    # 副作用筛选挡在 dispatcher_blocks 之外时，forward_resolve 会把它当成
+    # "真实块入口"返回，但其实它就是分发器本身（sub_40db18 上观察到的
+    # bug，所有 transitions 都 target=dispatcher_entry 导致 switch 退化为
+    # 单 case）
     transitions: Dict[int, int] = {}
+    distinct_targets: set = set()
     for instr in mlil.instructions:
         if time.time() > deadline:
             break
@@ -134,17 +140,21 @@ def pass_synthesize_switch(analysis_context: AnalysisContext) -> None:
         target = _forward_resolve(mlil, instr, state_vars, dispatcher_blocks)
         if target is None:
             continue
-        # 必须是真实块入口
+        if target == dispatcher_entry.start:
+            continue
         target_bb = mlil.get_basic_block_at(target)
         if target_bb is None or target != target_bb.start:
             continue
         if target_bb.start in dispatcher_blocks:
             continue
         value = instr.src.constant & _mask(instr.size or 4)
-        # 同 value 多次出现取第一个（应一致）
         transitions.setdefault(value, target)
+        distinct_targets.add(target)
 
     if len(transitions) < _MIN_TRANSITIONS:
+        return
+    if len(distinct_targets) < 2:
+        # 所有 transition 落到同一个目标 → 不构成 switch (没有分支)
         return
 
     # 4. 构造 jump_to(primary, label_map) 替换 dispatcher_entry 入口指令

@@ -602,6 +602,12 @@ def _identify_dispatcher_subgraph(
             continue
         if _block_is_pure_dispatcher(mlil, b, state_vars):
             result.add(start)
+    # 不变量：dispatcher_entry 一定属于 dispatcher (按定义)。即使它的内容
+    # 没通过 _block_is_pure_dispatcher (例如包含 BN 拆出来的 var-rename
+    # SetVar)，也强制纳入。否则 forward_resolve 会把它当成"真实块"返回，
+    # synthesize_switch 上观察到 sub_40db18 所有 transitions 都目标=
+    # dispatcher_entry 的退化情况。
+    result.add(dispatcher_entry.start)
     return result
 
 
