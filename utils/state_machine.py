@@ -108,7 +108,9 @@ class StateMachine:
             return []
         from .state_machine import StateMachine
 
-        # State variable recognition rules
+        # 注意：CFF 状态变量的关键特征是 *被赋予多个不同的常量*，否则就是
+        # 普通的常量传播变量（同一个常量被 SSA 拆出来赋了 N 次仍然是同一个值）。
+        # 因此识别规则全部用 *unique 值数* 而不是出现次数。
         state_var_rules: List[
             Callable[
                 [
@@ -119,27 +121,28 @@ class StateMachine:
                 bool,
             ]
         ] = [
-            # Rule 1: Variable appears in both ifTable and defineTable with same value count >= 3
+            # Rule 1: 同时出现在 const 赋值与 if 常量比较中，且各自 unique 常量数 ≥ 2
             lambda var, ifTable, defineTable: (
                 var in ifTable
                 and var in defineTable
-                and len(defineTable[var]) == len(ifTable[var])
-                and len(defineTable[var]) >= 3
+                and len(set(defineTable[var])) >= 2
+                and len(set(ifTable[var])) >= 2
             ),
-            # Rule 2: Variable in defineTable with value count >= 3 and average > 0x10000000
+            # Rule 2: 在 const 赋值中 unique 值 ≥ 3 且平均值较大（典型 CFF 状态值）
             lambda var, ifTable, defineTable: (
                 var in defineTable
-                and len(defineTable[var]) >= 3
+                and len(set(defineTable[var])) >= 3
                 and sum(defineTable[var]) // len(defineTable[var]) > 0x10000000
             ),
-            # Rule 3: Variable in ifTable with value count >= 3 and average > 0x10000000
+            # Rule 3: 在 if 常量比较中 unique 值 ≥ 3 且平均值较大
             lambda var, ifTable, defineTable: (
                 var in ifTable
-                and len(ifTable[var]) >= 3
+                and len(set(ifTable[var])) >= 3
                 and sum(ifTable[var]) // len(ifTable[var]) > 0x10000000
             ),
+            # Rule 4: 已被用户标记为 state-X 的变量
             lambda var, ifTable, defineTable: (
-                var.name.startswith("state-") and "_" in var.name
+                var.name.startswith("state-")
             ),
         ]
         state_vars: List[Variable] = []

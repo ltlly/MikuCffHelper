@@ -62,12 +62,19 @@ def fix_pre_bb(
 
 def pass_copy_common_block(analysis_context: AnalysisContext):
     llil = analysis_context.function.llil
-    if len(llil.basic_blocks) > 100:
+    if llil is None:
         return
-    for _ in range(len(llil.basic_blocks)):
+    # 超大函数跳过以避免复制爆炸；对中等规模放宽限制
+    if len(llil.basic_blocks) > 500:
+        return
+    max_iterations = min(len(llil.basic_blocks), 200)
+    for _ in range(max_iterations):
         updated = False
         g = CFGAnalyzer.create_cfg_graph(llil)
         for bb in llil.basic_blocks:
+            # 块过大时不复制，避免代码膨胀
+            if bb.length > 16:
+                continue
             pre_blocks = CFGAnalyzer.LLIL_get_incoming_blocks(llil, bb.start)
             if len(pre_blocks) <= 1:
                 continue

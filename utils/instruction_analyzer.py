@@ -51,29 +51,54 @@ class InstructionAnalyzer:
         local_define_table: List[MediumLevelILSetVar],
     ) -> Generator[Dict[str, Any], None, None]:
         """查找状态转换指令
+
+        对每个定义指令(def)和条件指令(if)，若def的常量赋值能够使if条件
+        确定地为真或为假（包括不等式比较），则认为是一对候选的状态转换。
+        由后续路径搜索和符号执行进一步验证。
+
         Args:
             local_if_table (List[MediumLevelILIf]): 本地if指令表
             local_define_table (List[MediumLevelILSetVar]): 本地定义指令表
         Yields:
             Dict[str, Any]: 匹配的状态转换指令对
         """
+        supported_ops = {
+            MediumLevelILOperation.MLIL_CMP_E,
+            MediumLevelILOperation.MLIL_CMP_NE,
+            MediumLevelILOperation.MLIL_CMP_ULT,
+            MediumLevelILOperation.MLIL_CMP_ULE,
+            MediumLevelILOperation.MLIL_CMP_UGT,
+            MediumLevelILOperation.MLIL_CMP_UGE,
+            MediumLevelILOperation.MLIL_CMP_SLT,
+            MediumLevelILOperation.MLIL_CMP_SLE,
+            MediumLevelILOperation.MLIL_CMP_SGT,
+            MediumLevelILOperation.MLIL_CMP_SGE,
+        }
         for def_instr in local_define_table:
             t_def_const = def_instr.src
             t_def_const_width = def_instr.size
             key_define = t_def_const.value.value & get_mask(t_def_const_width)
 
             for if_instr in local_if_table:
-                if_const = if_instr.condition.right
-                if_const_width = if_instr.condition.left.size
+                cond = if_instr.condition
+                if cond.operation not in supported_ops:
+                    continue
+                if_const = cond.right
+                if_const_width = cond.left.size
                 key_if = if_const.value.value & get_mask(if_const_width)
 
-                if key_define == key_if:
-                    yield {
-                        "if_instr": if_instr,
-                        "def_instr": def_instr,
-                        "def_const": def_instr.src,
-                        "if_const": if_instr.condition.right,
-                    }
+                # 用常量求解if条件，只要能确定地得到True/False就认为是候选
+                try:
+                    InstructionAnalyzer.emu_if(key_define, cond.operation, key_if)
+                except Exception:
+                    continue
+
+                yield {
+                    "if_instr": if_instr,
+                    "def_instr": def_instr,
+                    "def_const": def_instr.src,
+                    "if_const": if_instr.condition.right,
+                }
 
     @staticmethod
     def find_white_instructions(

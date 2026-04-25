@@ -13,6 +13,8 @@ def pass_reverse_if(analysis_context: AnalysisContext):
     把所有的if (a!=123)then 1 else 2 反转为 if a==123 then 2 else 1
     """
     mlil = analysis_context.function.mlil
+    if mlil is None:
+        return
 
     updated = False
     ifInstrs = []
@@ -32,9 +34,11 @@ def pass_reverse_if(analysis_context: AnalysisContext):
             MediumLevelILOperation.MLIL_CMP_E,
             mlil.copy_expr(condition.operands[0]),
             mlil.copy_expr(condition.operands[1]),
+            size=condition.size,
+            source_location=ILSourceLocation.from_instruction(instr),
         )
         mlil.replace_expr(
-            instr,
+            instr.expr_index,
             mlil.if_expr(
                 new_condition,
                 trueLabel,
