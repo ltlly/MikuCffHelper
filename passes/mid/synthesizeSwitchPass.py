@@ -58,7 +58,7 @@ from .deflatHardPass import (
 
 _TIME_BUDGET_SECONDS = 15.0
 _MIN_TRANSITIONS = 2
-_MAX_SWITCH_ITERS = 4  # 嵌套 dispatcher 最多重构 4 层
+_MAX_SWITCH_ITERS = 8  # 嵌套 dispatcher 最多重构 8 层（实测 sub_407368 有 3+ 层）
 
 
 def _candidate_state_vars_ranked(
