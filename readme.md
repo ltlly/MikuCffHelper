@@ -20,7 +20,13 @@ Move the folder `MikuCffHelper` to the `plugins` folder of BinaryNinja.
 
 Open the CFF obfuscated file with `MikuCffHelper_workflow`.
 
-1. Right click the function you want to deflat, and select `Function Analysis/analysis.plugins.workflow_patch_mlil`.
+提供 3 个 activity，用户右键 Function Analysis 选其一启用 (互斥)：
+
+| activity | 行为 | 推荐场景 |
+|----------|------|----------|
+| `workflow_patch_mlil_auto` | **首选**: 先 B (synthesize_switch)，B 不动则 A (deflate_hard) 兜底 | 不确定函数特征时直接用这个 |
+| `workflow_patch_mlil_switch` | 只跑 path B，B 拒绝则保留原状 | 需要 switch 形态、接受部分函数无变换 |
+| `workflow_patch_mlil` | 只跑 path A，把 dispatcher 绕过最大化块数压缩 | 函数已知不适合 switch |
 
 或者用脚本方式（headless / 自动化）：
 
@@ -30,14 +36,15 @@ func = bv.get_function_at(addr)
 settings = bn.Settings()
 settings.set_string("analysis.workflows.functionWorkflow", "MikuCffHelper_workflow", func)
 wf = bn.Workflow("MikuCffHelper_workflow", object_handle=func.handle)
-wf._machine.override_set("analysis.plugins.workflow_patch_mlil", True)
+wf._machine.override_set("analysis.plugins.workflow_patch_mlil_auto", True)
 bv.reanalyze()
 bv.update_analysis_and_wait()
 ```
 
 ## 4. 整体 Pipeline
 
-提供两条互斥的 MLIL pass 路径，用户在 BN UI 里选其中一个启用：
+提供 3 条 MLIL pass 路径 (互斥)：A (deflate)、B (synthesize_switch)、
+auto (B → A fallback，推荐入口)。
 
 ### 路径 A：deflate_hard (块数最少)
 
@@ -93,6 +100,21 @@ P1* 和 *guarded 路径 P2*：
 
 实测 39 函数 (arm64-v8a/libkste/libSeQing) 全部 0 SE_LOST、0 ORPHAN。
 P2 把 switch 生成率从 5/39 提升到 34/39 (87%)。
+
+### 路径 auto (B 优先 / A 兜底)
+
+`workflow_patch_mlil_auto` 调用顺序：
+1. clear → mov_state_define → synthesize_switch (返回 bool 是否变换)
+2. 若 B 没变换：再跑 deflate_hard ×2 (与原 path A 一致)
+3. clear
+
+这样 B 适用的函数仍然出 switch；B 拒绝的函数自动 fallback 到 A 的
+goto 链，不需要用户手动切。实测 39 函数：
+- 34 函数出 switch (path B 接管)
+- 2 函数出 deflated goto 链 (sub_4075a0 31→5、sub_409488 30→20)
+- 3 函数完全无变换 (B 和 A 都拒绝；典型 sub_42a21c 这种 multi-state
+  跨函数引用 dispatcher)
+- 总变换率 36/39 (92%)，仍然 0 SE_LOST、0 ORPHAN
 
 #### 路径 B 实测样例 (arm64-v8a.so)
 

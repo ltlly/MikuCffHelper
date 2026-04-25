@@ -479,24 +479,28 @@ def _try_synthesize_one_dispatcher(
         return "fail"
 
 
-def pass_synthesize_switch(analysis_context: AnalysisContext) -> None:
+def pass_synthesize_switch(analysis_context: AnalysisContext) -> bool:
     """多迭代 synthesize_switch：每次重构一个 dispatcher。第一遍通常是最
     外层 dispatcher，重构后内层（嵌套）dispatcher 成为新的 detect 候选，
     第二遍处理内层，依此类推。最多 _MAX_SWITCH_ITERS 层。
 
     对应 sub_407368 这种"外层 switch x8, case 内含内层 switch i"的多层
     OLLVM CFF。
+
+    返回是否对函数做了 *任何* 重构。auto-fallback workflow 用这个判断
+    是否需要兜底跑 path A (deflate_hard)。
     """
     function = analysis_context.function
     mlil = function.mlil
     if mlil is None:
-        return
+        return False
 
     side_effects_before = _collect_side_effect_signatures(mlil)
     function_name = function.name
 
     deadline = time.time() + _TIME_BUDGET_SECONDS
     already_rewritten: set = set()
+    transformed = False
 
     for _ in range(_MAX_SWITCH_ITERS):
         if time.time() > deadline:
@@ -504,6 +508,7 @@ def pass_synthesize_switch(analysis_context: AnalysisContext) -> None:
         result = _try_synthesize_one_dispatcher(mlil, deadline, already_rewritten)
         if result is None or result == "fail":
             break
+        transformed = True
         if result == "guarded":
             # P2 模式：原 cmp-tree 仍然在场，再叠 guard 会触发 BN 内部状态
             # 不一致 segfault；停止迭代。嵌套 dispatcher 通过 P1 chain 时
@@ -512,3 +517,4 @@ def pass_synthesize_switch(analysis_context: AnalysisContext) -> None:
 
     side_effects_after = _collect_side_effect_signatures(mlil)
     _verify_no_side_effect_loss(side_effects_before, side_effects_after, function_name)
+    return transformed

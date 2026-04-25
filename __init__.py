@@ -5,6 +5,7 @@ from .mikuWorkflow import (
     workflow_patch_mlil,
     workflow_patch_hlil,
     workflow_patch_mlil_switch,
+    workflow_patch_mlil_auto,
 )
 from .utils import log_info
 from .fix_binaryninja_api import lowlevelil  # noqa: F401
@@ -30,6 +31,20 @@ def register_workflow():
         Activity(configuration_llil, action=workflow_patch_llil)
     )
 
+    # 推荐入口：先尝试 synthesize_switch (path B)，失败时 fallback 到
+    # deflate_hard (path A)。对每个函数自动选最适合的路径
+    configuration_mlil_auto = json.dumps(
+        {
+            "name": "analysis.plugins.workflow_patch_mlil_auto",
+            "description": "Auto CFF: 先 synthesize_switch，失败 fallback deflate_hard",
+            "eligibility": {"auto": {"default": False}},
+        }
+    )
+    cff_workflow.register_activity(
+        Activity(configuration_mlil_auto, action=workflow_patch_mlil_auto)
+    )
+
+    # 进阶：单独跑 deflate_hard (path A)。用户已知函数适合用 A 时启用
     configuration_mlil = json.dumps(
         {
             "name": "analysis.plugins.workflow_patch_mlil",
@@ -41,9 +56,7 @@ def register_workflow():
         Activity(configuration_mlil, action=workflow_patch_mlil)
     )
 
-    # 互斥的另一条路径：保留 dispatcher 但重构为 MLIL JUMP_TO，让 BN HLIL
-    # restructurer 显示成 switch-case 结构。两个 mlil pass 互斥，用户只能
-    # 启用一个
+    # 进阶：单独跑 synthesize_switch (path B)。用户已知函数适合用 B 时启用
     configuration_mlil_switch = json.dumps(
         {
             "name": "analysis.plugins.workflow_patch_mlil_switch",
@@ -72,6 +85,7 @@ def register_workflow():
     cff_workflow.insert(
         "core.function.analyzeConditionalNoReturns",
         [
+            "analysis.plugins.workflow_patch_mlil_auto",
             "analysis.plugins.workflow_patch_mlil",
             "analysis.plugins.workflow_patch_mlil_switch",
         ],

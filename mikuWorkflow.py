@@ -52,6 +52,42 @@ def workflow_patch_mlil_switch(analysis_context: AnalysisContext):
     pass_clear(analysis_context)
 
 
+def workflow_patch_mlil_auto(analysis_context: AnalysisContext):
+    """统一的"先 B 后 A"自动 fallback 路径。
+
+    工程考量：
+      - 用户当前必须手动选 path A 或 path B，每个函数适用范围又不一样
+        (B 适合干净的 OLLVM 标准 CFF；A 在 B 拒绝时仍能短路真实块)
+      - 自动模式：先跑 B (synthesize_switch)，B 没改动则 fallback 到 A
+        (deflate_hard)
+      - B 改动过的函数不再跑 A —— 此时原 cmp-tree 已被 P1 替换或被 P2
+        重定向，再跑 A 会以 guard block 为 dispatcher 错配
+
+    对外暴露为单一开关，UI 默认启用这个，老的 workflow_patch_mlil /
+    workflow_patch_mlil_switch 留作进阶用户手动单独启用。
+    """
+    if analysis_context.function.mlil is None:
+        return
+
+    # 共用 prelude
+    pass_clear(analysis_context)
+    pass_mov_state_define(analysis_context)
+
+    # 优先 B
+    transformed = pass_synthesize_switch(analysis_context)
+
+    if not transformed:
+        # B 没动函数 —— 通常意味着函数不符合 B 的合成守卫 (无完整 case_values
+        # 或 forward_resolve 解析率太低)。试 A 兜底，A 的 deflate_hard 即使
+        # 在 B 拒绝时也常能短路 state SetVar 链
+        pass_deflate_hard(analysis_context)
+        pass_clear(analysis_context)
+        pass_mov_state_define(analysis_context)
+        pass_deflate_hard(analysis_context)
+
+    pass_clear(analysis_context)
+
+
 def workflow_patch_hlil(analysis_context: AnalysisContext):
     from .utils import suggest_stateVar
 
