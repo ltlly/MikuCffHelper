@@ -62,6 +62,25 @@ bv.update_analysis_and_wait()
 让 BN 自带的 jump-table restructurer 把它还原成 switch 形态。完美贴合
 OLLVM 平坦化前的源码结构。
 
+#### 路径 B 的安全守卫 (correctness ≫ coverage)
+
+经过 sub_4259f4 等错误样本暴露的等价性 bug，路径 B 现在采用 *strict-only*
+策略：必须 *全部* 满足才生成 switch，否则放弃合成保证函数完整：
+
+1. transitions ≥ 2 个，distinct targets ≥ 2 (有意义的 switch)
+2. **fully_resolved**: 函数里所有 `primary = const` 赋值都至少解析出一
+   个 target —— 任一未解析意味着该 state 值进 jump_to 时 undefined，BN
+   restructurer 会清掉对应 handler，函数语义被破坏
+3. **case_values 非空**: dispatcher 子图里至少有一处通过
+   `(primary 或其别名 == const)` 路由 primary，证明 primary 确实是
+   dispatch 变量 (排除 sub_408b94 上 lr_1 被错选导致 SE_LOST=1 的情况)
+4. **自动 verifier**: pass 末尾比对前后副作用签名集合，任何 call/store/
+   ret 丢失都会 log_error
+
+实测 39 函数 (arm64-v8a/libkste/libSeQing) 全部 0 SE_LOST、0 ORPHAN。
+对于复杂多状态 / 别名链 / 内存读型 dispatcher 的函数，守卫会拒绝合成
+(典型 arm64-v8a 上 sub_4259f4)，但保证不破坏函数。
+
 #### 路径 B 实测样例 (arm64-v8a.so)
 
 **sub_407368** (31 → 23 块, HLIL 41 行)：
