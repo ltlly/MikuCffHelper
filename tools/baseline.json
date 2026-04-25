@@ -1,0 +1,456 @@
+{
+  "summary": {
+    "total": 39,
+    "switch": 34,
+    "deflated": 2,
+    "transformed": 36,
+    "orphan": 0,
+    "se_lost": 0
+  },
+  "report": [
+    {
+      "binary": "arm64-v8a.so",
+      "results": {
+        "0x406c0c": {
+          "blocks_before": 97,
+          "blocks_after": 94,
+          "hlil": 131,
+          "time": 5.38,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_406c0c"
+        },
+        "0x407368": {
+          "blocks_before": 31,
+          "blocks_after": 32,
+          "hlil": 60,
+          "time": 5.44,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_407368"
+        },
+        "0x4075a0": {
+          "blocks_before": 31,
+          "blocks_after": 5,
+          "hlil": 4,
+          "time": 5.38,
+          "switch": false,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": true,
+          "name": "sub_4075a0"
+        },
+        "0x407858": {
+          "blocks_before": 19,
+          "blocks_after": 20,
+          "hlil": 42,
+          "time": 5.49,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_407858"
+        },
+        "0x407994": {
+          "blocks_before": 28,
+          "blocks_after": 35,
+          "hlil": 70,
+          "time": 5.55,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_407994"
+        },
+        "0x407ba0": {
+          "blocks_before": 26,
+          "blocks_after": 33,
+          "hlil": 77,
+          "time": 5.58,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_407ba0"
+        },
+        "0x407d8c": {
+          "blocks_before": 25,
+          "blocks_after": 35,
+          "hlil": 48,
+          "time": 5.61,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_407d8c"
+        },
+        "0x407f1c": {
+          "blocks_before": 23,
+          "blocks_after": 32,
+          "hlil": 95,
+          "time": 5.74,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_407f1c"
+        },
+        "0x40831c": {
+          "blocks_before": 57,
+          "blocks_after": 72,
+          "hlil": 157,
+          "time": 5.72,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_40831c"
+        },
+        "0x408804": {
+          "blocks_before": 26,
+          "blocks_after": 34,
+          "hlil": 74,
+          "time": 5.79,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_408804"
+        },
+        "0x4089c4": {
+          "blocks_before": 23,
+          "blocks_after": 25,
+          "hlil": 61,
+          "time": 5.91,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_4089c4"
+        },
+        "0x408b94": {
+          "blocks_before": 82,
+          "blocks_after": 98,
+          "hlil": 185,
+          "time": 8.92,
+          "switch": false,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_408b94"
+        },
+        "0x409208": {
+          "blocks_before": 40,
+          "blocks_after": 39,
+          "hlil": 94,
+          "time": 9.29,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_409208"
+        },
+        "0x409488": {
+          "blocks_before": 30,
+          "blocks_after": 20,
+          "hlil": 20,
+          "time": 9.94,
+          "switch": false,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": true,
+          "name": "sub_409488"
+        },
+        "0x409604": {
+          "blocks_before": 17,
+          "blocks_after": 16,
+          "hlil": 35,
+          "time": 9.99,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_409604"
+        }
+      }
+    },
+    {
+      "binary": "libkste.so",
+      "results": {
+        "0x429c7c": {
+          "blocks_before": 109,
+          "blocks_after": 72,
+          "hlil": 170,
+          "time": 1.81,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_429c7c"
+        },
+        "0x42a21c": {
+          "blocks_before": 97,
+          "blocks_after": 165,
+          "hlil": 285,
+          "time": 6.42,
+          "switch": false,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_42a21c"
+        },
+        "0x42a690": {
+          "blocks_before": 38,
+          "blocks_after": 28,
+          "hlil": 66,
+          "time": 6.38,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_42a690"
+        },
+        "0x4365cc": {
+          "blocks_before": 67,
+          "blocks_after": 50,
+          "hlil": 134,
+          "time": 6.65,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_4365cc"
+        }
+      }
+    },
+    {
+      "binary": "libSeQing.so",
+      "results": {
+        "0x45985c": {
+          "blocks_before": 29,
+          "blocks_after": 39,
+          "hlil": 57,
+          "time": 4.78,
+          "switch": false,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_45985c"
+        },
+        "0x459a40": {
+          "blocks_before": 35,
+          "blocks_after": 34,
+          "hlil": 74,
+          "time": 4.92,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_459a40"
+        },
+        "0x459ed8": {
+          "blocks_before": 18,
+          "blocks_after": 13,
+          "hlil": 35,
+          "time": 4.88,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_459ed8"
+        },
+        "0x45a1ec": {
+          "blocks_before": 34,
+          "blocks_after": 47,
+          "hlil": 86,
+          "time": 5.22,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_45a1ec"
+        },
+        "0x45a3b8": {
+          "blocks_before": 22,
+          "blocks_after": 24,
+          "hlil": 90,
+          "time": 5.32,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_45a3b8"
+        },
+        "0x45a620": {
+          "blocks_before": 20,
+          "blocks_after": 22,
+          "hlil": 88,
+          "time": 5.15,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_45a620"
+        },
+        "0x45a864": {
+          "blocks_before": 18,
+          "blocks_after": 19,
+          "hlil": 45,
+          "time": 5.13,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_45a864"
+        },
+        "0x45aa54": {
+          "blocks_before": 18,
+          "blocks_after": 13,
+          "hlil": 36,
+          "time": 5.22,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_45aa54"
+        },
+        "0x45abfc": {
+          "blocks_before": 18,
+          "blocks_after": 13,
+          "hlil": 37,
+          "time": 5.31,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_45abfc"
+        },
+        "0x45adc0": {
+          "blocks_before": 18,
+          "blocks_after": 19,
+          "hlil": 46,
+          "time": 5.24,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_45adc0"
+        },
+        "0x45b0b4": {
+          "blocks_before": 20,
+          "blocks_after": 16,
+          "hlil": 46,
+          "time": 5.29,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_45b0b4"
+        },
+        "0x45b450": {
+          "blocks_before": 33,
+          "blocks_after": 37,
+          "hlil": 85,
+          "time": 5.28,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_45b450"
+        },
+        "0x45b71c": {
+          "blocks_before": 20,
+          "blocks_after": 21,
+          "hlil": 51,
+          "time": 5.34,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_45b71c"
+        },
+        "0x45ba24": {
+          "blocks_before": 79,
+          "blocks_after": 65,
+          "hlil": 158,
+          "time": 5.59,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_45ba24"
+        },
+        "0x45ce58": {
+          "blocks_before": 34,
+          "blocks_after": 29,
+          "hlil": 69,
+          "time": 5.46,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_45ce58"
+        },
+        "0x45d11c": {
+          "blocks_before": 21,
+          "blocks_after": 21,
+          "hlil": 47,
+          "time": 5.76,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_45d11c"
+        },
+        "0x45d2ec": {
+          "blocks_before": 67,
+          "blocks_after": 59,
+          "hlil": 128,
+          "time": 5.67,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_45d2ec"
+        },
+        "0x45d87c": {
+          "blocks_before": 20,
+          "blocks_after": 22,
+          "hlil": 90,
+          "time": 5.73,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_45d87c"
+        },
+        "0x45daa8": {
+          "blocks_before": 20,
+          "blocks_after": 22,
+          "hlil": 71,
+          "time": 5.7,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_45daa8"
+        },
+        "0x45dc94": {
+          "blocks_before": 20,
+          "blocks_after": 16,
+          "hlil": 92,
+          "time": 5.83,
+          "switch": true,
+          "orphan": false,
+          "se_lost": 0,
+          "deflated": false,
+          "name": "sub_45dc94"
+        }
+      }
+    }
+  ]
+}
