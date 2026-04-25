@@ -466,10 +466,14 @@ def pass_copy_common_block_mid(analysis_context: AnalysisContext):
 
 
 def pass_clear(analysis_context: AnalysisContext):
+    """精简后的 clear pipeline (task #17)：
+    - 删除 pass_copy_common_block_mid (LLIL 已做过同样的事，MLIL 再做易爆炸)
+    - 保留 pass_swap_if + pass_clear_SSA_const_if (实测对嵌套 CFF 的迭代收敛
+      有用，sub_407368 31→2 依赖它们)
+    """
     pass_clear_const_if(analysis_context)
     pass_clear_goto(analysis_context)
     pass_clear_if(analysis_context)
     pass_swap_if(analysis_context)
     pass_merge_block(analysis_context)
-    pass_copy_common_block_mid(analysis_context)
     pass_clear_SSA_const_if(analysis_context)

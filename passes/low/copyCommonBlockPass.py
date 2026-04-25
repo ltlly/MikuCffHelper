@@ -12,6 +12,46 @@ from binaryninja import (
 from ...utils import CFGAnalyzer, log_error
 
 
+def _llil_function_likely_cff(llil: LowLevelILFunction) -> bool:
+    """LLIL 层的 Blazytko 支配树式 CFF 嗅探。
+
+    防止对正常函数（Rust match / C++ stdlib）做 copy_common_block 把它们
+    炸大。判据：存在某个块支配 ≥ 30% 函数块且有 back-edge from dominated。
+    """
+    bbs = list(llil.basic_blocks)
+    n = len(bbs)
+    if n < 8:
+        return False
+    bb_by_start = {b.start: b for b in bbs}
+    for d in bbs:
+        # 估算被 d 支配的子树大小
+        subtree = {d.start}
+        stack = [d]
+        while stack:
+            x = stack.pop()
+            for c in x.dominator_tree_children:
+                if c.start not in subtree:
+                    subtree.add(c.start)
+                    stack.append(c)
+        if len(subtree) / n < 0.3:
+            continue
+        # 检查 back-edge：被 d 支配的某个块跳回 d
+        has_back_edge = False
+        for src_start in subtree:
+            src = bb_by_start.get(src_start)
+            if src is None:
+                continue
+            for edge in src.outgoing_edges:
+                if edge.target.start == d.start and src.start != d.start:
+                    has_back_edge = True
+                    break
+            if has_back_edge:
+                break
+        if has_back_edge:
+            return True
+    return False
+
+
 def fix_pre_bb(
     llil: LowLevelILFunction,
     pre_last_instr: LowLevelILInstruction,
@@ -74,6 +114,10 @@ def pass_copy_common_block(analysis_context: AnalysisContext):
         return
     initial_count = len(llil.basic_blocks)
     if initial_count > 500:
+        return
+    # task #16: 只对 *看起来是 CFF 的* 函数复制块，否则白白把 Rust/C++ 正常
+    # 函数炸大（libsafexEx 的 __cxa_guard_acquire 20→28，sub_492b20 19→42）
+    if not _llil_function_likely_cff(llil):
         return
     max_total_blocks = int(initial_count * 1.5) + 16  # 复制额度
     max_iterations = min(initial_count, 64)

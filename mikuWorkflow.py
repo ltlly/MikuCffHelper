@@ -11,9 +11,8 @@ from .passes.mid.movStateDefine import pass_mov_state_define
 def workflow_patch_llil(analysis_context: AnalysisContext):
     if analysis_context.function.llil is None:
         return
-    # 块复制让公共后继成为各前驱独占的块，便于上层符号执行；
-    # 标志位内联消除 LLIL 标志中转，让条件直接出现在 if 中；
-    # if 单独成块是后续 MLIL/HLIL 形状的常见前置。
+    # pass_copy_common_block 内部已加 LLIL 层 CFF 嗅探 (_llil_function_likely_cff)
+    # + 单块大小阈值 + 总块数额度上限三重保险，正常函数通常不会被它影响
     pass_copy_common_block(analysis_context)
     pass_inline_if_cond(analysis_context)
     pass_spilt_if_block(analysis_context)

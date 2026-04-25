@@ -256,6 +256,11 @@ def _collect_state_vars(
     mlil: MediumLevelILFunction,
     dispatcher_entry: MediumLevelILBasicBlock,
 ) -> Set[Variable]:
+    """识别 dispatcher 中作为常量比较左操作数的变量。
+
+    保持单变量级别的宽松过滤（unique 常量值 ≥ 2），让真实 CFF 内层状态
+    机也能被识别。
+    """
     candidates: Set[Variable] = set()
     visited: Set[int] = set()
     queue: List[MediumLevelILBasicBlock] = [dispatcher_entry]
@@ -284,7 +289,6 @@ def _collect_state_vars(
             if tgt is not None:
                 queue.append(tgt)
 
-    # 验证：被赋予 ≥2 unique 常量值
     unique_vals: Dict[Variable, Set[int]] = {var: set() for var in candidates}
     for instr in mlil.instructions:
         if not isinstance(instr, MediumLevelILSetVar):
@@ -294,6 +298,39 @@ def _collect_state_vars(
         if isinstance(instr.src, MediumLevelILConst):
             unique_vals[instr.dest].add(instr.src.constant & _mask(instr.size or 4))
     return {v for v, s in unique_vals.items() if len(s) >= 2}
+
+
+def _function_looks_like_cff(
+    mlil: MediumLevelILFunction,
+    state_vars: Set[Variable],
+) -> bool:
+    """函数级 CFF 启发式过滤：避免 Rust match / C++ stdlib 小常量分发被
+    误判为 OLLVM CFF (task #16 发现)。
+
+    判据（必须 *同时* 满足）：
+      1) 跨所有 state var 的 unique 常量值总数 ≥ 4 (OLLVM 通常多 case)
+      2) 值域跨度 max - min ≥ 0x10000000 (OLLVM 状态值是 32-bit 随机；
+         Rust SIMD 常量 0x8000_0000_0000_{0,1,3} 跨度只有 3；
+         C++ 异常 0,1 跨度只有 1)
+
+    单看平均值不够（Rust SIMD 常量平均也很大）；单看 unique 数也不够
+    (有些函数有几个真大值)。两个一起能可靠区分 CFF。
+    """
+    if not state_vars:
+        return False
+    all_vals: Set[int] = set()
+    for var in state_vars:
+        for instr in mlil.instructions:
+            if (
+                isinstance(instr, MediumLevelILSetVar)
+                and instr.dest == var
+                and isinstance(instr.src, MediumLevelILConst)
+            ):
+                all_vals.add(instr.src.constant & _mask(instr.size or 4))
+    if len(all_vals) < 4:
+        return False
+    spread = max(all_vals) - min(all_vals)
+    return spread >= 0x10000000
 
 
 # --------------------------------------------------------------------------
@@ -754,9 +791,14 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
         if dispatcher_entry is None:
             break
 
-        # 2. 状态变量识别 (unique-value 强化)
+        # 2. 状态变量识别
         state_vars = _collect_state_vars(mlil, dispatcher_entry)
         if not state_vars:
+            break
+
+        # 2.5 函数级 CFF 启发式：避免 Rust match / C++ stdlib 等小常量分发
+        # 被误判为 OLLVM CFF (task #16 发现的假阳性)
+        if not _function_looks_like_cff(mlil, state_vars):
             break
 
         # 3. 形式化 dispatcher 子图：含 dispatcher_entry 的 SCC ∩ pure-dispatcher 块
