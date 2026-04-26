@@ -635,13 +635,22 @@ def _seed_env_from_block(
     mlil: MediumLevelILFunction,
     define_instr: MediumLevelILSetVar,
     state_vars: Set[Variable],
+    dispatcher_blocks: Optional[Set[int]] = None,
 ) -> Dict[Variable, int]:
     """组装前向模拟的初始环境：当前 define 的常量值 + 同 block 内、当前指令
     之前对其它状态变量的常量赋值。
 
-    这处理 task #8 的"多状态变量交互"：dispatcher 可能同时检查多个状态变量
+    多状态变量交互 (task #8)：dispatcher 可能同时检查多个状态变量
     （例如 if (state1 == X && state2 == Y)），如果只 seed 一个变量，其它
     变量未知会导致 if 无法决断。
+
+    曾尝试 alias 同值 seed (sub_45985c 类 dispatcher 内 `x7_1 = x6_6` 拷贝
+    在 forward 路径绕过 rename 块时导致 env 没 alias 值，cmp 无法评估)。
+    多轮安全约束试验 (alias 单定义 / alias 在 dispatcher_blocks 内 / 等)
+    都不能避免 sub_40831c 类 SE_LOST，回退保正确性 — alias-aware
+    forward_resolve 留作后续研究。
+
+    dispatcher_blocks 参数保留以兼容外部调用，当前实现不使用。
     """
     env: Dict[Variable, int] = {}
     bb = mlil.get_basic_block_at(define_instr.instr_index)
@@ -756,7 +765,7 @@ def _forward_resolve(
     """
     if not isinstance(define_instr.src, MediumLevelILConst):
         return None
-    env = _seed_env_from_block(mlil, define_instr, state_vars)
+    env = _seed_env_from_block(mlil, define_instr, state_vars, dispatcher_blocks)
 
     define_bb = mlil.get_basic_block_at(define_instr.instr_index)
     if define_bb is None:

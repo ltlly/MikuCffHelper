@@ -112,41 +112,56 @@ def _collect_dispatcher_case_values(
     dispatcher_blocks,
     primary,
 ):
-    """从 dispatcher 子图收集所有 (alias_of_primary == const) 比较中的 const。
+    """从 dispatcher 子图收集所有 (alias_of_primary {==,!=} const) 比较中的 const。
 
     包含 primary 的 SSA 别名（BN var-rename 拆出的 x9_1=x8_2 类）。这避免
     sub_4259f4 上 x8_2 的 case_values=0 漏判，又避免 var-agnostic 把内层
     state machine 的 cmp 也算进来导致 sub_407368 误拒。
 
-    注：曾尝试也收集 CMP_NE values (sub_45985c 的 dispatcher 全用 CMP_NE
-    没 CMP_E)。但实测让 sub_407858 上 case_values 含未解析值过多，P2
-    label_map 多塞 N 个 "→ dispatcher_entry" 入口，BN 把每个渲染成独立
-    case 显著膨胀 HLIL (+48% 行数)，即便等价性保持也降低可读性。
-    sub_45985c 的 dispatcher 模式属于较少见的 OLLVM 变种，本插件保守不
-    支持，留给后续研究方向。
+    两阶段收集策略：
+      阶段 1: 只收集 CMP_E 值 (绝大多数 OLLVM CFF 用直接 == 分发)
+      阶段 2: 阶段 1 为空时，fallback 到 CMP_NE 值 (sub_45985c 类变种
+              dispatcher 全用 CMP_NE/CMP_SGT，BN 在 HLIL 渲染时反向显示
+              成 ==。CMP_NE 的 false 分支即 x == V 路径，V 同样是 case 值)
+
+    为什么不一律收集 CMP_NE：sub_407858 类混合 dispatcher (大量 CMP_E +
+    少量 CMP_NE) 上加 CMP_NE 会让 case_values 含过多未解析值，P2 label_map
+    多塞 fallback 入口让 HLIL +48% 膨胀。fallback 策略只在 CMP_E 完全缺失
+    (即真正的 CMP_NE-only dispatcher) 时启用，混合情况下不受影响。
     """
     aliases = _vars_aliased_to(mlil, primary, dispatcher_blocks)
     values = set()
-    for bb_start in dispatcher_blocks:
-        bb = mlil.get_basic_block_at(bb_start)
-        if bb is None:
-            continue
-        for idx in range(bb.start, bb.end):
-            instr = mlil[idx]
-            if not isinstance(instr, MediumLevelILIf):
+    cmp_e_op = MediumLevelILOperation.MLIL_CMP_E
+    cmp_ne_op = MediumLevelILOperation.MLIL_CMP_NE
+
+    def _scan(target_op):
+        result = set()
+        for bb_start in dispatcher_blocks:
+            bb = mlil.get_basic_block_at(bb_start)
+            if bb is None:
                 continue
-            cond = instr.condition
-            if cond.operation != MediumLevelILOperation.MLIL_CMP_E:
-                continue
-            if not (hasattr(cond, "left") and hasattr(cond, "right")):
-                continue
-            if not isinstance(cond.right, MediumLevelILConst):
-                continue
-            left = cond.left
-            if not (hasattr(left, "src") and left.src in aliases):
-                continue
-            size = left.size if hasattr(left, "size") else 4
-            values.add(cond.right.constant & _mask(size or 4))
+            for idx in range(bb.start, bb.end):
+                instr = mlil[idx]
+                if not isinstance(instr, MediumLevelILIf):
+                    continue
+                cond = instr.condition
+                if cond.operation != target_op:
+                    continue
+                if not (hasattr(cond, "left") and hasattr(cond, "right")):
+                    continue
+                if not isinstance(cond.right, MediumLevelILConst):
+                    continue
+                left = cond.left
+                if not (hasattr(left, "src") and left.src in aliases):
+                    continue
+                size = left.size if hasattr(left, "size") else 4
+                result.add(cond.right.constant & _mask(size or 4))
+        return result
+
+    values = _scan(cmp_e_op)
+    if not values:
+        # CMP_E 完全没有 → 这是 CMP_NE-only dispatcher (sub_45985c 类)
+        values = _scan(cmp_ne_op)
     return values
 
 
