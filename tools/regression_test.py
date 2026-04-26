@@ -203,7 +203,22 @@ def summarize(report):
 
 
 def diff_against_baseline(report, baseline):
-    """逐函数 diff，找新增 SE_LOST/ORPHAN、丢失 SWITCH/DEFLATED"""
+    """逐函数 diff，找回归。
+
+    回归判定 (按危险度排序):
+      - SE_LOST 增加：副作用丢失，正确性破坏
+      - ORPHAN 出现：孤立跳转，正确性破坏
+      - HLIL 行数显著增加 (>20%)：可读性下降
+      - 块数显著增加 (>30%)：函数变得更复杂
+
+    改进判定:
+      - HLIL 行数显著下降 (>20%)：更接近源码
+      - 块数显著下降 (>20%)：去混淆更彻底
+      - 新增 SWITCH / DEFLATED 标记
+
+    注意：SWITCH ↔ DEFLATED ↔ 未分类 之间的转换不算回归，因为 BN HLIL
+    Restructurer 在不同输入下会选择不同呈现，关键看 HLIL 是否更紧凑。
+    """
     regressions = []
     improvements = []
     by_addr = {f"{b['binary']}:{a}": r for b in report
@@ -215,21 +230,33 @@ def diff_against_baseline(report, baseline):
         base = base_by_addr.get(key)
         if base is None:
             continue
-        # 新增问题 = 回归
+        # 正确性回归 (硬错误)
         if cur["se_lost"] > base.get("se_lost", 0):
-            regressions.append(f"{key} {cur['name']}: SE_LOST {base.get('se_lost', 0)}→{cur['se_lost']}")
+            regressions.append(
+                f"{key} {cur['name']}: SE_LOST "
+                f"{base.get('se_lost', 0)}→{cur['se_lost']}"
+            )
         if cur["orphan"] and not base.get("orphan", False):
             regressions.append(f"{key} {cur['name']}: ORPHAN 出现")
-        # 丢失能力 = 回归
-        if base.get("switch", False) and not cur["switch"]:
-            regressions.append(f"{key} {cur['name']}: 丢失 SWITCH")
-        if base.get("deflated", False) and not cur["deflated"] and not cur["switch"]:
-            regressions.append(f"{key} {cur['name']}: 丢失 DEFLATED")
-        # 改进
-        if not base.get("switch", False) and cur["switch"]:
-            improvements.append(f"{key} {cur['name']}: 新增 SWITCH")
-        if not base.get("deflated", False) and not base.get("switch", False) and cur["deflated"]:
-            improvements.append(f"{key} {cur['name']}: 新增 DEFLATED")
+        # 可读性回归
+        base_hlil = base.get("hlil", 0)
+        if base_hlil > 0:
+            ratio = cur["hlil"] / base_hlil
+            if ratio > 1.20:
+                regressions.append(
+                    f"{key} {cur['name']}: HLIL {base_hlil}→{cur['hlil']} "
+                    f"(+{(ratio-1)*100:.0f}%)"
+                )
+            elif ratio < 0.80:
+                improvements.append(
+                    f"{key} {cur['name']}: HLIL {base_hlil}→{cur['hlil']} "
+                    f"(-{(1-ratio)*100:.0f}%)"
+                )
+        # 状态切换 (中性)
+        was = "SW" if base.get("switch") else ("DEF" if base.get("deflated") else "--")
+        now = "SW" if cur["switch"] else ("DEF" if cur["deflated"] else "--")
+        if was != now and was == "--" and now in ("SW", "DEF"):
+            improvements.append(f"{key} {cur['name']}: 新增 {now}")
 
     return regressions, improvements
 

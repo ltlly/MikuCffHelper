@@ -31,7 +31,7 @@
 """
 
 import time
-from typing import Dict, Optional, Set
+from typing import Dict, Optional, Set, Tuple
 
 from binaryninja import (
     AnalysisContext,
@@ -354,6 +354,66 @@ def _install_guarded_jump_to(
     return True
 
 
+def _shortcircuit_state_writes(
+    mlil: MediumLevelILFunction,
+    primary: Variable,
+    transitions: Dict[int, int],
+) -> int:
+    """对每个已解析 (V, T)，把函数中所有 `primary = V` SetVar 替换成
+    `goto mini-block`，mini-block 内为 `[primary = V; goto T]` (path A
+    风格)。
+
+    动机：单纯安装 jump_to/guard 后，真实块仍然 `state=V; goto dispatcher`
+    绕一圈到 jump_to/guard 才到 handler。BN HLIL Restructurer 看到的是
+    "真实块 → dispatcher → switch → handler"，没法把它看作自然 CFG。
+    短路后真实块直接 `goto handler`，dispatcher 只在初始 state 设置后
+    被 jump_to 入口 *用一次* (P1) 或对未解析 case 兜底 (P2)。restructurer
+    看到的是 "真实块 → handler" 的干净 CFG，能尝试识别 loop/if 结构，
+    输出更接近源码原貌。
+
+    保留原 SetVar 副本到 mini-block，维持 state 变量的写入语义不丢失。
+
+    返回短路的 patch 数。
+    """
+    if not transitions:
+        return 0
+    cache: Dict[Tuple[int, int, int], MediumLevelILLabel] = {}
+    patches = []
+    for instr in list(mlil.instructions):
+        if not isinstance(instr, MediumLevelILSetVar):
+            continue
+        if instr.dest != primary or not isinstance(instr.src, MediumLevelILConst):
+            continue
+        v = instr.src.constant & _mask(instr.size or 4)
+        if v not in transitions:
+            continue
+        patches.append((instr, v, transitions[v]))
+
+    n = 0
+    for instr, v, target_idx in patches:
+        try:
+            key = (instr.dest.identifier, v, target_idx)
+            cached_label = cache.get(key)
+            loc = ILSourceLocation.from_instruction(instr)
+            if cached_label is None:
+                target_label = MediumLevelILLabel()
+                target_label.operand = target_idx
+                new_block_label = MediumLevelILLabel()
+                mlil.mark_label(new_block_label)
+                mlil.append(mlil.copy_expr(instr), loc)
+                mlil.append(mlil.goto(target_label, loc), loc)
+                cached_label = new_block_label
+                cache[key] = cached_label
+            mlil.replace_expr(
+                instr.expr_index,
+                mlil.goto(cached_label, loc),
+            )
+            n += 1
+        except Exception:
+            continue
+    return n
+
+
 def _try_synthesize_one_dispatcher(
     mlil: MediumLevelILFunction,
     deadline: float,
@@ -469,14 +529,7 @@ def _try_synthesize_one_dispatcher(
                 ILSourceLocation.from_instruction(first_instr),
             )
             mlil.replace_expr(first_instr.expr_index, jump_to_expr)
-            already_rewritten.add(dispatcher_entry.start)
-            mlil.finalize()
-            mlil.generate_ssa_form()
-            log_info(
-                f"[synth] {fname}: P1 clean at 0x{dispatcher_entry.start:x} "
-                f"transitions={len(transitions)}"
-            )
-            return "clean"
+            mode = "clean"
         else:
             # P2: guarded jump_to fallback
             ok = _install_guarded_jump_to(
@@ -489,15 +542,25 @@ def _try_synthesize_one_dispatcher(
                     f"or label_map empty) at 0x{dispatcher_entry.start:x}"
                 )
                 return "fail"
-            already_rewritten.add(dispatcher_entry.start)
-            mlil.finalize()
-            mlil.generate_ssa_form()
-            log_info(
-                f"[synth] {fname}: P2 guarded at 0x{dispatcher_entry.start:x} "
-                f"resolved={len(transitions)} unresolved={unresolved_count} "
-                f"(原因: {'fully_resolved=False' if not fully_resolved_for_primary else 'case_values 有未覆盖'})"
-            )
-            return "guarded"
+            mode = "guarded"
+
+        # 短路：把 real_block 末尾 `primary = V; goto dispatcher` 替换成
+        # `goto mini_block` 直接到 handler。这一步关键 —— jump_to 让 HLIL
+        # 显示 switch，但真实块还要绕 dispatcher 才到 handler；BN
+        # restructurer 看到的不是自然 CFG。短路后真实块直接 goto handler，
+        # restructurer 能尝试还原 if/while 结构，更接近源码
+        n_short = _shortcircuit_state_writes(mlil, primary, transitions)
+
+        already_rewritten.add(dispatcher_entry.start)
+        mlil.finalize()
+        mlil.generate_ssa_form()
+        log_info(
+            f"[synth] {fname}: {'P1' if mode == 'clean' else 'P2'} at "
+            f"0x{dispatcher_entry.start:x} transitions={len(transitions)} "
+            f"shortcircuited={n_short}"
+            + (f" unresolved={unresolved_count}" if mode == "guarded" else "")
+        )
+        return mode
     except Exception as e:
         log_warn(f"[synth] {fname}: exception during rewrite: {e}")
         return "fail"
