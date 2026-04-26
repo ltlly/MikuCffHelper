@@ -70,33 +70,40 @@ def _vars_aliased_to(
     primary,
     dispatcher_blocks,
 ):
-    """收集所有在 dispatcher 内通过 `alias = primary` 形式被赋值的别名变量。
+    """收集所有通过 `alias = primary` 链传递的别名变量。
 
     BN SSA 经常拆出 `x9_1 = x8_2; if (x9_1 == K)` 这种 rename，x9_1 不在
     state_vars (没 const 赋值) 但实际承载 primary 的值。识别这种别名能让
     case_values 收集到正确的比较。
+
+    扫描范围 *扩大到整个函数*，不限于 dispatcher_blocks。原因：
+    sub_408b94 上 `x21_1 = lr_1` SetVar 所在的块 0x1a 还含有 `x0 = x3`
+    这种寄存器赋值，被 _block_is_pure_dispatcher 严格判据排除在
+    dispatcher_blocks 之外。但 x21_1 之后在 dispatcher_blocks 内部被大量
+    用作 cmp 左操作数 (`if (x21_1 == K) goto handler`)，原本只看
+    dispatcher_blocks 找别名时漏了 x21_1 → case_values=0 → 整个函数被拒。
+
+    对应的安全保证：扩大 alias 搜集范围只影响 *case_values* 集合 (它
+    enumerate dispatcher_blocks 内 cmp 的 const)，不影响 dispatcher_blocks
+    本身的边界。dispatcher_blocks 仍然由 `_block_is_pure_dispatcher` 严格
+    判断，假阳性风险不变。
     """
     aliases = {primary}
-    # 简单不动点迭代：只要发现 `new_alias = existing_alias` 就加入
+    # 不动点迭代：在整个函数中找 `new = existing_alias` 形式
     changed = True
     while changed:
         changed = False
-        for bb_start in dispatcher_blocks:
-            bb = mlil.get_basic_block_at(bb_start)
-            if bb is None:
+        for instr in mlil.instructions:
+            if not isinstance(instr, MediumLevelILSetVar):
                 continue
-            for idx in range(bb.start, bb.end):
-                instr = mlil[idx]
-                if not isinstance(instr, MediumLevelILSetVar):
-                    continue
-                if instr.dest in aliases:
-                    continue
-                if (
-                    isinstance(instr.src, MediumLevelILVar)
-                    and instr.src.src in aliases
-                ):
-                    aliases.add(instr.dest)
-                    changed = True
+            if instr.dest in aliases:
+                continue
+            if (
+                isinstance(instr.src, MediumLevelILVar)
+                and instr.src.src in aliases
+            ):
+                aliases.add(instr.dest)
+                changed = True
     return aliases
 
 

@@ -130,7 +130,14 @@ for instr in func.hlil.instructions:
 4. **dispatcher 子图识别 (Tarjan SCC + 副作用筛选)**：含 D 的最大 SCC 中
    过滤出"纯 dispatcher"块（指令副作用仅限状态变量；禁止 call / store /
    ret / intrinsic）
-5. **前向模拟 (整数解释器)**：从每个 `state = const` 出发，在 dispatcher
+5. **多级别名链跟踪 (`_vars_aliased_to`)**：从 primary 出发不动点迭代，
+   在 *整个函数* 范围内追 `alias = primary_or_alias` 链。范围扩大到全函数
+   是因为 OLLVM CFF 经常用 dispatcher SCC 之外的 alias 拷贝
+   (典型 sub_408b94 `x21_1 = lr_1` 在 dispatcher 块外部被设置，但
+   dispatcher 内大量 `if (x21_1 == K)` 比较)。这一步不影响 dispatcher_blocks
+   边界 (后者仍由严格 pure_dispatcher 判据决定)，只让 case_values 收集
+   到完整的 cmp 数据
+6. **前向模拟 (整数解释器)**：从每个 `state = const` 出发，在 dispatcher
    子图内逐块模拟到真实块入口，构建 `{state_value → real_block_start}`
    映射
 
@@ -322,16 +329,15 @@ clear → mov_state_define
      → clear
 ```
 
-实测 39 函数 (B 含短路步骤)：
+实测 39 函数 (含短路 + 全函数 alias 跟踪)：
 
-- **27** 函数 HLIL 仍含 `switch` 关键字 (BN restructurer 选择保留 switch)
+- **30** 函数 HLIL 含 `switch` 关键字
 - **7** 函数 BN 把 switch 进一步还原为纯 if/while/goto 链 (因短路后真实块
   脱离 dispatcher，自然 CFG 结构被识别出来)
-- **5** 函数无 switch / 无显著块数下降 (仍包含 `sub_42a21c` 这类 multi-state
-  跨函数引用 dispatcher，超出当前启发式覆盖范围)
-- **13 个函数 HLIL 行数下降 20-59%** (典型 `sub_407994` 64→26 行，
-  `sub_45d11c` 47→21 行)
-- 0 SE_LOST，0 ORPHAN
+- **2** 函数仍无 switch / 无显著块数下降 (`sub_42a21c` multi-state 跨函数
+  引用 dispatcher；`sub_45985c` dispatcher 全用 CMP_NE/CMP_SGT 没 CMP_E)
+- 总变换率 **37/39 (95%)**
+- 0 MLIL SE_LOST，0 HLIL call/store/ret 丢失，0 ORPHAN
 
 ## 8. 回归测试
 
