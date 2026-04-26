@@ -94,6 +94,86 @@ def find_cff_funcs(bv, max_blocks=120, max_count=20):
     return out
 
 
+def _collect_hlil_side_effects(func):
+    """收集函数 HLIL 中所有副作用 (call / store / ret) 的签名。
+
+    在 HLIL 层抓副作用比 MLIL 更可靠 —— 这是 *用户看到* 的输出层级。
+    BN HLIL Restructurer 偶尔在 jump_to/dispatcher 复杂度过高时把某些
+    副作用从 HLIL 视图剔除 (MLIL 还在，HLIL 看不到)，单看 MLIL verifier
+    漏过这种回归。
+
+    用 BN 的 traverse() 递归全部子表达式，包括内联在 expression 里的
+    call (例：`outer(arg, inner_call())` 的 inner_call 嵌在 params 里)。
+
+    返回 dict 含三个集合：
+      - calls: set of (call_addr, target_addr_or_None)
+      - stores: set of (store_addr,)  按地址区分 store
+      - rets: set of (ret_addr,)      按地址区分 return
+    """
+    empty = {"calls": set(), "stores": set(), "rets": set()}
+    if func.hlil is None:
+        return empty
+    try:
+        from binaryninja import HighLevelILOperation, HighLevelILInstruction
+    except ImportError:
+        return empty
+
+    call_ops = {
+        HighLevelILOperation.HLIL_CALL,
+        HighLevelILOperation.HLIL_CALL_SSA,
+        HighLevelILOperation.HLIL_TAILCALL,
+    }
+    store_ops = {
+        HighLevelILOperation.HLIL_ASSIGN,        # *p = v  (HLIL 把 store 当 assign)
+        HighLevelILOperation.HLIL_ASSIGN_UNPACK,
+    }
+    ret_ops = {
+        HighLevelILOperation.HLIL_RET,
+        HighLevelILOperation.HLIL_NORET,
+    }
+
+    calls: set = set()
+    stores: set = set()
+    rets: set = set()
+
+    def visitor(expr):
+        if not isinstance(expr, HighLevelILInstruction):
+            return
+        if expr.operation in call_ops:
+            target = None
+            try:
+                d = expr.dest
+                if hasattr(d, "constant"):
+                    target = d.constant
+            except Exception:
+                pass
+            calls.add((expr.address, target))
+        elif expr.operation in store_ops:
+            # 仅 *deref = ... 形式的 assign 算 store；普通变量赋值不算
+            try:
+                dest = expr.dest
+                if dest is not None and dest.operation == HighLevelILOperation.HLIL_DEREF:
+                    stores.add((expr.address,))
+                elif dest is not None and dest.operation == HighLevelILOperation.HLIL_ARRAY_INDEX:
+                    stores.add((expr.address,))
+            except Exception:
+                pass
+        elif expr.operation in ret_ops:
+            rets.add((expr.address,))
+
+    for instr in func.hlil.instructions:
+        try:
+            list(instr.traverse(visitor))
+        except Exception:
+            continue
+    return {"calls": calls, "stores": stores, "rets": rets}
+
+
+# 兼容性 alias：原 _collect_hlil_calls 仍然可用
+def _collect_hlil_calls(func):
+    return _collect_hlil_side_effects(func)["calls"]
+
+
 def test_func(bv, addr):
     import binaryninja as bn
     from plugins.MikuCffHelper.passes.mid.deflatHardPass import (
@@ -104,6 +184,11 @@ def test_func(bv, addr):
         return None
     before = len(list(func.mlil.basic_blocks))
     se_before = _collect_side_effect_signatures(func.mlil)
+    # HLIL 层副作用快照 (workflow 尚未启用，是 BN 默认分析的 baseline HLIL)
+    hlil_se_before = _collect_hlil_side_effects(func)
+    hlil_calls_before = hlil_se_before["calls"]
+    hlil_stores_before = hlil_se_before["stores"]
+    hlil_rets_before = hlil_se_before["rets"]
 
     settings = bn.Settings()
     settings.set_string(
@@ -131,6 +216,10 @@ def test_func(bv, addr):
         _collect_side_effect_signatures(func.mlil) if func.mlil else set()
     )
     lost = se_before - se_after
+    hlil_se_after = _collect_hlil_side_effects(func)
+    hlil_calls_lost = hlil_calls_before - hlil_se_after["calls"]
+    hlil_stores_lost = hlil_stores_before - hlil_se_after["stores"]
+    hlil_rets_lost = hlil_rets_before - hlil_se_after["rets"]
     return {
         "blocks_before": before,
         "blocks_after": after,
@@ -139,6 +228,16 @@ def test_func(bv, addr):
         "switch": has_switch,
         "orphan": has_orphan,
         "se_lost": len(lost),
+        # 关键的等价性指标：HLIL 层副作用不能丢
+        "hlil_calls_before": len(hlil_calls_before),
+        "hlil_calls_after": len(hlil_se_after["calls"]),
+        "hlil_calls_lost": len(hlil_calls_lost),
+        "hlil_stores_before": len(hlil_stores_before),
+        "hlil_stores_after": len(hlil_se_after["stores"]),
+        "hlil_stores_lost": len(hlil_stores_lost),
+        "hlil_rets_before": len(hlil_rets_before),
+        "hlil_rets_after": len(hlil_se_after["rets"]),
+        "hlil_rets_lost": len(hlil_rets_lost),
         # deflated = no switch but block reduction ≥ 30%
         "deflated": (not has_switch) and (after < before * 0.7),
     }
@@ -191,6 +290,22 @@ def summarize(report):
     deflated = sum(1 for b in report for r in b["results"].values() if r["deflated"])
     orphan = sum(1 for b in report for r in b["results"].values() if r["orphan"])
     se_lost = sum(1 for b in report for r in b["results"].values() if r["se_lost"])
+    hlil_calls_lost = sum(
+        r.get("hlil_calls_lost", 0)
+        for b in report for r in b["results"].values()
+    )
+    hlil_stores_lost = sum(
+        r.get("hlil_stores_lost", 0)
+        for b in report for r in b["results"].values()
+    )
+    hlil_rets_lost = sum(
+        r.get("hlil_rets_lost", 0)
+        for b in report for r in b["results"].values()
+    )
+    funcs_with_lost_calls = sum(
+        1 for b in report for r in b["results"].values()
+        if r.get("hlil_calls_lost", 0) > 0
+    )
     transformed = switch + deflated
     return {
         "total": total,
@@ -199,6 +314,10 @@ def summarize(report):
         "transformed": transformed,
         "orphan": orphan,
         "se_lost": se_lost,
+        "hlil_calls_lost": hlil_calls_lost,
+        "hlil_stores_lost": hlil_stores_lost,
+        "hlil_rets_lost": hlil_rets_lost,
+        "funcs_with_lost_calls": funcs_with_lost_calls,
     }
 
 
@@ -235,6 +354,22 @@ def diff_against_baseline(report, baseline):
             regressions.append(
                 f"{key} {cur['name']}: SE_LOST "
                 f"{base.get('se_lost', 0)}→{cur['se_lost']}"
+            )
+        if cur.get("hlil_calls_lost", 0) > base.get("hlil_calls_lost", 0):
+            regressions.append(
+                f"{key} {cur['name']}: HLIL call 丢失 "
+                f"{base.get('hlil_calls_lost', 0)}→{cur.get('hlil_calls_lost', 0)} "
+                f"(call 总数 {base.get('hlil_calls_before', '?')}→{cur.get('hlil_calls_after', '?')})"
+            )
+        if cur.get("hlil_stores_lost", 0) > base.get("hlil_stores_lost", 0):
+            regressions.append(
+                f"{key} {cur['name']}: HLIL store 丢失 "
+                f"{base.get('hlil_stores_lost', 0)}→{cur.get('hlil_stores_lost', 0)}"
+            )
+        if cur.get("hlil_rets_lost", 0) > base.get("hlil_rets_lost", 0):
+            regressions.append(
+                f"{key} {cur['name']}: HLIL return 丢失 "
+                f"{base.get('hlil_rets_lost', 0)}→{cur.get('hlil_rets_lost', 0)}"
             )
         if cur["orphan"] and not base.get("orphan", False):
             regressions.append(f"{key} {cur['name']}: ORPHAN 出现")
@@ -304,6 +439,10 @@ def main():
           f"({100*summary['transformed']/max(summary['total'],1):.0f}%)")
     print(f"ORPHAN:    {summary['orphan']}")
     print(f"SE_LOST:   {summary['se_lost']}")
+    print(f"HLIL_CALL_LOST:  {summary['hlil_calls_lost']} 个 call 丢失，"
+          f"{summary['funcs_with_lost_calls']} 个函数受影响")
+    print(f"HLIL_STORE_LOST: {summary['hlil_stores_lost']} 个 store 丢失")
+    print(f"HLIL_RET_LOST:   {summary['hlil_rets_lost']} 个 return 丢失")
 
     out_path = f"/tmp/regression_{int(time.time())}.json"
     with open(out_path, "w") as f:
