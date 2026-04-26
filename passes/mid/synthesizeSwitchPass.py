@@ -276,7 +276,7 @@ def _install_guarded_jump_to(
     all_assigned: Set[int],
     dispatcher_entry: MediumLevelILBasicBlock,
     dispatcher_blocks: Set[int],
-) -> bool:
+) -> Optional[int]:
     """在 MLIL 末尾追加 jump_to guard，然后重定向 real block 的回流边。
 
     方案:
@@ -300,10 +300,13 @@ def _install_guarded_jump_to(
     成功条件：
       - resolved transitions 非空
       - 至少有一条边被重定向 (否则 guard 永远不被执行，等于 no-op)
-    返回是否做了变换。
+
+    返回 guard_label.operand (供调用方加入 already_rewritten，避免 iter 2+
+    把 guard 自身误识别为新的 dispatcher_entry —— guard 包含 jump_to，本
+    身就是个状态分发结构，detect 看到它会误判)。失败时返回 None。
     """
     if not transitions:
-        return False
+        return None
     anchor = mlil[dispatcher_entry.start]
     loc = ILSourceLocation.from_instruction(anchor)
     primary_size = primary.type.width if primary.type else 4
@@ -334,7 +337,7 @@ def _install_guarded_jump_to(
             label_map[value] = alias
 
         if not label_map:
-            return False
+            return None
 
         dest_expr = mlil.var(primary_size, primary, loc)
         jump_to_expr = mlil.jump_to(dest_expr, label_map, loc)
@@ -348,17 +351,17 @@ def _install_guarded_jump_to(
             mlil, dispatcher_entry, dispatcher_blocks, guard_label
         )
         if n_redirected == 0:
-            return False
+            return None
     except Exception:
-        return False
-    return True
+        return None
+    return int(guard_label.operand)
 
 
 def _shortcircuit_state_writes(
     mlil: MediumLevelILFunction,
     primary: Variable,
     transitions: Dict[int, int],
-) -> int:
+) -> Tuple[int, Set[int]]:
     """对每个已解析 (V, T)，把函数中所有 `primary = V` SetVar 替换成
     `goto mini-block`，mini-block 内为 `[primary = V; goto T]` (path A
     风格)。
@@ -373,10 +376,13 @@ def _shortcircuit_state_writes(
 
     保留原 SetVar 副本到 mini-block，维持 state 变量的写入语义不丢失。
 
-    返回短路的 patch 数。
+    返回 (短路 patch 数, 新建 mini-block 标签 operand 集合)。后者供调用
+    方加入 already_rewritten，避免 iter 2+ 把这些 mini-block 误识别为
+    新的 dispatcher (它们形态上是简单 goto 块，但若被 detect 选中会让
+    state_vars 收集出问题)。
     """
     if not transitions:
-        return 0
+        return 0, set()
     cache: Dict[Tuple[int, int, int], MediumLevelILLabel] = {}
     patches = []
     for instr in list(mlil.instructions):
@@ -390,6 +396,7 @@ def _shortcircuit_state_writes(
         patches.append((instr, v, transitions[v]))
 
     n = 0
+    mini_label_ops: Set[int] = set()
     for instr, v, target_idx in patches:
         try:
             key = (instr.dest.identifier, v, target_idx)
@@ -404,6 +411,7 @@ def _shortcircuit_state_writes(
                 mlil.append(mlil.goto(target_label, loc), loc)
                 cached_label = new_block_label
                 cache[key] = cached_label
+                mini_label_ops.add(int(new_block_label.operand))
             mlil.replace_expr(
                 instr.expr_index,
                 mlil.goto(cached_label, loc),
@@ -411,13 +419,23 @@ def _shortcircuit_state_writes(
             n += 1
         except Exception:
             continue
-    return n
+    return n, mini_label_ops
+
+
+_NESTED_FLATTENING_SCORE_THRESHOLD = 0.10
+"""嵌套 dispatcher 的 flattening_score 阈值。
+
+iter 1 用默认 0.3 (严格的 CFF 门控)。iter 2+ 已确认是 CFF 函数，再用 0.3
+会漏掉内层 dispatcher (它在外层 case body 内，支配子树相对总块数小)，
+所以放宽到 0.10。仍要求至少支配 3 个块 + 有 back-edge，假阳性风险可控。
+"""
 
 
 def _try_synthesize_one_dispatcher(
     mlil: MediumLevelILFunction,
     deadline: float,
     already_rewritten: set,
+    threshold: Optional[float] = None,
 ) -> Optional[str]:
     """识别一个 dispatcher 并把它重构。
 
@@ -437,14 +455,20 @@ def _try_synthesize_one_dispatcher(
     primary，第一个能给出 ≥_MIN_TRANSITIONS 个 distinct target 的就用它。
     """
     fname = mlil.source_function.name
-    dispatcher_entry = _detect_dispatcher_entry(mlil, exclude=already_rewritten)
+    dispatcher_entry = _detect_dispatcher_entry(
+        mlil, exclude=already_rewritten, threshold=threshold,
+    )
     if dispatcher_entry is None:
         return None
     state_vars = _collect_state_vars(mlil, dispatcher_entry)
     if not state_vars:
         log_info(f"[synth] {fname}: no state vars found at dispatcher 0x{dispatcher_entry.start:x}")
         return None
-    if not _function_looks_like_cff(mlil, state_vars):
+    # _function_looks_like_cff 是函数级 CFF 判定，用来排除 Rust match /
+    # C++ stdlib 假阳性。仅在 iter 1 (threshold=None，外层 dispatcher) 必要。
+    # iter 2+ 已知是 CFF 函数；内层嵌套 dispatcher 的 state 值数量经常小于
+    # 4 个 (内层只是个小循环)，再跑这个 filter 会漏内层 dispatcher
+    if threshold is None and not _function_looks_like_cff(mlil, state_vars):
         log_info(f"[synth] {fname}: failed CFF heuristic (rust/c++ false positive guard)")
         return None
     dispatcher_blocks = _identify_dispatcher_subgraph(
@@ -508,6 +532,7 @@ def _try_synthesize_one_dispatcher(
     unresolved_count = len((case_values | all_assigned_for_primary) - set(transitions.keys()))
 
     try:
+        guard_label_op: Optional[int] = None
         if use_clean_path:
             # P1: 完整 jump_to 替换 dispatcher_entry
             label_map: Dict[int, MediumLevelILLabel] = {}
@@ -532,11 +557,11 @@ def _try_synthesize_one_dispatcher(
             mode = "clean"
         else:
             # P2: guarded jump_to fallback
-            ok = _install_guarded_jump_to(
+            guard_label_op = _install_guarded_jump_to(
                 mlil, primary, transitions, case_values,
                 all_assigned_for_primary, dispatcher_entry, dispatcher_blocks,
             )
-            if not ok:
+            if guard_label_op is None:
                 log_info(
                     f"[synth] {fname}: P2 install failed (no edges to redirect "
                     f"or label_map empty) at 0x{dispatcher_entry.start:x}"
@@ -549,9 +574,15 @@ def _try_synthesize_one_dispatcher(
         # 显示 switch，但真实块还要绕 dispatcher 才到 handler；BN
         # restructurer 看到的不是自然 CFG。短路后真实块直接 goto handler，
         # restructurer 能尝试还原 if/while 结构，更接近源码
-        n_short = _shortcircuit_state_writes(mlil, primary, transitions)
+        n_short, mini_ops = _shortcircuit_state_writes(mlil, primary, transitions)
 
+        # 把所有新生成的 dispatcher-like 块 (P2 guard、所有 mini-block) 加入
+        # already_rewritten。否则 iter 2+ 的 _detect_dispatcher_entry 会把
+        # 它们误识别为新的 dispatcher，导致内层真正的 dispatcher 被漏掉
         already_rewritten.add(dispatcher_entry.start)
+        if guard_label_op is not None:
+            already_rewritten.add(guard_label_op)
+        already_rewritten.update(mini_ops)
         mlil.finalize()
         mlil.generate_ssa_form()
         log_info(
@@ -589,10 +620,14 @@ def pass_synthesize_switch(analysis_context: AnalysisContext) -> bool:
     already_rewritten: set = set()
     transformed = False
 
-    for _ in range(_MAX_SWITCH_ITERS):
+    for iter_idx in range(_MAX_SWITCH_ITERS):
         if time.time() > deadline:
             break
-        result = _try_synthesize_one_dispatcher(mlil, deadline, already_rewritten)
+        # iter 1 用默认 0.3 严格阈值 (CFF 门控)；iter 2+ 用 0.10 拾内层 dispatcher
+        thr = None if iter_idx == 0 else _NESTED_FLATTENING_SCORE_THRESHOLD
+        result = _try_synthesize_one_dispatcher(
+            mlil, deadline, already_rewritten, threshold=thr,
+        )
         if result is None or result == "fail":
             break
         transformed = True

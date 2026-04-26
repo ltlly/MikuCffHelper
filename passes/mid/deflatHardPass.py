@@ -189,12 +189,22 @@ def _eval_if(if_instr: MediumLevelILIf, env: Dict[Variable, int]) -> Optional[bo
 def _detect_dispatcher_entry(
     mlil: MediumLevelILFunction,
     exclude: Optional[Set[int]] = None,
+    threshold: Optional[float] = None,
 ) -> Optional[MediumLevelILBasicBlock]:
-    """Blazytko 支配树法。O(N+E) 计算 dominator 子树大小，O(E) 查 back-edge。"""
+    """Blazytko 支配树法。O(N+E) 计算 dominator 子树大小，O(E) 查 back-edge。
+
+    threshold 缺省 _FLATTENING_SCORE_THRESHOLD (0.3，严格门控非 CFF 函数)。
+    嵌套 dispatcher 在外层 case body 内，支配子树相对函数总块数小，调用方
+    可以在 iter 2+ 用更低阈值 (例如 0.1) 拾起内层 dispatcher。
+    """
     bbs = list(mlil.basic_blocks)
     n = len(bbs)
     if n < _MIN_BLOCKS_FOR_CFF:
         return None
+
+    eff_threshold = (
+        _FLATTENING_SCORE_THRESHOLD if threshold is None else threshold
+    )
 
     # 用 dominator_tree_children 计算每个块的 dominator 子树大小
     # 对每个块做一次 DFS 总共 O(N) 次访问，全函数 O(N²) worst case 但 dominator
@@ -235,7 +245,7 @@ def _detect_dispatcher_entry(
         if size < 3:
             continue
         score = size / n
-        if score < _FLATTENING_SCORE_THRESHOLD:
+        if score < eff_threshold:
             continue
         has_back_edge = False
         for edge in d.incoming_edges:
