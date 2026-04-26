@@ -110,6 +110,13 @@ def _collect_dispatcher_case_values(
     包含 primary 的 SSA 别名（BN var-rename 拆出的 x9_1=x8_2 类）。这避免
     sub_4259f4 上 x8_2 的 case_values=0 漏判，又避免 var-agnostic 把内层
     state machine 的 cmp 也算进来导致 sub_407368 误拒。
+
+    注：曾尝试也收集 CMP_NE values (sub_45985c 的 dispatcher 全用 CMP_NE
+    没 CMP_E)。但实测让 sub_407858 上 case_values 含未解析值过多，P2
+    label_map 多塞 N 个 "→ dispatcher_entry" 入口，BN 把每个渲染成独立
+    case 显著膨胀 HLIL (+48% 行数)，即便等价性保持也降低可读性。
+    sub_45985c 的 dispatcher 模式属于较少见的 OLLVM 变种，本插件保守不
+    支持，留给后续研究方向。
     """
     aliases = _vars_aliased_to(mlil, primary, dispatcher_blocks)
     values = set()
@@ -361,29 +368,41 @@ def _shortcircuit_state_writes(
     mlil: MediumLevelILFunction,
     primary: Variable,
     transitions: Dict[int, int],
+    aggressive: bool = False,
 ) -> Tuple[int, Set[int]]:
-    """对每个已解析 (V, T)，把函数中所有 `primary = V` SetVar 替换成
-    `goto mini-block`，mini-block 内为 `[primary = V; goto T]` (path A
-    风格)。
+    """对每个已解析 (V, T)，把函数中所有 `primary = V` SetVar 短路成
+    `goto T`。
 
-    动机：单纯安装 jump_to/guard 后，真实块仍然 `state=V; goto dispatcher`
+    动机：路径 B 安装 jump_to/guard 后，真实块仍然 `state=V; goto dispatcher`
     绕一圈到 jump_to/guard 才到 handler。BN HLIL Restructurer 看到的是
     "真实块 → dispatcher → switch → handler"，没法把它看作自然 CFG。
-    短路后真实块直接 `goto handler`，dispatcher 只在初始 state 设置后
-    被 jump_to 入口 *用一次* (P1) 或对未解析 case 兜底 (P2)。restructurer
-    看到的是 "真实块 → handler" 的干净 CFG，能尝试识别 loop/if 结构，
-    输出更接近源码原貌。
+    短路后真实块直接 `goto handler`，restructurer 看到 "真实块 → handler"
+    的干净 CFG，能尝试识别 loop/if 结构。
 
-    保留原 SetVar 副本到 mini-block，维持 state 变量的写入语义不丢失。
+    aggressive=False (默认，mini-block 形态):
+      原 SetVar → `goto mini_block`，mini = `[SetVar 副本; goto T]`
+      state 写入在 mini-block 里执行，dispatcher 仍能正常分发 (P2 模式
+      下未解析 case 走 dispatcher 兜底，需要 state 真值)
+      => 安全适用 P1 / P2，但 HLIL 仍能看到 state 变量
 
-    返回 (短路 patch 数, 新建 mini-block 标签 operand 集合)。后者供调用
-    方加入 already_rewritten，避免 iter 2+ 把这些 mini-block 误识别为
-    新的 dispatcher (它们形态上是简单 goto 块，但若被 detect 选中会让
-    state_vars 收集出问题)。
+    aggressive=True (P1 fully_resolved 时启用):
+      原 SetVar → `goto T` 直接，state SetVar 被 *删除*
+      state 完全不被写，dispatcher 只在函数初始进入一次后失去入边，
+      BN 自动 dead-code 整个 dispatcher，state 变量从 HLIL 消失
+      => 仅 P1 fully_resolved 安全 (此时 dispatcher 不再被需要；
+         P2 下还有 unresolved case 需要 dispatcher 兜底，删 SetVar
+         会破坏 unresolved 路径的 state 真值传递)
+
+    安全性: state 变量本身不在 _SIDE_EFFECT_OPS 里 (它不是 call/store/ret/
+    intrinsic)，删除不丢副作用。OLLVM CFF 中 state 仅供 dispatcher 分发
+    用，handler 不读 state，所以 handler 内部副作用语义不受影响。
+    5 角度 verifier (MLIL SE / HLIL call/store/ret) 把关。
+
+    返回 (短路 patch 数, 新建 mini-block 标签 operand 集合)。aggressive
+    模式下不创建 mini-block，集合为空。
     """
     if not transitions:
         return 0, set()
-    cache: Dict[Tuple[int, int, int], MediumLevelILLabel] = {}
     patches = []
     for instr in list(mlil.instructions):
         if not isinstance(instr, MediumLevelILSetVar):
@@ -396,6 +415,24 @@ def _shortcircuit_state_writes(
         patches.append((instr, v, transitions[v]))
 
     n = 0
+    if aggressive:
+        # aggressive: 原 SetVar → 直接 goto T，无 mini-block
+        for instr, v, target_idx in patches:
+            try:
+                loc = ILSourceLocation.from_instruction(instr)
+                target_label = MediumLevelILLabel()
+                target_label.operand = target_idx
+                mlil.replace_expr(
+                    instr.expr_index,
+                    mlil.goto(target_label, loc),
+                )
+                n += 1
+            except Exception:
+                continue
+        return n, set()
+
+    # conservative (mini-block 形态)
+    cache: Dict[Tuple[int, int, int], MediumLevelILLabel] = {}
     mini_label_ops: Set[int] = set()
     for instr, v, target_idx in patches:
         try:
@@ -570,11 +607,21 @@ def _try_synthesize_one_dispatcher(
             mode = "guarded"
 
         # 短路：把 real_block 末尾 `primary = V; goto dispatcher` 替换成
-        # `goto mini_block` 直接到 handler。这一步关键 —— jump_to 让 HLIL
-        # 显示 switch，但真实块还要绕 dispatcher 才到 handler；BN
-        # restructurer 看到的不是自然 CFG。短路后真实块直接 goto handler，
-        # restructurer 能尝试还原 if/while 结构，更接近源码
-        n_short, mini_ops = _shortcircuit_state_writes(mlil, primary, transitions)
+        # `goto mini_block` (mini-block 形态) 或 `goto T` (aggressive)。
+        #
+        # aggressive 安全条件: all_assigned ⊆ transitions
+        # 即函数中每个 `primary = const` 赋值都有 forward_resolve 出来的
+        # transition 目标。此时所有 real_block 都能被短路，dispatcher 失去
+        # 真实流入边被 BN 自动 dead-code，state 变量从 HLIL 消失。
+        # 若 all_assigned ⊄ transitions，存在 V_u 没有 transition，real_block
+        # `primary = V_u` 不被短路，仍然 goto dispatcher，需要 SetVar 真值
+        # 让 dispatcher 路由到正确 fallback handler，必须 mini-block 保 SetVar。
+        aggressive_safe = (
+            all_assigned_for_primary <= set(transitions.keys())
+        )
+        n_short, mini_ops = _shortcircuit_state_writes(
+            mlil, primary, transitions, aggressive=aggressive_safe,
+        )
 
         # 把所有新生成的 dispatcher-like 块 (P2 guard、所有 mini-block) 加入
         # already_rewritten。否则 iter 2+ 的 _detect_dispatcher_entry 会把

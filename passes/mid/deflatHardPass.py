@@ -51,6 +51,7 @@ from binaryninja import (
     MediumLevelILLabel,
     MediumLevelILOperation,
     MediumLevelILSetVar,
+    MediumLevelILVar,
     Variable,
 )
 
@@ -565,6 +566,12 @@ def _block_is_pure_dispatcher(
 
     比之前的 _is_state_only_instr 更严格（显式禁止副作用 op）也更宽松（允许
     if 读非状态变量），更贴近"dispatcher 不引入新可见副作用"的本质。
+
+    注：曾尝试放宽允许 var-rename copy of state_var (`alias = state_var`)
+    让 sub_45985c 这类用 var-rename 的 dispatcher 被识别。但实测让
+    sub_45b450 出现 SE_LOST + HLIL call 丢失 (一个本应是 handler 的块
+    被错误纳入 dispatcher_blocks，跳转目标判为非真实块被拒绝转移，
+    后续 BN 把对应 call 视为不可达清除)。安全性优先，回退原严格判据。
     """
     for idx in range(b.start, b.end):
         instr = mlil[idx]
