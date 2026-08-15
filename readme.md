@@ -358,9 +358,10 @@ g = build_real_block_transition_graph(func.mlil)
    goto 链收集 `s=A; ...; goto dispatcher_entry` 的无副作用 SetVar 序列，
    复制进 mini-block 后改写为 `if (c) goto mini_A else goto mini_B`；
    链上任何分支 / 副作用 / 未解析值都会让该分支保持原样。
-8. **多候选状态类**：`find_state_classes` 返回全部候选状态类，general pass
-   逐个解析并选择 resolved 最多、target 最分散的候选，避免被单变量
-   unique 数启发式卡死；多状态元组合成仍待实现。
+8. **多候选状态类 + 两状态元组**：`find_state_classes` 返回全部候选状态类；
+   常规候选之外，general pass 会用宽松启发式补一个 secondary 候选，尝试
+   `(v0,v1)` 联合解析；联合解析优于单候选时，安装 P3 tuple 版
+   `jump_to((v0 << 32) | v1, ...)`（仅两个 32-bit 状态类，编码无碰撞）。
 
 实测（手动冒烟）：
 
@@ -368,11 +369,12 @@ g = build_real_block_transition_graph(func.mlil)
 |------|------|
 | `example/cff-arm64-v8a.elf` target_function | auto 模式 31→41 无 switch；general 模式 31→40 且 HLIL 渲染为 `switch`（条件状态分支 + tail-define 短路均已生效），0 MLIL/HLIL 副作用丢失、0 orphan |
 | `libmsaoaidsec.so` 标准 CFF | general 能输出 switch，case 体比此前干净；块数压缩仍不如 auto，继续向 auto 收敛 |
+| `libmsaoaidsec.so` sub_425b30（多状态） | tuple 模式 36→41，`switch (x19 << 32 \| arg7)` 联合分发，0 副作用丢失 / 0 orphan |
 
 **已知 trade-off**：general 是独立实验入口，默认不进入 auto，不影响既有
 39 函数基线。equality-hash / interval-bisect、安全 state 短路、条件状态
-分支改写与多候选状态类已落地；下一步是多状态元组合成与 dispatcher 死代码
-清理，逐步向 auto 收敛。
+分支改写、多候选状态类与两状态元组 P3 已落地；下一步是 dispatcher 死代码
+清理与更多元组（>2 状态）扩展，逐步向 auto 收敛。
 
 ## 7. 路径 auto (B 优先 / A 兜底)
 

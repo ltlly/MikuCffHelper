@@ -198,9 +198,9 @@ def _classify_route_blocks(
 
 def _partition_by_state_compare(
     cond: MediumLevelILInstruction,
-    entries: List[Tuple[int, Dict]],
-    state_class: StateClass,
-) -> Optional[Tuple[List[Tuple[int, Dict]], List[Tuple[int, Dict]]]]:
+    entries: List[Tuple[Tuple, Dict]],
+    state_var_ids: Set[int],
+) -> Optional[Tuple[List[Tuple[Tuple, Dict]], List[Tuple[Tuple, Dict]]]]:
     """把 entries 按 ``(state|alias) op const`` 快速分裂为 true/false。
 
     - CMP_E/CMP_NE 用哈希表 O(m)；
@@ -219,12 +219,12 @@ def _partition_by_state_compare(
     reversed_ = False
     if isinstance(right, MediumLevelILConst):
         src = getattr(getattr(left, "src", None), "identifier", None)
-        if src is not None and state_class.contains_id(src):
+        if src is not None and src in state_var_ids:
             state_var = getattr(left, "src", None)
             const_expr = right
     elif isinstance(left, MediumLevelILConst):
         src = getattr(getattr(right, "src", None), "identifier", None)
-        if src is not None and state_class.contains_id(src):
+        if src is not None and src in state_var_ids:
             state_var = getattr(right, "src", None)
             const_expr = left
             reversed_ = True
@@ -387,7 +387,7 @@ def _resolve_dispatch_map(
                 break
             if isinstance(instr, MediumLevelILIf):
                 partition = _partition_by_state_compare(
-                    instr.condition, entries, state_class
+                    instr.condition, entries, state_class.var_ids
                 )
                 if partition is None:
                     true_entries = []
@@ -427,6 +427,220 @@ def _resolve_dispatch_map(
             continue
         worklist.extend(next_groups)
     return transitions
+
+
+def _combine_state_classes(
+    first: StateClass, second: StateClass
+) -> StateClass:
+    """把两个状态类合并为路由分类用的联合状态类。
+
+    联合类只用于 dispatcher 决策块分类与比较常量收集；真实跳转映射仍按
+    (v0, v1) 元组保存在 tuple resolver 中。
+    """
+    counts = dict(first.unique_counts)
+    counts.update(second.unique_counts)
+    return StateClass(
+        primary=first.primary,
+        vars=frozenset(first.vars | second.vars),
+        var_ids=frozenset(first.var_ids | second.var_ids),
+        assigned_values=frozenset(
+            first.assigned_values | second.assigned_values
+        ),
+        unique_counts=counts,
+    )
+
+
+def _resolve_dispatch_map_tuple(
+    mlil: MediumLevelILFunction,
+    first: StateClass,
+    second: StateClass,
+    combined: StateClass,
+    route_starts: Set[int],
+    dispatcher_entry_start: int,
+    side_effect_ops: Set,
+    deadline: float,
+) -> Dict[Tuple[int, int], int]:
+    """两状态元组联合分发解析。
+
+    每个 entry 的 key 是 (v0, v1)，env 同时装载两个状态类的全部变量。
+    dispatcher 决策条件引用任一状态类时都能被 partition/eval 处理；两者
+    联合控制的 && / flag 条件回退逐值求值。
+    """
+    transitions: Dict[Tuple[int, int], int] = {}
+    initial = []
+    for v0 in sorted(first.assigned_values):
+        for v1 in sorted(second.assigned_values):
+            env: Dict = {}
+            for var in first.vars:
+                env[var] = v0
+            for var in second.vars:
+                env[var] = v1
+            initial.append(((v0, v1), env))
+    worklist: List[Tuple[int, List[Tuple[Tuple[int, int], Dict]]]] = [
+        (dispatcher_entry_start, initial)
+    ]
+    visited_by_key: Dict[Tuple[int, int], Set[int]] = {}
+    total_steps = 0
+
+    while worklist:
+        if time.time() > deadline or total_steps > _MAX_BATCH_STEPS:
+            break
+        block_start, entries = worklist.pop()
+        if not entries:
+            continue
+        total_steps += len(entries)
+
+        bb = mlil.get_basic_block_at(block_start)
+        if bb is None or block_start != bb.start:
+            continue
+        if block_start not in route_starts:
+            for key, _env in entries:
+                transitions[key] = block_start
+            continue
+
+        fresh = []
+        for key, env in entries:
+            visited = visited_by_key.setdefault(key, set())
+            if block_start in visited:
+                continue
+            visited.add(block_start)
+            fresh.append((key, env))
+        entries = fresh
+        if not entries:
+            continue
+
+        next_groups: List = []
+        broken = False
+        for idx in range(bb.start, bb.end):
+            instr = mlil[idx]
+            if _instruction_has_side_effect(instr, side_effect_ops):
+                broken = True
+                break
+            if isinstance(instr, MediumLevelILGoto):
+                next_groups.append((instr.dest, entries))
+                break
+            if isinstance(instr, MediumLevelILIf):
+                partition = _partition_by_state_compare(
+                    instr.condition, entries, combined.var_ids
+                )
+                if partition is None:
+                    true_entries = []
+                    false_entries = []
+                    for key, env in entries:
+                        branch = EnvEvaluator.eval_if(instr, env)
+                        if branch is None:
+                            continue
+                        (true_entries if branch else false_entries).append(
+                            (key, env)
+                        )
+                else:
+                    true_entries, false_entries = partition
+                if true_entries:
+                    next_groups.append((instr.true, true_entries))
+                if false_entries:
+                    next_groups.append((instr.false, false_entries))
+                break
+            if isinstance(instr, MediumLevelILSetVar):
+                for key, env in entries:
+                    if instr.dest.identifier in combined.var_ids:
+                        result = EnvEvaluator.eval(instr.src, env)
+                    else:
+                        cond = EnvEvaluator.eval_cond(instr.src, env)
+                        result = None if cond is None else int(cond)
+                    if result is None:
+                        env.pop(instr.dest, None)
+                    else:
+                        env[instr.dest] = result & mask(instr.size or 4)
+                continue
+            broken = True
+            break
+        if broken:
+            continue
+        worklist.extend(next_groups)
+    return transitions
+
+
+def _install_tuple_guarded_jump_to(
+    mlil: MediumLevelILFunction,
+    first: StateClass,
+    second: StateClass,
+    transitions: Dict[Tuple[int, int], int],
+    case_values: Set[int],
+    dispatcher_entry_start: int,
+    route_starts: Set[int],
+) -> Optional[int]:
+    """P3 tuple 版：jump_to((v0 << 32) | v1, label_map)。
+
+    仅支持两个 32-bit 状态类；编码无碰撞，未解析组合回退 dispatcher 入口。
+    """
+    if len(transitions) < _MIN_TRANSITIONS:
+        return None
+    if (first.primary.type.width or 4) != 4 or (second.primary.type.width or 4) != 4:
+        return None
+    preamble = _collect_entry_preamble(mlil, dispatcher_entry_start)
+    if preamble is None:
+        return None
+
+    anchor = mlil[dispatcher_entry_start]
+    loc = ILSourceLocation.from_instruction(anchor)
+
+    try:
+        guard_label = MediumLevelILLabel()
+        mlil.mark_label(guard_label)
+        for instr in preamble:
+            mlil.append(mlil.copy_expr(instr), loc)
+
+        label_map: Dict[int, MediumLevelILLabel] = {}
+        resolved_keys = set(transitions.keys())
+        for (v0, v1), target_idx in transitions.items():
+            encoded = ((v0 & 0xFFFFFFFF) << 32) | (v1 & 0xFFFFFFFF)
+            lbl = MediumLevelILLabel()
+            lbl.operand = target_idx
+            label_map[encoded] = lbl
+        for v0 in sorted(first.assigned_values):
+            for v1 in sorted(second.assigned_values):
+                if (v0, v1) in resolved_keys:
+                    continue
+                encoded = ((v0 & 0xFFFFFFFF) << 32) | (v1 & 0xFFFFFFFF)
+                lbl = MediumLevelILLabel()
+                lbl.operand = dispatcher_entry_start
+                label_map[encoded] = lbl
+        if not label_map:
+            return None
+
+        v0_expr = mlil.var(4, first.primary, loc)
+        shift_expr = mlil.const(4, 32, loc)
+        shifted = mlil.expr(
+            MediumLevelILOperation.MLIL_LSL,
+            v0_expr,
+            shift_expr,
+            0,
+            0,
+            0,
+            8,
+            loc,
+        )
+        v1_expr = mlil.var(4, second.primary, loc)
+        dest_expr = mlil.expr(
+            MediumLevelILOperation.MLIL_OR,
+            shifted,
+            v1_expr,
+            0,
+            0,
+            0,
+            8,
+            loc,
+        )
+        mlil.append(mlil.jump_to(dest_expr, label_map, loc))
+
+        redirected = _redirect_edges_to_dispatcher(
+            mlil, dispatcher_entry_start, route_starts, guard_label
+        )
+        if redirected == 0:
+            return None
+    except Exception:
+        return None
+    return int(guard_label.operand)
 
 
 def _redirect_edges_to_dispatcher(
@@ -895,33 +1109,112 @@ def pass_general_cff(analysis_context: AnalysisContext) -> bool:
 
     state_class, route_starts, transitions = chosen
 
+    # 两状态元组尝试：仅当联合解析比单候选解析出更多组合时启用
+    tuple_chosen: Optional[
+        Tuple[StateClass, StateClass, StateClass, Set[int], Dict[Tuple[int, int], int]]
+    ] = None
+    if time.time() <= deadline:
+        # 主候选来自常规启发式；若常规只找到一个，用宽松启发式补一个
+        # 次级候选（tuple 联合分发允许 secondary 只有 2 个值）
+        extra_classes = list(state_classes)
+        if len(extra_classes) < 2:
+            extra_classes = find_state_classes(
+                mlil, dispatcher_entry, require_cff_heuristic=False, limit=4
+            )
+        second_candidate = None
+        for cand in extra_classes:
+            if cand.primary.identifier not in state_class.var_ids:
+                second_candidate = cand
+                break
+    else:
+        second_candidate = None
+
+    if second_candidate is not None:
+        first = state_class
+        second = second_candidate
+        combo_count = len(first.assigned_values) * len(second.assigned_values)
+        if combo_count <= 4096:
+            combined = _combine_state_classes(first, second)
+            tuple_route = _classify_route_blocks(
+                mlil,
+                dispatcher_scc,
+                dispatcher_entry.start,
+                combined,
+                _SIDE_EFFECT_OPS,
+            )
+            tuple_route.add(dispatcher_entry.start)
+            tuple_trans = _resolve_dispatch_map_tuple(
+                mlil,
+                first,
+                second,
+                combined,
+                tuple_route,
+                dispatcher_entry.start,
+                _SIDE_EFFECT_OPS,
+                deadline,
+            )
+            if (
+                len(tuple_trans) >= _MIN_TRANSITIONS
+                and len(set(tuple_trans.values())) >= 2
+                and len(tuple_trans) > len(transitions)
+            ):
+                tuple_chosen = (
+                    first, second, combined, tuple_route, tuple_trans
+                )
+
     # case_values 覆盖检查：dispatcher SCC 内全部状态比较常量
-    case_values = collect_state_case_values(mlil, state_class, dispatcher_scc)
+    if tuple_chosen is not None:
+        first_c, second_c, combined_c, route_c, trans_c = tuple_chosen
+        case_values = collect_state_case_values(
+            mlil, combined_c, dispatcher_scc
+        )
+    else:
+        case_values = collect_state_case_values(mlil, state_class, dispatcher_scc)
 
-    # 条件状态赋值改写：if(c) s=A else s=B → if(c) goto mini_A else goto mini_B
-    n_cond = _rewrite_conditional_state_branches(
-        mlil,
-        state_class,
-        transitions,
-        dispatcher_entry.start,
-        route_starts,
-        _SIDE_EFFECT_OPS,
-    )
+    if tuple_chosen is not None:
+        # tuple 模式：暂不做条件分支/短路改写，先保证联合分发的 switch 形态
+        first_c, second_c, combined_c, route_c, trans_c = tuple_chosen
+        n_cond = 0
+        n_short = 0
+        mini_ops: Set[int] = set()
+        guard_label_op = _install_tuple_guarded_jump_to(
+            mlil,
+            first_c,
+            second_c,
+            trans_c,
+            case_values,
+            dispatcher_entry.start,
+            route_c,
+        )
+        log_tag = f"tuple({first_c.primary.name},{second_c.primary.name})"
+        resolved_count = len(trans_c)
+    else:
+        # 条件状态赋值改写：if(c) s=A else s=B → if(c) goto mini_A else goto mini_B
+        n_cond = _rewrite_conditional_state_branches(
+            mlil,
+            state_class,
+            transitions,
+            dispatcher_entry.start,
+            route_starts,
+            _SIDE_EFFECT_OPS,
+        )
 
-    # 再短路 tail state defines：必须在 redirect 之前做，否则真实块的
-    # goto dispatcher 已经被改成 goto guard，形态检测不到
-    n_short, mini_ops = _shortcircuit_safe_state_defines(
-        mlil, state_class, transitions, dispatcher_entry.start
-    )
+        # 再短路 tail state defines：必须在 redirect 之前做，否则真实块的
+        # goto dispatcher 已经被改成 goto guard，形态检测不到
+        n_short, mini_ops = _shortcircuit_safe_state_defines(
+            mlil, state_class, transitions, dispatcher_entry.start
+        )
 
-    guard_label_op = _install_preamble_guarded_jump_to(
-        mlil,
-        state_class,
-        transitions,
-        case_values,
-        dispatcher_entry.start,
-        route_starts,
-    )
+        guard_label_op = _install_preamble_guarded_jump_to(
+            mlil,
+            state_class,
+            transitions,
+            case_values,
+            dispatcher_entry.start,
+            route_starts,
+        )
+        log_tag = f"primary={state_class.primary.name}"
+        resolved_count = len(transitions)
     if guard_label_op is None:
         log_info(f"[general] {fname}: P3 install failed")
         return False
@@ -933,7 +1226,8 @@ def pass_general_cff(analysis_context: AnalysisContext) -> bool:
     _verify_no_side_effect_loss(side_effects_before, side_effects_after, fname)
     log_info(
         f"[general] {fname}: P3 installed guard=0x{guard_label_op:x} "
-        f"transitions={len(transitions)} case_values={len(case_values)} "
+        f"mode={log_tag} transitions={resolved_count} "
+        f"case_values={len(case_values)} "
         f"cond_rewritten={n_cond} shortcircuited={n_short} "
         f"miniblocks={len(mini_ops)}"
     )
