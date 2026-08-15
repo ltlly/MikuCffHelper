@@ -22,4 +22,7 @@ env/
 
 # System
 .DS_Store
-Thumbs.dbexample/125_*.apk
+Thumbs.db
+example/125_*.apk
+example/125_*/
+

@@ -1,7 +1,7 @@
 """把 CFF dispatcher 重构为 MLIL JUMP_TO，让 BN 4.1+ 的 HLIL restructurer
 显示成 switch-case 结构。
 
-设计动机（参见 docs/pass_evaluation.md §2）：
+设计动机（参见根目录 readme.md 的路径 B 章节）：
   当前 deflate_hard 把每个 state SetVar=const 直接 patch 成 goto target，
   最终 HLIL 是一堆 goto 链，可读性中等。
   HLIL Restructurer (https://binary.ninja/2024/06/19/...) 已经能把 jump
