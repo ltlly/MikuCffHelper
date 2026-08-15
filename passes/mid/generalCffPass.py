@@ -840,6 +840,7 @@ def _install_tuple_guarded_jump_to(
         redirected = _redirect_edges_to_dispatcher(
             mlil, dispatcher_entry_start, route_starts, guard_label,
             any_route=False,
+            goto_any_route=fully_resolved,
         )
         if redirected == 0:
             return None
@@ -905,6 +906,7 @@ def _install_preamble_guarded_jump_to(
         redirected = _redirect_edges_to_dispatcher(
             mlil, dispatcher_entry_start, route_starts, guard_label,
             any_route=False,
+            goto_any_route=fully_resolved,
         )
         if redirected == 0:
             return None
@@ -919,6 +921,7 @@ def _redirect_edges_to_dispatcher(
     route_starts: Set[int],
     guard_label: MediumLevelILLabel,
     any_route: bool = False,
+    goto_any_route: bool = False,
 ) -> int:
     """把真实块末尾回 dispatcher 的边重定向到 guard。
 
@@ -938,25 +941,26 @@ def _redirect_edges_to_dispatcher(
             continue
         last = mlil[b.end - 1]
         loc = ILSourceLocation.from_instruction(last)
-        allowed_targets = route_starts if any_route else {target_idx}
+        goto_targets = route_starts if (any_route or goto_any_route) else {target_idx}
+        if_targets = route_starts if any_route else {target_idx}
         try:
             if isinstance(last, MediumLevelILGoto):
-                if last.dest not in allowed_targets:
+                if last.dest not in goto_targets:
                     continue
                 new_label = MediumLevelILLabel()
                 new_label.operand = guard_idx
                 mlil.replace_expr(last.expr_index, mlil.goto(new_label, loc))
                 redirected += 1
             elif isinstance(last, MediumLevelILIf):
-                if last.true not in allowed_targets and last.false not in allowed_targets:
+                if last.true not in if_targets and last.false not in if_targets:
                     continue
                 new_true = MediumLevelILLabel()
                 new_true.operand = (
-                    guard_idx if last.true in allowed_targets else last.true
+                    guard_idx if last.true in if_targets else last.true
                 )
                 new_false = MediumLevelILLabel()
                 new_false.operand = (
-                    guard_idx if last.false in allowed_targets else last.false
+                    guard_idx if last.false in if_targets else last.false
                 )
                 cond_copy = mlil.copy_expr(last.condition)
                 new_if = mlil.if_expr(cond_copy, new_true, new_false, loc)

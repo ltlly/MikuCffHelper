@@ -16,10 +16,12 @@
       "binary": "arm64-v8a.so",
       "results": {
         "0x406c0c": {
+          "name": "sub_406c0c",
+          "selected_mode": "general",
           "blocks_before": 97,
           "blocks_after": 95,
           "hlil": 120,
-          "time": 4.76,
+          "time": 4.74,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -32,14 +34,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_406c0c"
+          "deflated": false
         },
         "0x407368": {
+          "name": "sub_407368",
+          "selected_mode": "general",
           "blocks_before": 31,
           "blocks_after": 28,
           "hlil": 36,
-          "time": 4.74,
+          "time": 4.82,
           "switch": true,
           "orphan": false,
           "se_lost": 0,
@@ -52,14 +55,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_407368"
+          "deflated": false
         },
         "0x4075a0": {
+          "name": "sub_4075a0",
+          "selected_mode": "general",
           "blocks_before": 31,
           "blocks_after": 31,
           "hlil": 42,
-          "time": 4.75,
+          "time": 4.82,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -72,14 +76,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_4075a0"
+          "deflated": false
         },
         "0x407858": {
+          "name": "sub_407858",
+          "selected_mode": "general",
           "blocks_before": 19,
           "blocks_after": 19,
           "hlil": 25,
-          "time": 4.71,
+          "time": 4.75,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -92,14 +97,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_407858"
+          "deflated": false
         },
         "0x407994": {
+          "name": "sub_407994",
+          "selected_mode": "general",
           "blocks_before": 28,
           "blocks_after": 27,
           "hlil": 50,
-          "time": 4.79,
+          "time": 4.75,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -112,14 +118,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_407994"
+          "deflated": false
         },
         "0x407ba0": {
+          "name": "sub_407ba0",
+          "selected_mode": "general",
           "blocks_before": 26,
           "blocks_after": 29,
           "hlil": 87,
-          "time": 4.77,
+          "time": 4.78,
           "switch": true,
           "orphan": false,
           "se_lost": 0,
@@ -132,14 +139,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_407ba0"
+          "deflated": false
         },
         "0x407d8c": {
+          "name": "sub_407d8c",
+          "selected_mode": "general",
           "blocks_before": 25,
           "blocks_after": 27,
           "hlil": 80,
-          "time": 4.88,
+          "time": 4.91,
           "switch": true,
           "orphan": false,
           "se_lost": 0,
@@ -152,14 +160,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_407d8c"
+          "deflated": false
         },
         "0x407f1c": {
+          "name": "sub_407f1c",
+          "selected_mode": "general",
           "blocks_before": 23,
           "blocks_after": 22,
           "hlil": 98,
-          "time": 4.81,
+          "time": 4.86,
           "switch": true,
           "orphan": false,
           "se_lost": 0,
@@ -172,14 +181,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_407f1c"
+          "deflated": false
         },
         "0x40831c": {
+          "name": "sub_40831c",
+          "selected_mode": "general",
           "blocks_before": 57,
           "blocks_after": 60,
           "hlil": 192,
-          "time": 4.97,
+          "time": 5.02,
           "switch": true,
           "orphan": false,
           "se_lost": 0,
@@ -192,10 +202,11 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_40831c"
+          "deflated": false
         },
         "0x408804": {
+          "name": "sub_408804",
+          "selected_mode": "general",
           "blocks_before": 26,
           "blocks_after": 34,
           "hlil": 74,
@@ -212,10 +223,11 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 3,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_408804"
+          "deflated": false
         },
         "0x4089c4": {
+          "name": "sub_4089c4",
+          "selected_mode": "general",
           "blocks_before": 23,
           "blocks_after": 29,
           "hlil": 69,
@@ -232,14 +244,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 6,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_4089c4"
+          "deflated": false
         },
         "0x408b94": {
+          "name": "sub_408b94",
+          "selected_mode": "general",
           "blocks_before": 82,
           "blocks_after": 77,
           "hlil": 216,
-          "time": 5.89,
+          "time": 5.9,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -252,14 +265,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_408b94"
+          "deflated": false
         },
         "0x409208": {
+          "name": "sub_409208",
+          "selected_mode": "general",
           "blocks_before": 40,
           "blocks_after": 38,
           "hlil": 73,
-          "time": 5.91,
+          "time": 5.96,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -272,14 +286,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_409208"
+          "deflated": false
         },
         "0x409488": {
+          "name": "sub_409488",
+          "selected_mode": "general",
           "blocks_before": 30,
           "blocks_after": 30,
           "hlil": 36,
-          "time": 5.92,
+          "time": 5.95,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -292,14 +307,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_409488"
+          "deflated": false
         },
         "0x409604": {
+          "name": "sub_409604",
+          "selected_mode": "general",
           "blocks_before": 17,
           "blocks_after": 15,
           "hlil": 30,
-          "time": 6.05,
+          "time": 6.01,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -312,8 +328,7 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_409604"
+          "deflated": false
         }
       }
     },
@@ -321,10 +336,12 @@
       "binary": "libkste.so",
       "results": {
         "0x429c7c": {
+          "name": "sub_429c7c",
+          "selected_mode": "general",
           "blocks_before": 109,
           "blocks_after": 54,
           "hlil": 142,
-          "time": 1.58,
+          "time": 1.61,
           "switch": true,
           "orphan": false,
           "se_lost": 0,
@@ -337,14 +354,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_429c7c"
+          "deflated": false
         },
         "0x42a21c": {
+          "name": "sub_42a21c",
+          "selected_mode": "general",
           "blocks_before": 97,
           "blocks_after": 57,
           "hlil": 129,
-          "time": 1.79,
+          "time": 1.77,
           "switch": true,
           "orphan": false,
           "se_lost": 0,
@@ -357,14 +375,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 2,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_42a21c"
+          "deflated": false
         },
         "0x42a690": {
+          "name": "sub_42a690",
+          "selected_mode": "general",
           "blocks_before": 38,
           "blocks_after": 11,
           "hlil": 20,
-          "time": 1.84,
+          "time": 1.85,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -377,14 +396,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 2,
           "hlil_rets_lost": 0,
-          "deflated": true,
-          "name": "sub_42a690"
+          "deflated": true
         },
         "0x4365cc": {
+          "name": "sub_4365cc",
+          "selected_mode": "general",
           "blocks_before": 67,
           "blocks_after": 26,
           "hlil": 48,
-          "time": 1.89,
+          "time": 1.92,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -397,8 +417,7 @@
           "hlil_rets_before": 2,
           "hlil_rets_after": 2,
           "hlil_rets_lost": 0,
-          "deflated": true,
-          "name": "sub_4365cc"
+          "deflated": true
         }
       }
     },
@@ -406,10 +425,12 @@
       "binary": "libSeQing.so",
       "results": {
         "0x45985c": {
+          "name": "sub_45985c",
+          "selected_mode": "general",
           "blocks_before": 29,
           "blocks_after": 31,
           "hlil": 85,
-          "time": 4.74,
+          "time": 4.79,
           "switch": true,
           "orphan": false,
           "se_lost": 0,
@@ -422,14 +443,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 2,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_45985c"
+          "deflated": false
         },
         "0x459a40": {
+          "name": "sub_459a40",
+          "selected_mode": "general",
           "blocks_before": 35,
           "blocks_after": 38,
           "hlil": 103,
-          "time": 4.78,
+          "time": 4.77,
           "switch": true,
           "orphan": false,
           "se_lost": 0,
@@ -442,14 +464,15 @@
           "hlil_rets_before": 2,
           "hlil_rets_after": 2,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_459a40"
+          "deflated": false
         },
         "0x459ed8": {
+          "name": "sub_459ed8",
+          "selected_mode": "general",
           "blocks_before": 18,
           "blocks_after": 9,
           "hlil": 17,
-          "time": 4.74,
+          "time": 4.75,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -462,10 +485,11 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": true,
-          "name": "sub_459ed8"
+          "deflated": true
         },
         "0x45a1ec": {
+          "name": "sub_45a1ec",
+          "selected_mode": "general",
           "blocks_before": 34,
           "blocks_after": 36,
           "hlil": 60,
@@ -482,14 +506,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 3,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_45a1ec"
+          "deflated": false
         },
         "0x45a3b8": {
+          "name": "sub_45a3b8",
+          "selected_mode": "general",
           "blocks_before": 22,
           "blocks_after": 12,
           "hlil": 51,
-          "time": 4.79,
+          "time": 4.81,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -502,14 +527,15 @@
           "hlil_rets_before": 2,
           "hlil_rets_after": 2,
           "hlil_rets_lost": 0,
-          "deflated": true,
-          "name": "sub_45a3b8"
+          "deflated": true
         },
         "0x45a620": {
+          "name": "sub_45a620",
+          "selected_mode": "general",
           "blocks_before": 20,
           "blocks_after": 12,
           "hlil": 58,
-          "time": 4.94,
+          "time": 4.91,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -522,14 +548,15 @@
           "hlil_rets_before": 2,
           "hlil_rets_after": 2,
           "hlil_rets_lost": 0,
-          "deflated": true,
-          "name": "sub_45a620"
+          "deflated": true
         },
         "0x45a864": {
+          "name": "sub_45a864",
+          "selected_mode": "general",
           "blocks_before": 18,
           "blocks_after": 9,
           "hlil": 19,
-          "time": 4.83,
+          "time": 4.82,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -542,14 +569,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": true,
-          "name": "sub_45a864"
+          "deflated": true
         },
         "0x45aa54": {
+          "name": "sub_45aa54",
+          "selected_mode": "general",
           "blocks_before": 18,
           "blocks_after": 9,
           "hlil": 18,
-          "time": 4.99,
+          "time": 5.02,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -562,14 +590,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": true,
-          "name": "sub_45aa54"
+          "deflated": true
         },
         "0x45abfc": {
+          "name": "sub_45abfc",
+          "selected_mode": "general",
           "blocks_before": 18,
           "blocks_after": 9,
           "hlil": 19,
-          "time": 4.84,
+          "time": 4.83,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -582,14 +611,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": true,
-          "name": "sub_45abfc"
+          "deflated": true
         },
         "0x45adc0": {
+          "name": "sub_45adc0",
+          "selected_mode": "general",
           "blocks_before": 18,
           "blocks_after": 9,
           "hlil": 19,
-          "time": 4.88,
+          "time": 4.91,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -602,14 +632,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": true,
-          "name": "sub_45adc0"
+          "deflated": true
         },
         "0x45b0b4": {
+          "name": "sub_45b0b4",
+          "selected_mode": "general",
           "blocks_before": 20,
           "blocks_after": 16,
           "hlil": 41,
-          "time": 5.01,
+          "time": 5.09,
           "switch": true,
           "orphan": false,
           "se_lost": 0,
@@ -622,14 +653,15 @@
           "hlil_rets_before": 2,
           "hlil_rets_after": 2,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_45b0b4"
+          "deflated": false
         },
         "0x45b450": {
+          "name": "sub_45b450",
+          "selected_mode": "general",
           "blocks_before": 33,
           "blocks_after": 34,
           "hlil": 82,
-          "time": 4.91,
+          "time": 4.93,
           "switch": true,
           "orphan": false,
           "se_lost": 0,
@@ -642,14 +674,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 3,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_45b450"
+          "deflated": false
         },
         "0x45b71c": {
+          "name": "sub_45b71c",
+          "selected_mode": "general",
           "blocks_before": 20,
           "blocks_after": 9,
           "hlil": 16,
-          "time": 4.96,
+          "time": 4.92,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -662,14 +695,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": true,
-          "name": "sub_45b71c"
+          "deflated": true
         },
         "0x45ba24": {
+          "name": "sub_45ba24",
+          "selected_mode": "general",
           "blocks_before": 79,
           "blocks_after": 83,
           "hlil": 239,
-          "time": 6.05,
+          "time": 6.02,
           "switch": true,
           "orphan": false,
           "se_lost": 0,
@@ -682,14 +716,15 @@
           "hlil_rets_before": 2,
           "hlil_rets_after": 2,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_45ba24"
+          "deflated": false
         },
         "0x45ce58": {
+          "name": "sub_45ce58",
+          "selected_mode": "general",
           "blocks_before": 34,
           "blocks_after": 16,
           "hlil": 23,
-          "time": 5.93,
+          "time": 5.91,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -702,14 +737,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": true,
-          "name": "sub_45ce58"
+          "deflated": true
         },
         "0x45d11c": {
+          "name": "sub_45d11c",
+          "selected_mode": "general",
           "blocks_before": 21,
           "blocks_after": 9,
           "hlil": 11,
-          "time": 6.03,
+          "time": 6.04,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -722,14 +758,15 @@
           "hlil_rets_before": 1,
           "hlil_rets_after": 1,
           "hlil_rets_lost": 0,
-          "deflated": true,
-          "name": "sub_45d11c"
+          "deflated": true
         },
         "0x45d2ec": {
+          "name": "sub_45d2ec",
+          "selected_mode": "general",
           "blocks_before": 67,
           "blocks_after": 67,
           "hlil": 199,
-          "time": 6.17,
+          "time": 6.2,
           "switch": true,
           "orphan": false,
           "se_lost": 0,
@@ -742,14 +779,15 @@
           "hlil_rets_before": 2,
           "hlil_rets_after": 2,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_45d2ec"
+          "deflated": false
         },
         "0x45d87c": {
+          "name": "sub_45d87c",
+          "selected_mode": "general",
           "blocks_before": 20,
           "blocks_after": 15,
           "hlil": 71,
-          "time": 6.32,
+          "time": 6.3,
           "switch": true,
           "orphan": false,
           "se_lost": 0,
@@ -762,14 +800,15 @@
           "hlil_rets_before": 2,
           "hlil_rets_after": 2,
           "hlil_rets_lost": 0,
-          "deflated": false,
-          "name": "sub_45d87c"
+          "deflated": false
         },
         "0x45daa8": {
+          "name": "sub_45daa8",
+          "selected_mode": "general",
           "blocks_before": 20,
           "blocks_after": 12,
           "hlil": 47,
-          "time": 6.38,
+          "time": 6.47,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -782,14 +821,15 @@
           "hlil_rets_before": 2,
           "hlil_rets_after": 2,
           "hlil_rets_lost": 0,
-          "deflated": true,
-          "name": "sub_45daa8"
+          "deflated": true
         },
         "0x45dc94": {
+          "name": "sub_45dc94",
+          "selected_mode": "general",
           "blocks_before": 20,
           "blocks_after": 12,
           "hlil": 74,
-          "time": 6.44,
+          "time": 6.51,
           "switch": false,
           "orphan": false,
           "se_lost": 0,
@@ -802,8 +842,7 @@
           "hlil_rets_before": 2,
           "hlil_rets_after": 2,
           "hlil_rets_lost": 0,
-          "deflated": true,
-          "name": "sub_45dc94"
+          "deflated": true
         }
       }
     }

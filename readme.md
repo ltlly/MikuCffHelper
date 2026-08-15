@@ -381,7 +381,10 @@ workflow `MikuCffHelper_general_workflow` 中，不经过主 workflow 的 LLIL
    goto 链收集 `s=A; ...; goto dispatcher_entry` 的无副作用 SetVar 序列，
    复制进 mini-block 后改写为 `if (c) goto mini_A else goto mini_B`；
    链上任何分支 / 副作用 / 未解析值都会让该分支保持原样。
-8. **多候选状态类 + 元组分发**：`find_state_classes` 返回全部候选状态类；
+8. **安全 dispatcher 死代码清理**：`fully_resolved` 且所有回 dispatcher
+   边都是无条件 goto 时，把这些 goto 重定向到 guard 并省略 fallback，
+   原决策树 SCC 失去入边后由 BN 死代码清除；条件回边保持兜底。
+9. **多候选状态类 + 元组分发**：`find_state_classes` 返回全部候选状态类；
    常规候选之外，general pass 用宽松启发式补充 secondary 候选。默认只做
    两状态联合解析（64-bit 编码 `jump_to((v0 << 32) | v1)`，组合 ≤4096）；
    N>2 的嵌套 jump_to 代码保留，但默认不选择——嵌套 CFF 会把内层状态机
