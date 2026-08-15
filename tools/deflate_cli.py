@@ -22,6 +22,8 @@
               失败 fallback A (deflate_hard)
     switch  - workflow_patch_mlil_switch：只跑 B
     deflate - workflow_patch_mlil：只跑 A
+    general - workflow_patch_mlil_general：新框架原型
+              (linear detect + alias-aware state + P3 guarded jump_to)
 
 环境变量:
     BN_PYTHON   Binary Ninja python 包目录 (默认 /home/ltlly/tools/binaryninja/python)
@@ -38,6 +40,7 @@ MODES = {
     "auto": "analysis.plugins.workflow_patch_mlil_auto",
     "switch": "analysis.plugins.workflow_patch_mlil_switch",
     "deflate": "analysis.plugins.workflow_patch_mlil",
+    "general": "analysis.plugins.workflow_patch_mlil_general",
 }
 
 

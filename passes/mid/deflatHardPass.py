@@ -56,6 +56,9 @@ from binaryninja import (
 )
 
 from ...utils import log_error, log_info  # noqa: E402  (放底部以避免循环依赖)
+from ...utils.cff_core import (  # noqa: E402
+    detect_flattening_candidate as _detect_cff_candidate_linear,
+)
 
 _MAX_OUTER_ITERS = 6
 _MAX_FORWARD_STEPS = 512
@@ -192,73 +195,25 @@ def _detect_dispatcher_entry(
     exclude: Optional[Set[int]] = None,
     threshold: Optional[float] = None,
 ) -> Optional[MediumLevelILBasicBlock]:
-    """Blazytko 支配树法。O(N+E) 计算 dominator 子树大小，O(E) 查 back-edge。
+    """Blazytko 支配树法（线性实现）。
+
+    subtree 判定使用 utils.cff_core.DominatorInfo 的 DFS interval，把
+    ``d in bb.dominators`` 的列表成员判断替换为 O(1)；整体 O(V+E)。
 
     threshold 缺省 _FLATTENING_SCORE_THRESHOLD (0.3，严格门控非 CFF 函数)。
     嵌套 dispatcher 在外层 case body 内，支配子树相对函数总块数小，调用方
     可以在 iter 2+ 用更低阈值 (例如 0.1) 拾起内层 dispatcher。
     """
-    bbs = list(mlil.basic_blocks)
-    n = len(bbs)
-    if n < _MIN_BLOCKS_FOR_CFF:
-        return None
-
     eff_threshold = (
         _FLATTENING_SCORE_THRESHOLD if threshold is None else threshold
     )
-
-    # 用 dominator_tree_children 计算每个块的 dominator 子树大小
-    # 对每个块做一次 DFS 总共 O(N) 次访问，全函数 O(N²) worst case 但 dominator
-    # 树扁平时远小于 N²
-    subtree_size: Dict[int, int] = {}
-
-    def _size(b: MediumLevelILBasicBlock) -> int:
-        if b.start in subtree_size:
-            return subtree_size[b.start]
-        s = 1
-        for c in b.dominator_tree_children:
-            s += _size(c)
-        subtree_size[b.start] = s
-        return s
-
-    # 反向映射：每个块支配多少节点
-    for b in bbs:
-        _size(b)
-
-    # 检查每个块是否有 back-edge 自被它支配的块
-    # 反向映射 start -> bb 以便快速判断"在子树里"
-    bb_by_start: Dict[int, MediumLevelILBasicBlock] = {b.start: b for b in bbs}
-
-    def _in_subtree(d: MediumLevelILBasicBlock, target: int) -> bool:
-        # target 是否在 d 的 dominator 子树里 ⇔ d ∈ target_bb.dominators
-        tb = bb_by_start.get(target)
-        if tb is None:
-            return False
-        return d in tb.dominators
-
-    best_score = 0.0
-    best_bb: Optional[MediumLevelILBasicBlock] = None
-    excluded = exclude or set()
-    for d in bbs:
-        if d.start in excluded:
-            continue
-        size = subtree_size.get(d.start, 0)
-        if size < 3:
-            continue
-        score = size / n
-        if score < eff_threshold:
-            continue
-        has_back_edge = False
-        for edge in d.incoming_edges:
-            if _in_subtree(d, edge.source.start):
-                has_back_edge = True
-                break
-        if not has_back_edge:
-            continue
-        if score > best_score:
-            best_score = score
-            best_bb = d
-    return best_bb
+    return _detect_cff_candidate_linear(
+        mlil,
+        exclude=exclude,
+        threshold=eff_threshold,
+        min_blocks=_MIN_BLOCKS_FOR_CFF,
+        min_subtree_blocks=3,
+    )
 
 
 # --------------------------------------------------------------------------

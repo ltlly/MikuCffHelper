@@ -15,6 +15,10 @@ OLLVM `-fla` 把函数变成「dispatcher + 真实块」状态机。本插件用
   直接接到对应真实块，输出 goto 链；块数最少
 - **路径 auto (推荐入口)**：先尝试 B，B 拒绝时自动 fallback 到 A，用户
   无需手动判断函数类型
+- **路径 general (实验性，新框架)**：线性 dispatcher 检测 + alias-aware
+  状态类识别 + P3 preamble-preserving `jump_to`，目标是把
+  alias-only 状态变量 / 布尔 flag 条件等变种也还原为 switch 形态；
+  当前默认不接入 auto
 
 实测 39 个 OLLVM CFF 函数 (arm64-v8a / libkste / libSeQing)：
 
@@ -45,6 +49,7 @@ OLLVM `-fla` 把函数变成「dispatcher + 真实块」状态机。本插件用
 | `workflow_patch_mlil_auto` | **首选**：先 B，B 不动则 A 兜底 | 不确定函数特征时直接选这个 |
 | `workflow_patch_mlil_switch` | 只跑 B (synthesize_switch) | 只想要 switch 形态、能接受部分函数无变换 |
 | `workflow_patch_mlil` | 只跑 A (deflate_hard) | 函数已知不适合 switch、要最大压缩块数 |
+| `workflow_patch_mlil_general` | 实验性 general：新框架 (见 §6.4) | alias-only 状态变量 / flag 条件等 B/A 无法识别的变种 |
 
 启用后 BN 会自动重分析。HLIL 视图刷新后能看到 switch 或 goto 链形态。
 
@@ -61,6 +66,9 @@ python tools/deflate_cli.py example/arm64-v8a.so --all-cff
 
 # 指定路径模式
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --mode switch
+
+# 实验性 general 模式（新框架）
+python tools/deflate_cli.py example/cff-arm64-v8a.elf --addr 0x400698 --mode general
 
 # 输出到文件
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --out /tmp/out.c
@@ -112,6 +120,7 @@ for instr in func.hlil.instructions:
 | `pass_mov_state_define` | 把状态常量赋值挪到块尾，方便从 define 处直接走 dispatcher |
 | `pass_deflate_hard` | **路径 A 核心**：基于支配树识别 + 前向符号执行的去平坦化 |
 | `pass_synthesize_switch` | **路径 B 核心**：识别 dispatcher 后写入 jump_to 让 HLIL 渲染为 switch |
+| `pass_general_cff` | **实验路径 C**：`utils/cff_core` 线性检测 + alias-aware 状态类 + P3 guarded jump_to |
 
 ### 4.3 HLIL 层
 
@@ -122,7 +131,9 @@ for instr in func.hlil.instructions:
 ### 5.1 共享前置：dispatcher 识别
 
 1. **CFF 检测 (Blazytko 支配树法)**：找 `flattening_score(D) ≥ 0.3` 且
-   有 back-edge 的块 D 作为 dispatcher 候选；不满足判为非 CFF 函数直接跳过
+   有 back-edge 的块 D 作为 dispatcher 候选；不满足判为非 CFF 函数直接跳过。
+   实现使用 `utils/cff_core.DominatorInfo` 的 DFS interval 做 O(1) subtree
+   判定，整体 O(V+E)（旧实现中 `d in bb.dominators` 是列表成员判断）
 2. **状态变量识别**：从 D 后继 BFS 收集"常量比较"的左操作数变量；要求
    每个变量被赋予 ≥ 2 个 unique 常量 (过滤 SSA 拆解假阳性)
 3. **函数级 CFF 启发式**：所有状态变量的 unique 常量数 ≥ 4 且值域跨度
@@ -319,6 +330,35 @@ g = build_real_block_transition_graph(func.mlil)
 
 - **失败诊断**：哪些真实块之间的转移没被 patch
 - **未来 synthesis 基础**：在此骨架上做 program synthesis 直接生成新函数
+
+### 6.4 路径 general (新框架原型，实验性)
+
+针对 §10 已知限制里的 alias-only 状态变量、布尔 flag 条件、dispatcher
+前导数据拷贝等变种，新框架 `pass_general_cff` 做四件事：
+
+1. **线性检测**：`utils/cff_core.DominatorInfo` 用 DFS interval 把
+   `d in bb.dominators` 的 O(N) 列表成员判断替换为 O(1)，Blazytko 检测
+   整体 O(V+E)；
+2. **alias-aware 状态类**：直连 `state=const` 识别失败时，对整函数变量
+   拷贝图做 union-find，把 `x19_1 = x7_1; if (x19_1 == K)` 中的
+   `{x7_1, x19_1}` 归并为同一状态类；
+3. **扩展求值器**：比较表达式可产生布尔值、`if (cond_flag)` 可求值、
+   支持 NOT/AND/OR；
+4. **P3 preamble-preserving guarded jump_to**：不在 dispatcher 入口首指令
+   直接替换，而是在函数末尾 guard 中重放入口前导 SetVar，再
+   `jump_to(primary, {resolved: T, unresolved: dispatcher_entry})`；真实块
+   内容与状态写入原样保留，只有回 dispatcher 的边被重定向。
+
+实测（手动冒烟）：
+
+| 样本 | 效果 |
+|------|------|
+| `example/cff-arm64-v8a.elf` target_function | auto 模式 31→41 无 switch；general 模式 31→42 且 HLIL 渲染为 `switch`，0 MLIL/HLIL 副作用丢失、0 orphan |
+| `libmsaoaidsec.so` 标准 CFF | general 能输出 switch，但当前不如 auto 的块数压缩（尚未做 state 短路） |
+
+**已知 trade-off**：general 是独立实验入口，默认不进入 auto，不影响既有
+39 函数基线。下一步会做 equality-hash / interval-map 批量解析与 state
+短路，逐步向 auto 收敛。
 
 ## 7. 路径 auto (B 优先 / A 兜底)
 

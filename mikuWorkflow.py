@@ -7,6 +7,7 @@ from .passes.mid.deflatHardPass import pass_deflate_hard
 from .passes.mid.clearPass import pass_clear
 from .passes.mid.movStateDefine import pass_mov_state_define
 from .passes.mid.synthesizeSwitchPass import pass_synthesize_switch
+from .passes.mid.generalCffPass import pass_general_cff
 from .utils import log_info
 
 
@@ -90,6 +91,20 @@ def workflow_patch_mlil_auto(analysis_context: AnalysisContext):
     else:
         log_info(f"[auto] {fname}: B 成功，跳过 A")
 
+    pass_clear(analysis_context)
+
+
+def workflow_patch_mlil_general(analysis_context: AnalysisContext):
+    """实验性通用去平坦化路径（新框架）。
+
+    先 clear 规整图，再跑 general pass（linear detect + alias-aware state
+    class + P3 preamble-preserving guarded jump_to），最后 clear 折叠多余
+    goto。默认不接入 auto，避免影响已验证的 B→A 回退路径。
+    """
+    if analysis_context.function.mlil is None:
+        return
+    pass_clear(analysis_context)
+    pass_general_cff(analysis_context)
     pass_clear(analysis_context)
 
 

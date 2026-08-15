@@ -6,6 +6,7 @@ from .mikuWorkflow import (
     workflow_patch_hlil,
     workflow_patch_mlil_switch,
     workflow_patch_mlil_auto,
+    workflow_patch_mlil_general,
 )
 from .utils import log_info
 from .fix_binaryninja_api import lowlevelil  # noqa: F401
@@ -68,6 +69,18 @@ def register_workflow():
         Activity(configuration_mlil_switch, action=workflow_patch_mlil_switch)
     )
 
+    # 实验性：新框架通用路径（linear detect + alias-aware state + P3）
+    configuration_mlil_general = json.dumps(
+        {
+            "name": "analysis.plugins.workflow_patch_mlil_general",
+            "description": "General CFF: linear detect + alias-aware state + preamble-preserving switch",
+            "eligibility": {"auto": {"default": False}},
+        }
+    )
+    cff_workflow.register_activity(
+        Activity(configuration_mlil_general, action=workflow_patch_mlil_general)
+    )
+
     configuration_hlil = json.dumps(
         {
             "name": "analysis.plugins.workflow_patch_hlil",
@@ -88,6 +101,7 @@ def register_workflow():
             "analysis.plugins.workflow_patch_mlil_auto",
             "analysis.plugins.workflow_patch_mlil",
             "analysis.plugins.workflow_patch_mlil_switch",
+            "analysis.plugins.workflow_patch_mlil_general",
         ],
     )
     cff_workflow.insert(

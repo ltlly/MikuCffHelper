@@ -11,7 +11,7 @@ python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4
 # 二进制内所有 CFF 候选
 python tools/deflate_cli.py example/arm64-v8a.so --all-cff
 
-# 指定模式：auto / switch (只跑 B) / deflate (只跑 A)
+# 指定模式：auto / switch (只跑 B) / deflate (只跑 A) / general (实验路径 C)
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --mode switch
 
 # 输出到文件

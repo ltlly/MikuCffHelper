@@ -13,11 +13,14 @@
 - 识别 `dispatcher + 真实块` 状态机。
 - 通过支配树、SCC、副作用筛选和前向整型模拟，找出 `state 值 → 真实块入口`
   的映射。
-- 提供两条变换路径：
+- 提供三条变换路径：
   - **路径 A (`deflate_hard`)**：绕过 dispatcher，把 `state = const` 直接
     短接到真实块，输出最简 goto/if/while 形态。
   - **路径 B (`synthesize_switch`)**：把 dispatcher 的 cmp-tree 改写为
     `MLIL_JUMP_TO`，让 BN HLIL Restructurer 渲染成 `switch-case`。
+  - **路径 C (`generalCffPass`，实验)**：线性检测 + alias-aware 状态类 +
+    P3 preamble-preserving guard，面向 alias-only 状态变量 / 布尔 flag
+    条件等变种，默认不进入 auto。
   - **路径 auto**：先 B，B 拒绝时自动 fallback 到 A，是推荐入口。
 
 ## 2. 目录结构
@@ -35,8 +38,10 @@ passes/
     movStateDefine.py        # 状态常量赋值移到块尾
     deflatHardPass.py        # 路径 A：前向模拟 + 短路 state SetVar
     synthesizeSwitchPass.py  # 路径 B：生成 jump_to / guard
+    generalCffPass.py        # 路径 C（实验）：线性检测 + P3 guarded jump_to
     reverseIfPass.py         # 备用/未接入 workflow 的反向 if pass
 utils/                       # 公共工具
+  cff_core.py                # 新框架基础：DominatorInfo / StateClass / EnvEvaluator
   state_machine.py           # 状态变量收集 / 启发式
   cfg_analyzer.py            # CFG 图分析
   instruction_analyzer.py    # 指令/表达式分析
@@ -99,6 +104,9 @@ python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --mode switch
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --mode deflate
 
+# 实验路径 C（alias-only 状态变量 / flag 条件变种）
+python tools/deflate_cli.py example/cff-arm64-v8a.elf --addr 0x400698 --mode general
+
 # 扫描所有 CFF 候选
 python tools/deflate_cli.py example/arm64-v8a.so --all-cff
 
@@ -133,6 +141,9 @@ python tools/regression_test.py --update-baseline
   默认加入 pipeline。
 - 修改 `mikuWorkflow.py` 时注意 `workflow_patch_mlil_auto` 的 B→A fallback
   顺序：B 成功后不要再跑 A，否则可能把 guard block 误当 dispatcher。
+- `workflow_patch_mlil_general` 是实验入口，eligibility 默认 false，**不要**
+  未经验证就把它加入 auto pipeline；它面向 alias-only 状态变量 / flag 条件
+  变种，标准 OLLVM 样本仍应优先走 B/A。
 - BN 版本相关 API 兼容问题放在 `fix_binaryninja_api/` 中处理，不要在核心
   pass 里堆版本判断。
 
@@ -154,5 +165,8 @@ python tools/regression_test.py --update-baseline
   - 7 个被进一步还原为纯 if/while/goto 链；
   - 2 个未显著变换（`sub_42a21c`、`sub_45985c`）；
   - 总变换率 37/39，0 副作用丢失，0 orphan jump。
+- 实验入口 `workflow_patch_mlil_general`（路径 C）默认关闭；当前已验证
+  `example/cff-arm64-v8a.elf` 的 alias-only 状态变量 + flag 条件变种能输出
+  switch 且 0 副作用丢失 / 0 orphan；标准样本仍以 auto 为准。
 - 已知限制：条件状态赋值、多状态联合分发、跨函数 CFF、超大函数超时等，
   详见 `readme.md` 第 10 节。
