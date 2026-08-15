@@ -14,6 +14,9 @@ python tools/deflate_cli.py example/arm64-v8a.so --all-cff
 # 指定模式：auto / switch (只跑 B) / deflate (只跑 A) / general (实验路径 C)
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --mode switch
 
+# 变换前按便宜特征自动选择 auto / general
+python tools/deflate_cli.py example/cff-arm64-v8a.elf --addr 0x400698 --mode auto-select
+
 # 输出到文件
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --out /tmp/out.c
 
@@ -42,6 +45,10 @@ python tools/regression_test.py --func 0x4259f4 --bin arm64-v8a.so
 # general 实验路径的语义等价回归（默认 baseline_general.json）
 python tools/regression_test.py --mode general
 python tools/regression_test.py --mode general --update-baseline
+
+# auto-select 选择器回归（默认 baseline_auto-select.json）
+python tools/regression_test.py --mode auto-select
+python tools/regression_test.py --mode auto-select --update-baseline
 ```
 
 ### baseline.json 维护

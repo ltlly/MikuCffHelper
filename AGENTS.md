@@ -170,6 +170,9 @@ python tools/regression_test.py --update-baseline
   - 总变换率 37/39，0 副作用丢失，0 orphan jump。
 - general 回归基线 `tools/baseline_general.json`：39 函数，31/39 变换，
   0 orphan、0 语义副作用丢失；总体弱于 auto，但 B/A 失败的函数上有收益。
+- auto-select 基线 `tools/baseline_auto-select.json`：39 函数，38/39 变换，
+  0 orphan、0 副作用丢失；由 `select_workflow_mode` 按特征逐函数选择
+  auto/general，当前作为 CLI 实验推荐入口，仍未替换默认 auto workflow。
 - 实验入口 `workflow_patch_mlil_general`（路径 C，独立 workflow）默认关闭；
   当前已支持
   alias-only 状态变量 + flag 条件变种、equality-hash / interval-bisect

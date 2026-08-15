@@ -45,6 +45,7 @@ MODES = {
 
 
 def setup_path():
+
     """让 import binaryninja 与 import plugins.MikuCffHelper 都能找到包"""
     bn_path = os.environ.get("BN_PYTHON", "/home/ltlly/tools/binaryninja/python")
     if bn_path not in sys.path:
@@ -93,6 +94,9 @@ def hlil_text(func):
 def run_workflow(bv, func, mode_key):
     """对函数启用指定 activity，触发重分析并等待"""
     import binaryninja as bn
+    if mode_key == "auto-select":
+        from plugins.MikuCffHelper.utils.cff_core import select_workflow_mode
+        mode_key = select_workflow_mode(func.mlil) if func.mlil else "auto"
     workflow_name, activity = MODES[mode_key]
     settings = bn.Settings()
     settings.set_string(
@@ -102,6 +106,7 @@ def run_workflow(bv, func, mode_key):
     wf._machine.override_set(activity, True)
     bv.reanalyze()
     bv.update_analysis_and_wait()
+    return mode_key
 
 
 def emit_one(bv, func, mode, before_only):
@@ -116,13 +121,13 @@ def emit_one(bv, func, mode, before_only):
             "time": 0.0,
         }
     t0 = time.time()
-    run_workflow(bv, func, mode)
+    effective_mode = run_workflow(bv, func, mode)
     elapsed = time.time() - t0
     blocks_after = len(list(func.mlil.basic_blocks)) if func.mlil else 0
     return {
         "header": (
             f"// {func.name} @ 0x{func.start:x} "
-            f"({blocks_before}→{blocks_after} blocks, mode={mode}, t={elapsed:.1f}s)"
+            f"({blocks_before}→{blocks_after} blocks, mode={effective_mode}, t={elapsed:.1f}s)"
         ),
         "body": hlil_text(func),
         "blocks_before": blocks_before,
@@ -143,7 +148,7 @@ def main():
         help="处理所有 CFF 候选函数 (按 Blazytko 启发式自动找)",
     )
     ap.add_argument(
-        "--mode", choices=list(MODES.keys()), default="auto",
+        "--mode", choices=list(MODES.keys()) + ["auto-select"], default="auto",
         help="工作流模式 (默认 auto)",
     )
     ap.add_argument(

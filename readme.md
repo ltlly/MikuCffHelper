@@ -73,6 +73,9 @@ python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --mode switch
 # 实验性 general 模式（新框架）
 python tools/deflate_cli.py example/cff-arm64-v8a.elf --addr 0x400698 --mode general
 
+# 变换前按特征自动选择 auto / general（推荐实验）
+python tools/deflate_cli.py example/cff-arm64-v8a.elf --addr 0x400698 --mode auto-select
+
 # 输出到文件
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --out /tmp/out.c
 
@@ -398,7 +401,27 @@ workflow `MikuCffHelper_general_workflow` 中，不经过主 workflow 的 LLIL
 但在 sub_42a21c（97→57 vs auto 97→165）、sub_45985c 等 B/A 失败样本上
 更好。下一步是 dispatcher 死代码清理与有条件的 auto fallback。
 
-## 7. 路径 auto (B 优先 / A 兜底)
+### 6.5 auto-select（实验推荐入口）
+
+`utils/cff_core.select_workflow_mode` 在变换前用便宜特征为每个函数选择
+auto 或 general：
+
+- dispatcher 候选存在但直接状态候选为 0（alias-only 变种）→ general；
+- dispatcher 状态比较完全没有 CMP_E（CMP_NE/SGT only 变种）→ general；
+- 函数 ≥70 块且直接状态候选 ≤3（实测 general 压缩显著）→ general；
+- 其它 → auto。
+
+`tools/regression_test.py --mode auto-select` 的 39 函数基线：
+
+- **38/39 变换**（auto 为 37/39，general 为 31/39）；
+- 0 orphan、0 副作用丢失；
+- 在 `sub_42a21c`（97→57）、`sub_429c7c`（109→54）、`sub_45985c`
+  （29→31）等 auto 失败/低效样本上自动切到 general，其余样本保持
+  auto 的稳定输出。
+
+CLI 用法：`python tools/deflate_cli.py <binary> --addr <addr> --mode auto-select`。
+
+## 7. 路径 auto (B 优先 / A 兜底)## 7. 路径 auto (B 优先 / A 兜底)
 
 ```
 clear → mov_state_define
@@ -439,6 +462,10 @@ python tools/regression_test.py --func 0x4259f4 --bin arm64-v8a.so
 # general 会移动 call/store 指令地址，所以用「callee / op 计数」而不是地址集合比对
 python tools/regression_test.py --mode general
 python tools/regression_test.py --mode general --update-baseline
+
+# auto-select：按特征逐函数选 auto/general（默认 baseline_auto-select.json）
+python tools/regression_test.py --mode auto-select
+python tools/regression_test.py --mode auto-select --update-baseline
 ```
 
 详见 `tools/README.md`。
