@@ -29,6 +29,7 @@
 
 import time
 from bisect import bisect_left, bisect_right
+from itertools import product
 from typing import Dict, List, Optional, Set, Tuple
 
 from binaryninja import (
@@ -450,36 +451,55 @@ def _combine_state_classes(
     )
 
 
-def _resolve_dispatch_map_tuple(
+def _combine_state_classes_many(classes: List[StateClass]) -> StateClass:
+    """把 N 个状态类合并为路由分类用的联合状态类。"""
+    primary = classes[0].primary
+    var_ids = set(classes[0].var_ids)
+    vars_set = set(classes[0].vars)
+    values = set(classes[0].assigned_values)
+    counts = dict(classes[0].unique_counts)
+    for cls in classes[1:]:
+        var_ids.update(cls.var_ids)
+        vars_set.update(cls.vars)
+        values.update(cls.assigned_values)
+        counts.update(cls.unique_counts)
+    return StateClass(
+        primary=primary,
+        vars=frozenset(vars_set),
+        var_ids=frozenset(var_ids),
+        assigned_values=frozenset(values),
+        unique_counts=counts,
+    )
+
+
+def _resolve_dispatch_map_ntuple(
     mlil: MediumLevelILFunction,
-    first: StateClass,
-    second: StateClass,
+    classes: List[StateClass],
     combined: StateClass,
     route_starts: Set[int],
     dispatcher_entry_start: int,
     side_effect_ops: Set,
     deadline: float,
-) -> Dict[Tuple[int, int], int]:
-    """两状态元组联合分发解析。
+) -> Dict[Tuple, int]:
+    """N 状态元组联合分发解析（N ≥ 2）。
 
-    每个 entry 的 key 是 (v0, v1)，env 同时装载两个状态类的全部变量。
-    dispatcher 决策条件引用任一状态类时都能被 partition/eval 处理；两者
-    联合控制的 && / flag 条件回退逐值求值。
+    每个 entry 的 key 是 (v0, ..., v_{N-1})，env 同时装载所有状态类变量。
+    dispatcher 决策条件引用任一类时由 partition/eval 处理，联合 flag /
+    && / || 回退逐值求值。组合总数调用方保证 ≤ 4096。
     """
-    transitions: Dict[Tuple[int, int], int] = {}
+    transitions: Dict[Tuple, int] = {}
     initial = []
-    for v0 in sorted(first.assigned_values):
-        for v1 in sorted(second.assigned_values):
-            env: Dict = {}
-            for var in first.vars:
-                env[var] = v0
-            for var in second.vars:
-                env[var] = v1
-            initial.append(((v0, v1), env))
-    worklist: List[Tuple[int, List[Tuple[Tuple[int, int], Dict]]]] = [
+    for combo in product(*[sorted(c.assigned_values) for c in classes]):
+        env: Dict = {}
+        for cls, value in zip(classes, combo):
+            for var in cls.vars:
+                env[var] = value
+        initial.append((combo, env))
+
+    worklist: List[Tuple[int, List[Tuple[Tuple, Dict]]]] = [
         (dispatcher_entry_start, initial)
     ]
-    visited_by_key: Dict[Tuple[int, int], Set[int]] = {}
+    visited_by_key: Dict[Tuple, Set[int]] = {}
     total_steps = 0
 
     while worklist:
@@ -560,6 +580,136 @@ def _resolve_dispatch_map_tuple(
     return transitions
 
 
+def _resolve_dispatch_map_tuple(
+    mlil: MediumLevelILFunction,
+    first: StateClass,
+    second: StateClass,
+    combined: StateClass,
+    route_starts: Set[int],
+    dispatcher_entry_start: int,
+    side_effect_ops: Set,
+    deadline: float,
+) -> Dict[Tuple[int, int], int]:
+    """两状态兼容入口：委托给 N 状态 resolver。"""
+    return _resolve_dispatch_map_ntuple(
+        mlil,
+        [first, second],
+        combined,
+        route_starts,
+        dispatcher_entry_start,
+        side_effect_ops,
+        deadline,
+    )
+
+
+def _install_ntuple_guarded_jump_to(
+    mlil: MediumLevelILFunction,
+    classes: List[StateClass],
+    transitions: Dict[Tuple, int],
+    case_values: Set[int],
+    dispatcher_entry_start: int,
+    route_starts: Set[int],
+) -> Optional[int]:
+    """P3 N 状态版：为每个状态变量生成一层嵌套 jump_to guard。
+
+    与 64-bit 编码合成 key 不同，这里无碰撞、支持任意宽度与 N≥2：
+        guard0: preamble; jump_to(v0, {v0 → guard1(v0)})
+        guard1: jump_to(v1, {v1 → guard2(v0,v1)})
+        ...
+        guardN-1: jump_to(v_{N-1}, {v_{N-1} → target})
+    未解析 tuple 的目标填 dispatcher_entry，保留原 cmp-tree 兜底。
+    """
+    if len(classes) < 2 or len(transitions) < _MIN_TRANSITIONS:
+        return None
+    preamble = _collect_entry_preamble(mlil, dispatcher_entry_start)
+    if preamble is None:
+        return None
+
+    all_keys = list(product(*[sorted(c.assigned_values) for c in classes]))
+    if not all_keys:
+        return None
+    target_map: Dict[Tuple, int] = {
+        key: transitions.get(key, dispatcher_entry_start) for key in all_keys
+    }
+    anchor = mlil[dispatcher_entry_start]
+    loc = ILSourceLocation.from_instruction(anchor)
+
+    def build_level(level: int, prefix: Tuple) -> int:
+        cls = classes[level]
+        # 收集该前缀下，当前层变量各取值的所有 tuple key
+        groups: Dict[int, List[Tuple]] = {}
+        for key in all_keys:
+            if key[:level] != prefix:
+                continue
+            groups.setdefault(key[level], []).append(key)
+
+        child_ops: Dict[int, int] = {}
+        if level < len(classes) - 1:
+            for value in sorted(groups.keys()):
+                child_ops[value] = build_level(level + 1, prefix + (value,))
+
+        guard_label = MediumLevelILLabel()
+        mlil.mark_label(guard_label)
+        if level == 0:
+            for instr in preamble:
+                mlil.append(mlil.copy_expr(instr), loc)
+
+        label_map: Dict[int, MediumLevelILLabel] = {}
+        for value in sorted(groups.keys()):
+            lbl = MediumLevelILLabel()
+            if level == len(classes) - 1:
+                key = groups[value][0]
+                lbl.operand = target_map[key]
+            else:
+                lbl.operand = child_ops[value]
+            label_map[value] = lbl
+
+        width = cls.primary.type.width if cls.primary.type else 4
+        dest_expr = mlil.var(width, cls.primary, loc)
+        mlil.append(mlil.jump_to(dest_expr, label_map, loc))
+        return int(guard_label.operand)
+
+    try:
+        outer_label_op = build_level(0, ())
+        outer_label = MediumLevelILLabel()
+        outer_label.operand = outer_label_op
+        redirected = _redirect_edges_to_dispatcher(
+            mlil, dispatcher_entry_start, route_starts, outer_label,
+            any_route=False,
+        )
+        if redirected == 0:
+            return None
+    except Exception:
+        return None
+    return outer_label_op
+
+
+def _collect_entry_preamble(
+    mlil: MediumLevelILFunction,
+    dispatcher_entry_start: int,
+) -> Optional[List[MediumLevelILInstruction]]:
+    """收集 dispatcher 入口块内可安全重放的前导 SetVar。
+
+    只允许 idempotent 拷贝/常量赋值；出现其它形式时返回 None，调用方
+    必须放弃需要重放前导的变换。
+    """
+    entry_bb = mlil.get_basic_block_at(dispatcher_entry_start)
+    if entry_bb is None or entry_bb.length == 0:
+        return None
+    preamble: List[MediumLevelILInstruction] = []
+    for idx in range(entry_bb.start, entry_bb.end - 1):
+        instr = mlil[idx]
+        if not isinstance(instr, MediumLevelILSetVar):
+            return None
+        if not isinstance(
+            instr.src,
+            (MediumLevelILConst, MediumLevelILVar, MediumLevelILVarSsa),
+        ):
+            return None
+        preamble.append(instr)
+    return preamble
+
+
 def _install_tuple_guarded_jump_to(
     mlil: MediumLevelILFunction,
     first: StateClass,
@@ -568,10 +718,12 @@ def _install_tuple_guarded_jump_to(
     case_values: Set[int],
     dispatcher_entry_start: int,
     route_starts: Set[int],
+    fully_resolved: bool = False,
 ) -> Optional[int]:
     """P3 tuple 版：jump_to((v0 << 32) | v1, label_map)。
 
     仅支持两个 32-bit 状态类；编码无碰撞，未解析组合回退 dispatcher 入口。
+    N > 2 时使用 _install_ntuple_guarded_jump_to 的嵌套 jump_to。
     """
     if len(transitions) < _MIN_TRANSITIONS:
         return None
@@ -597,14 +749,15 @@ def _install_tuple_guarded_jump_to(
             lbl = MediumLevelILLabel()
             lbl.operand = target_idx
             label_map[encoded] = lbl
-        for v0 in sorted(first.assigned_values):
-            for v1 in sorted(second.assigned_values):
-                if (v0, v1) in resolved_keys:
-                    continue
-                encoded = ((v0 & 0xFFFFFFFF) << 32) | (v1 & 0xFFFFFFFF)
-                lbl = MediumLevelILLabel()
-                lbl.operand = dispatcher_entry_start
-                label_map[encoded] = lbl
+        if not fully_resolved:
+            for v0 in sorted(first.assigned_values):
+                for v1 in sorted(second.assigned_values):
+                    if (v0, v1) in resolved_keys:
+                        continue
+                    encoded = ((v0 & 0xFFFFFFFF) << 32) | (v1 & 0xFFFFFFFF)
+                    lbl = MediumLevelILLabel()
+                    lbl.operand = dispatcher_entry_start
+                    label_map[encoded] = lbl
         if not label_map:
             return None
 
@@ -634,84 +787,14 @@ def _install_tuple_guarded_jump_to(
         mlil.append(mlil.jump_to(dest_expr, label_map, loc))
 
         redirected = _redirect_edges_to_dispatcher(
-            mlil, dispatcher_entry_start, route_starts, guard_label
+            mlil, dispatcher_entry_start, route_starts, guard_label,
+            any_route=False,
         )
         if redirected == 0:
             return None
     except Exception:
         return None
     return int(guard_label.operand)
-
-
-def _redirect_edges_to_dispatcher(
-    mlil: MediumLevelILFunction,
-    dispatcher_entry_start: int,
-    route_starts: Set[int],
-    guard_label: MediumLevelILLabel,
-) -> int:
-    """把真实块末尾指向 dispatcher 入口的边重定向到 guard。
-
-    只改 exact dispatcher_entry 的边；其它边（含直接落到下一个真实块的分支）
-    保持不动，避免改变不需要经过 dispatcher 的路径。
-    """
-    target_idx = dispatcher_entry_start
-    guard_idx = guard_label.operand
-    redirected = 0
-    for b in list(mlil.basic_blocks):
-        if b.start in route_starts:
-            continue
-        if b.length == 0:
-            continue
-        last = mlil[b.end - 1]
-        loc = ILSourceLocation.from_instruction(last)
-        try:
-            if isinstance(last, MediumLevelILGoto):
-                if last.dest != target_idx:
-                    continue
-                new_label = MediumLevelILLabel()
-                new_label.operand = guard_idx
-                mlil.replace_expr(last.expr_index, mlil.goto(new_label, loc))
-                redirected += 1
-            elif isinstance(last, MediumLevelILIf):
-                if last.true != target_idx and last.false != target_idx:
-                    continue
-                new_true = MediumLevelILLabel()
-                new_true.operand = guard_idx if last.true == target_idx else last.true
-                new_false = MediumLevelILLabel()
-                new_false.operand = guard_idx if last.false == target_idx else last.false
-                cond_copy = mlil.copy_expr(last.condition)
-                new_if = mlil.if_expr(cond_copy, new_true, new_false, loc)
-                mlil.replace_expr(last.expr_index, new_if)
-                redirected += 1
-        except Exception:
-            continue
-    return redirected
-
-
-def _collect_entry_preamble(
-    mlil: MediumLevelILFunction,
-    dispatcher_entry_start: int,
-) -> Optional[List[MediumLevelILInstruction]]:
-    """收集 dispatcher 入口块内可安全重放的前导 SetVar。
-
-    只允许 idempotent 拷贝/常量赋值；出现其它形式时返回 None，调用方
-    必须放弃需要重放前导的变换。
-    """
-    entry_bb = mlil.get_basic_block_at(dispatcher_entry_start)
-    if entry_bb is None or entry_bb.length == 0:
-        return None
-    preamble: List[MediumLevelILInstruction] = []
-    for idx in range(entry_bb.start, entry_bb.end - 1):
-        instr = mlil[idx]
-        if not isinstance(instr, MediumLevelILSetVar):
-            return None
-        if not isinstance(
-            instr.src,
-            (MediumLevelILConst, MediumLevelILVar, MediumLevelILVarSsa),
-        ):
-            return None
-        preamble.append(instr)
-    return preamble
 
 
 def _install_preamble_guarded_jump_to(
@@ -721,6 +804,7 @@ def _install_preamble_guarded_jump_to(
     case_values: Set[int],
     dispatcher_entry_start: int,
     route_starts: Set[int],
+    fully_resolved: bool = False,
 ) -> Optional[int]:
     """P3：guard 内重放 dispatcher 入口前导，再 jump_to。
 
@@ -752,13 +836,14 @@ def _install_preamble_guarded_jump_to(
             lbl = MediumLevelILLabel()
             lbl.operand = target_idx
             label_map[value] = lbl
-        unresolved = (case_values | set(state_class.assigned_values)) - set(
-            transitions.keys()
-        )
-        for value in unresolved:
-            lbl = MediumLevelILLabel()
-            lbl.operand = dispatcher_entry_start
-            label_map[value] = lbl
+        if not fully_resolved:
+            unresolved = (case_values | set(state_class.assigned_values)) - set(
+                transitions.keys()
+            )
+            for value in unresolved:
+                lbl = MediumLevelILLabel()
+                lbl.operand = dispatcher_entry_start
+                label_map[value] = lbl
 
         if not label_map:
             return None
@@ -767,13 +852,68 @@ def _install_preamble_guarded_jump_to(
         mlil.append(mlil.jump_to(dest_expr, label_map, loc))
 
         redirected = _redirect_edges_to_dispatcher(
-            mlil, dispatcher_entry_start, route_starts, guard_label
+            mlil, dispatcher_entry_start, route_starts, guard_label,
+            any_route=False,
         )
         if redirected == 0:
             return None
     except Exception:
         return None
     return int(guard_label.operand)
+
+
+def _redirect_edges_to_dispatcher(
+    mlil: MediumLevelILFunction,
+    dispatcher_entry_start: int,
+    route_starts: Set[int],
+    guard_label: MediumLevelILLabel,
+    any_route: bool = False,
+) -> int:
+    """把真实块末尾回 dispatcher 的边重定向到 guard。
+
+    any_route=False：只改 exact dispatcher_entry 的边（P3 guarded 兜底模式）。
+
+    any_route=True：非 route 块中任何指向 route_starts 的边都改到 guard。
+    仅用于 fully_resolved 且需要整体摘除 dispatcher 时；当前主流程仍以
+    False 保守运行。
+    """
+    target_idx = dispatcher_entry_start
+    guard_idx = guard_label.operand
+    redirected = 0
+    for b in list(mlil.basic_blocks):
+        if b.start in route_starts:
+            continue
+        if b.length == 0:
+            continue
+        last = mlil[b.end - 1]
+        loc = ILSourceLocation.from_instruction(last)
+        allowed_targets = route_starts if any_route else {target_idx}
+        try:
+            if isinstance(last, MediumLevelILGoto):
+                if last.dest not in allowed_targets:
+                    continue
+                new_label = MediumLevelILLabel()
+                new_label.operand = guard_idx
+                mlil.replace_expr(last.expr_index, mlil.goto(new_label, loc))
+                redirected += 1
+            elif isinstance(last, MediumLevelILIf):
+                if last.true not in allowed_targets and last.false not in allowed_targets:
+                    continue
+                new_true = MediumLevelILLabel()
+                new_true.operand = (
+                    guard_idx if last.true in allowed_targets else last.true
+                )
+                new_false = MediumLevelILLabel()
+                new_false.operand = (
+                    guard_idx if last.false in allowed_targets else last.false
+                )
+                cond_copy = mlil.copy_expr(last.condition)
+                new_if = mlil.if_expr(cond_copy, new_true, new_false, loc)
+                mlil.replace_expr(last.expr_index, new_if)
+                redirected += 1
+        except Exception:
+            continue
+    return redirected
 
 
 def _extract_state_set_chain(
@@ -1109,32 +1249,30 @@ def pass_general_cff(analysis_context: AnalysisContext) -> bool:
 
     state_class, route_starts, transitions = chosen
 
-    # 两状态元组尝试：仅当联合解析比单候选解析出更多组合时启用
+    # N 状态元组尝试（N≥2）：仅当联合解析比单候选解析出更多组合时启用。
+    # secondary 允许只有 2 个值，因此用宽松启发式补充候选。
     tuple_chosen: Optional[
-        Tuple[StateClass, StateClass, StateClass, Set[int], Dict[Tuple[int, int], int]]
+        Tuple[List[StateClass], StateClass, Set[int], Dict[Tuple, int]]
     ] = None
     if time.time() <= deadline:
-        # 主候选来自常规启发式；若常规只找到一个，用宽松启发式补一个
-        # 次级候选（tuple 联合分发允许 secondary 只有 2 个值）
         extra_classes = list(state_classes)
         if len(extra_classes) < 2:
             extra_classes = find_state_classes(
                 mlil, dispatcher_entry, require_cff_heuristic=False, limit=4
             )
-        second_candidate = None
-        for cand in extra_classes:
-            if cand.primary.identifier not in state_class.var_ids:
-                second_candidate = cand
-                break
-    else:
-        second_candidate = None
-
-    if second_candidate is not None:
-        first = state_class
-        second = second_candidate
-        combo_count = len(first.assigned_values) * len(second.assigned_values)
-        if combo_count <= 4096:
-            combined = _combine_state_classes(first, second)
+        extra_pool = [
+            c for c in extra_classes
+            if c.primary.identifier not in state_class.var_ids
+        ]
+        # 尝试 [primary]+1 到 [primary]+3 个 secondary
+        for width in range(1, min(3, len(extra_pool)) + 1):
+            tuple_classes = [state_class] + extra_pool[:width]
+            combo_count = 1
+            for cls in tuple_classes:
+                combo_count *= len(cls.assigned_values)
+            if combo_count > 4096:
+                continue
+            combined = _combine_state_classes_many(tuple_classes)
             tuple_route = _classify_route_blocks(
                 mlil,
                 dispatcher_scc,
@@ -1143,10 +1281,9 @@ def pass_general_cff(analysis_context: AnalysisContext) -> bool:
                 _SIDE_EFFECT_OPS,
             )
             tuple_route.add(dispatcher_entry.start)
-            tuple_trans = _resolve_dispatch_map_tuple(
+            tuple_trans = _resolve_dispatch_map_ntuple(
                 mlil,
-                first,
-                second,
+                tuple_classes,
                 combined,
                 tuple_route,
                 dispatcher_entry.start,
@@ -1158,13 +1295,26 @@ def pass_general_cff(analysis_context: AnalysisContext) -> bool:
                 and len(set(tuple_trans.values())) >= 2
                 and len(tuple_trans) > len(transitions)
             ):
-                tuple_chosen = (
-                    first, second, combined, tuple_route, tuple_trans
+                quality = (
+                    len(tuple_trans),
+                    -combo_count,
+                    len(set(tuple_trans.values())),
                 )
+                if tuple_chosen is None or quality > (
+                    len(tuple_chosen[3]),
+                    -sum(
+                        len(c.assigned_values)
+                        for c in tuple_chosen[0]
+                    ),
+                    len(set(tuple_chosen[3].values())),
+                ):
+                    tuple_chosen = (
+                        tuple_classes, combined, tuple_route, tuple_trans
+                    )
 
     # case_values 覆盖检查：dispatcher SCC 内全部状态比较常量
     if tuple_chosen is not None:
-        first_c, second_c, combined_c, route_c, trans_c = tuple_chosen
+        classes_c, combined_c, route_c, trans_c = tuple_chosen
         case_values = collect_state_case_values(
             mlil, combined_c, dispatcher_scc
         )
@@ -1173,20 +1323,35 @@ def pass_general_cff(analysis_context: AnalysisContext) -> bool:
 
     if tuple_chosen is not None:
         # tuple 模式：暂不做条件分支/短路改写，先保证联合分发的 switch 形态
-        first_c, second_c, combined_c, route_c, trans_c = tuple_chosen
+        classes_c, combined_c, route_c, trans_c = tuple_chosen
         n_cond = 0
         n_short = 0
         mini_ops: Set[int] = set()
-        guard_label_op = _install_tuple_guarded_jump_to(
-            mlil,
-            first_c,
-            second_c,
-            trans_c,
-            case_values,
-            dispatcher_entry.start,
-            route_c,
-        )
-        log_tag = f"tuple({first_c.primary.name},{second_c.primary.name})"
+        total_combos = 1
+        for cls in classes_c:
+            total_combos *= len(cls.assigned_values)
+        tuple_fully_resolved = len(trans_c) == total_combos
+        if len(classes_c) == 2:
+            guard_label_op = _install_tuple_guarded_jump_to(
+                mlil,
+                classes_c[0],
+                classes_c[1],
+                trans_c,
+                case_values,
+                dispatcher_entry.start,
+                route_c,
+                fully_resolved=tuple_fully_resolved,
+            )
+        else:
+            guard_label_op = _install_ntuple_guarded_jump_to(
+                mlil,
+                classes_c,
+                trans_c,
+                case_values,
+                dispatcher_entry.start,
+                route_c,
+            )
+        log_tag = "tuple(" + ",".join(c.primary.name for c in classes_c) + ")"
         resolved_count = len(trans_c)
     else:
         # 条件状态赋值改写：if(c) s=A else s=B → if(c) goto mini_A else goto mini_B
@@ -1205,6 +1370,9 @@ def pass_general_cff(analysis_context: AnalysisContext) -> bool:
             mlil, state_class, transitions, dispatcher_entry.start
         )
 
+        single_fully_resolved = set(state_class.assigned_values) <= set(
+            transitions.keys()
+        )
         guard_label_op = _install_preamble_guarded_jump_to(
             mlil,
             state_class,
@@ -1212,6 +1380,7 @@ def pass_general_cff(analysis_context: AnalysisContext) -> bool:
             case_values,
             dispatcher_entry.start,
             route_starts,
+            fully_resolved=single_fully_resolved,
         )
         log_tag = f"primary={state_class.primary.name}"
         resolved_count = len(transitions)

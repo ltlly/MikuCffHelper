@@ -358,10 +358,11 @@ g = build_real_block_transition_graph(func.mlil)
    goto 链收集 `s=A; ...; goto dispatcher_entry` 的无副作用 SetVar 序列，
    复制进 mini-block 后改写为 `if (c) goto mini_A else goto mini_B`；
    链上任何分支 / 副作用 / 未解析值都会让该分支保持原样。
-8. **多候选状态类 + 两状态元组**：`find_state_classes` 返回全部候选状态类；
-   常规候选之外，general pass 会用宽松启发式补一个 secondary 候选，尝试
-   `(v0,v1)` 联合解析；联合解析优于单候选时，安装 P3 tuple 版
-   `jump_to((v0 << 32) | v1, ...)`（仅两个 32-bit 状态类，编码无碰撞）。
+8. **多候选状态类 + N 状态元组**：`find_state_classes` 返回全部候选状态类；
+   常规候选之外，general pass 用宽松启发式补充 secondary 候选，尝试
+   N=2..4 的联合解析（组合总数 ≤4096）。两状态用 64-bit 编码
+   `jump_to((v0 << 32) | v1)`，N>2 用逐状态嵌套 `jump_to` guard；
+   联合解析优于单候选时启用。
 
 实测（手动冒烟）：
 
@@ -430,11 +431,11 @@ UI 中 Log 面板按这些 prefix 过滤可快速定位 pass 行为。
 
 - **状态变量识别启发式**：依赖"被赋予 ≥ 2 unique 常量"，对于使用单一加密
   函数生成状态值的变种可能失效
-- **未实现条件状态赋值的精确处理**：`if (cond) state = A else state = B`
-  目前为各 SetVar 独立 patch，没有把分支条件直接落到原 if 上
+- **条件状态赋值**：`if (cond) state = A else state = B` 在实验路径
+  general 中已改写为条件 goto；路径 A/B 仍按 SetVar 独立 patch
 - **整型解释器局限**：状态转移含浮点 / 内存读 / 不支持的运算时会保守跳过
-- **多 state 联合分发**：dispatcher 用多个 state 变量联合分发时，只会选
-  unique 常量数最多的一个 primary，其余靠 BN 后续分析消化
+- **多 state 联合分发**：general 已支持 N=2..4 状态元组（组合 ≤4096，
+  两状态 64-bit 编码 / 多状态嵌套 jump_to）；路径 A/B 仍只用单 primary
 - **跨函数 CFF**：state 经全局 / 参数跨函数传递的样本不处理
 - **极大函数 (>800 块)**：dispatcher 检测开销 + 多次外层迭代可能超过 BN
   默认 60 秒单函数分析时间限制；可调高 `analysis.limits.maxFunctionAnalysisTime`
@@ -475,11 +476,11 @@ Artificial Intelligence (SEAI)*, 2025.
 
 ## 12. 后续 TODO
 
-- 把 `if (cond) state = A else state = B` 模式直接 rewrite 成
-  `if (cond) goto T_A else goto T_B`
 - 跨函数 CFF：识别 state 变量的全局 / struct 偏移，跨调用图传递
   forward_resolve 的环境
 - 动态等价性 fuzzer：随机输入跑前后两个版本，比 trace (call sequence +
   内存写 + 返回值)，比静态副作用签名更可靠
-- 多 state primary 联合分发：把 N 个 state var 合成 (N×bitwidth) 虚拟
-  var，jump_to 用合成 key
+- general 路径与 auto 的融合：在更大样本集上证明 general 不劣于 auto
+  后，把 general 作为 B/A 之外的 fallback（当前独立实验入口）
+- dispatcher 整体死代码清理：fully_resolved 时安全摘除原 cmp-tree 的
+  liveness 证明（当前仍保留原 tree 兜底，避免误删可达路径）
