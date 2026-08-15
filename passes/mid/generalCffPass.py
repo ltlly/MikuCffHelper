@@ -2,7 +2,7 @@
 
 与现有 deflate_hard / synthesize_switch 的区别：
 
-1. 状态变量识别使用 ``utils.cff_core.find_state_class``：
+1. 状态变量识别使用 ``utils.cff_core.find_state_classes``：
    - 直连路径兼容标准 OLLVM；
    - alias-only 变种（``alias = state`` 后比较 alias）用变量拷贝图
      union-find 归并。
@@ -55,7 +55,7 @@ from ...utils.cff_core import (
     StateClass,
     collect_state_case_values,
     detect_flattening_candidate,
-    find_state_class,
+    find_state_classes,
     mask,
     to_signed,
 )
@@ -167,9 +167,32 @@ def _classify_route_blocks(
             continue
         # 块尾必须是 goto / if，且无副作用
         last = mlil[bb.end - 1]
-        if isinstance(last, (MediumLevelILGoto, MediumLevelILIf)):
-            if not _instruction_has_side_effect(last, side_effect_ops):
-                route.add(start)
+        if not isinstance(last, (MediumLevelILGoto, MediumLevelILIf)):
+            continue
+        if _instruction_has_side_effect(last, side_effect_ops):
+            continue
+        # if 块的条件必须依赖状态类（直接比较，或同块内 flag 定义）；
+        # LLIL split 后 handler 可能是纯 if-only 块（如 if (x7_2 == 2)），
+        # 仅凭「块内无 SetVar」会把它误判成 dispatcher 决策块。
+        if isinstance(last, MediumLevelILIf) and not _is_state_comparison(
+            last.condition, state_class
+        ):
+            cond_var = getattr(getattr(last.condition, "src", None), "identifier", None)
+            if cond_var is None:
+                continue
+            flag_def_ok = False
+            for idx in range(bb.start, bb.end - 1):
+                instr = mlil[idx]
+                if (
+                    isinstance(instr, MediumLevelILSetVar)
+                    and instr.dest.identifier == cond_var
+                    and _is_state_comparison(instr.src, state_class)
+                ):
+                    flag_def_ok = True
+                    break
+            if not flag_def_ok:
+                continue
+        route.add(start)
     return route
 
 
@@ -539,6 +562,180 @@ def _install_preamble_guarded_jump_to(
     return int(guard_label.operand)
 
 
+def _extract_state_set_chain(
+    mlil: MediumLevelILFunction,
+    start: int,
+    dispatcher_entry_start: int,
+    state_class: StateClass,
+    side_effect_ops: Set,
+    max_chain_blocks: int = 8,
+) -> Optional[Tuple[int, List[MediumLevelILInstruction]]]:
+    """沿无条件 goto 链收集从 start 到 dispatcher 入口的本地 SetVar 序列。
+
+    返回 (最终 state 常量值, 需要重放的 SetVar 列表)，仅当：
+    - 链上所有非终结指令都是无副作用 SetVar；
+    - 每个块的终结都是 Goto，且最终回到 dispatcher_entry；
+    - 链上至少出现一次 state class 的 const 赋值。
+
+    这条链就是「条件状态赋值 + 返回 dispatcher 前数据搬运」的原文，之后会
+    被完整复制到 mini-block，因此跳过链不会丢失任何本地数据更新。
+    """
+    replay: List[MediumLevelILInstruction] = []
+    final_value: Optional[int] = None
+    current = start
+    visited: Set[int] = set()
+    for _ in range(max_chain_blocks):
+        if current in visited:
+            return None
+        visited.add(current)
+        bb = mlil.get_basic_block_at(current)
+        if bb is None or current != bb.start or bb.length == 0:
+            return None
+
+        for idx in range(bb.start, bb.end - 1):
+            instr = mlil[idx]
+            if _instruction_has_side_effect(instr, side_effect_ops):
+                return None
+            if not isinstance(instr, MediumLevelILSetVar):
+                return None
+            replay.append(instr)
+            if (
+                instr.dest.identifier in state_class.var_ids
+                and isinstance(instr.src, MediumLevelILConst)
+            ):
+                final_value = instr.src.constant & mask(instr.size or 4)
+
+        last = mlil[bb.end - 1]
+        if _instruction_has_side_effect(last, side_effect_ops):
+            return None
+        if not isinstance(last, MediumLevelILGoto):
+            # 条件状态赋值链出现分支，说明不是「单值确定」形态，保守拒绝
+            return None
+        if last.dest == dispatcher_entry_start:
+            if final_value is None:
+                return None
+            return final_value, replay
+        current = last.dest
+    return None
+
+
+def _rewrite_conditional_state_branches(
+    mlil: MediumLevelILFunction,
+    state_class: StateClass,
+    transitions: Dict[int, int],
+    dispatcher_entry_start: int,
+    route_starts: Set[int],
+    side_effect_ops: Set,
+) -> int:
+    """把 ``if (c) goto setA else goto setB`` 改写为直接的条件状态转移。
+
+    模式：
+        B: ...; if (c) goto A else goto C
+        A: s = VA; ...; goto D; ...; goto dispatcher_entry
+        C: s = VC; ...; goto dispatcher_entry
+
+    改写为：
+        B: ...; if (c) goto mini_A else goto mini_C
+        mini_A: <A 链上 SetVar 副本...>; <dispatcher 前导副本...>; goto T(VA)
+
+    安全保证：
+    - A/C 链必须是无副作用 SetVar + 无条件 Goto，且最终回 dispatcher 入口；
+    - VA/VC 必须已在 transitions 中完全解析；
+    - A/C 链上的每个 SetVar 都被复制进 mini-block（顺序不变）；
+    - dispatcher 入口前导也被复制，目标块不会缺少前导数据；
+    - 只替换 B 中对应的 if 分支标签，B 的块体与条件原样保留。
+
+    返回改写成功的分支数。
+    """
+    preamble = _collect_entry_preamble(mlil, dispatcher_entry_start)
+    if preamble is None:
+        return 0
+
+    mini_cache: Dict[Tuple[Tuple[int, ...], int, int], MediumLevelILLabel] = {}
+    rewritten = 0
+
+    for b in list(mlil.basic_blocks):
+        if b.start in route_starts or b.length == 0:
+            continue
+        last = mlil[b.end - 1]
+        if not isinstance(last, MediumLevelILIf):
+            continue
+
+        branch_work = []
+        for branch_target in (last.true, last.false):
+            if branch_target == dispatcher_entry_start:
+                continue
+            extracted = _extract_state_set_chain(
+                mlil,
+                branch_target,
+                dispatcher_entry_start,
+                state_class,
+                side_effect_ops,
+            )
+            if extracted is None:
+                continue
+            value, replay = extracted
+            target_idx = transitions.get(value)
+            if target_idx is None:
+                continue
+            branch_work.append((branch_target, value, replay, target_idx))
+
+        if not branch_work:
+            continue
+
+        loc = ILSourceLocation.from_instruction(last)
+        new_true = MediumLevelILLabel()
+        new_false = MediumLevelILLabel()
+        changed_true = False
+        changed_false = False
+
+        for branch_target, value, replay, target_idx in branch_work:
+            key = (tuple(i.instr_index for i in replay), value, target_idx)
+            cached_label = mini_cache.get(key)
+            if cached_label is None:
+                target_label = MediumLevelILLabel()
+                target_label.operand = target_idx
+                new_block_label = MediumLevelILLabel()
+                mlil.mark_label(new_block_label)
+                for instr in replay:
+                    mlil.append(mlil.copy_expr(instr), loc)
+                for instr in preamble:
+                    mlil.append(mlil.copy_expr(instr), loc)
+                mlil.append(mlil.goto(target_label, loc))
+                cached_label = new_block_label
+                mini_cache[key] = cached_label
+
+            if branch_target == last.true:
+                new_true.operand = cached_label.operand
+                changed_true = True
+            if branch_target == last.false:
+                new_false.operand = cached_label.operand
+                changed_false = True
+
+        if not (changed_true or changed_false):
+            continue
+
+        # 未改写的分支保持原目标
+        if not changed_true:
+            new_true.operand = last.true
+        if not changed_false:
+            new_false.operand = last.false
+
+        try:
+            new_if = mlil.if_expr(
+                mlil.copy_expr(last.condition),
+                new_true,
+                new_false,
+                loc,
+            )
+            mlil.replace_expr(last.expr_index, new_if)
+            rewritten += 1
+        except Exception:
+            continue
+
+    return rewritten
+
+
 def _shortcircuit_safe_state_defines(
     mlil: MediumLevelILFunction,
     state_class: StateClass,
@@ -639,8 +836,8 @@ def pass_general_cff(analysis_context: AnalysisContext) -> bool:
     if dispatcher_entry is None:
         return False
 
-    state_class = find_state_class(mlil, dispatcher_entry)
-    if state_class is None:
+    state_classes = find_state_classes(mlil, dispatcher_entry)
+    if not state_classes:
         log_info(f"[general] {fname}: no state class at 0x{dispatcher_entry.start:x}")
         return False
 
@@ -657,36 +854,61 @@ def pass_general_cff(analysis_context: AnalysisContext) -> bool:
         log_info(f"[general] {fname}: dispatcher SCC too small")
         return False
 
-    route_starts = _classify_route_blocks(
-        mlil,
-        dispatcher_scc,
-        dispatcher_entry.start,
-        state_class,
-        _SIDE_EFFECT_OPS,
-    )
-    route_starts.add(dispatcher_entry.start)
+    # 多候选策略：逐个状态类解析，选择 resolved 最多、target 分散的候选。
+    # 多状态元组联合分发暂未合成，但至少不会再被「unique 数最多的单变量
+    # 启发式」卡死在错误的 primary 上。
+    chosen: Optional[Tuple[StateClass, Set[int], Dict[int, int]]] = None
+    for state_class in state_classes:
+        if time.time() > deadline:
+            break
+        route_starts = _classify_route_blocks(
+            mlil,
+            dispatcher_scc,
+            dispatcher_entry.start,
+            state_class,
+            _SIDE_EFFECT_OPS,
+        )
+        route_starts.add(dispatcher_entry.start)
 
-    transitions = _resolve_dispatch_map(
-        mlil,
-        state_class,
-        route_starts,
-        dispatcher_entry.start,
-        _SIDE_EFFECT_OPS,
-        deadline,
-    )
-    if len(transitions) < _MIN_TRANSITIONS:
+        transitions = _resolve_dispatch_map(
+            mlil,
+            state_class,
+            route_starts,
+            dispatcher_entry.start,
+            _SIDE_EFFECT_OPS,
+            deadline,
+        )
+        if len(transitions) < _MIN_TRANSITIONS:
+            continue
+        if len(set(transitions.values())) < 2:
+            continue
+        quality = (len(transitions), len(set(transitions.values())))
+        if chosen is None or quality > (len(chosen[2]), len(set(chosen[2].values()))):
+            chosen = (state_class, route_starts, transitions)
+
+    if chosen is None:
         log_info(
-            f"[general] {fname}: resolved {len(transitions)}/{len(state_class.assigned_values)} values"
+            f"[general] {fname}: no qualifying state class "
+            f"(candidates={len(state_classes)})"
         )
         return False
-    if len(set(transitions.values())) < 2:
-        log_info(f"[general] {fname}: all transitions collapse to one target")
-        return False
+
+    state_class, route_starts, transitions = chosen
 
     # case_values 覆盖检查：dispatcher SCC 内全部状态比较常量
     case_values = collect_state_case_values(mlil, state_class, dispatcher_scc)
 
-    # 先短路 tail state defines：必须在 redirect 之前做，否则真实块的
+    # 条件状态赋值改写：if(c) s=A else s=B → if(c) goto mini_A else goto mini_B
+    n_cond = _rewrite_conditional_state_branches(
+        mlil,
+        state_class,
+        transitions,
+        dispatcher_entry.start,
+        route_starts,
+        _SIDE_EFFECT_OPS,
+    )
+
+    # 再短路 tail state defines：必须在 redirect 之前做，否则真实块的
     # goto dispatcher 已经被改成 goto guard，形态检测不到
     n_short, mini_ops = _shortcircuit_safe_state_defines(
         mlil, state_class, transitions, dispatcher_entry.start
@@ -712,6 +934,7 @@ def pass_general_cff(analysis_context: AnalysisContext) -> bool:
     log_info(
         f"[general] {fname}: P3 installed guard=0x{guard_label_op:x} "
         f"transitions={len(transitions)} case_values={len(case_values)} "
-        f"shortcircuited={n_short} miniblocks={len(mini_ops)}"
+        f"cond_rewritten={n_cond} shortcircuited={n_short} "
+        f"miniblocks={len(mini_ops)}"
     )
     return True

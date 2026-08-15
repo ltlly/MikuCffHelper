@@ -6,10 +6,11 @@
    把 dominator-tree 的 subtree 判定从 ``d in bb.dominators``（列表成员，
    最坏 O(N^2)）改成 DFS 区间 O(1)，使 Blazytko 检测整体 O(V+E)。
 
-2. ``StateClass`` / ``find_state_class``
+2. ``StateClass`` / ``find_state_classes``
    - 先走现有「比较变量被赋 ≥2 个常量」的直连路径（对标准 OLLVM 保持兼容）；
    - 直连路径为空时，用变量拷贝图的 union-find 做 alias 类识别，解决
-     ``x19_1 = x7_1; if (x19_1 == K)`` 这类 alias-only 状态变量。
+     ``x19_1 = x7_1; if (x19_1 == K)`` 这类 alias-only 状态变量；
+   - 返回全部候选状态类，供多状态变种逐个尝试。
 
 3. ``EnvEvaluator``
    在 deflatHardPass 的整型解释器基础上补三件事：
@@ -319,44 +320,56 @@ def _looks_like_cff_values(all_values: Set[int]) -> bool:
     return (max(all_values) - min(all_values)) >= 0x10000000
 
 
-def find_state_class(
+def find_state_classes(
     mlil: MediumLevelILFunction,
     dispatcher_entry: MediumLevelILBasicBlock,
     require_cff_heuristic: bool = True,
-) -> Optional[StateClass]:
-    """识别状态变量及其 alias 等价类。
+    limit: int = 4,
+) -> List[StateClass]:
+    """识别 dispatcher 的全部候选状态类，按 unique 常量数降序返回。
 
     路径 1：dispatcher 比较变量自身被赋 ≥2 个常量（标准 OLLVM，行为与
-    ``_collect_state_vars`` 一致）。
+    ``_collect_state_vars`` 一致），每个比较变量一个直连状态类。
 
     路径 2：比较变量没有任何常量赋值时（alias-only 变种），在整函数
-    ``alias = state`` 拷贝图上做 union-find，取比较变量所在连通分量中
-    常量赋值最多的变量为 primary，分量为状态类。
+    ``alias = state`` 拷贝图上做 union-find，每个比较变量连通分量一个
+    状态类；primary 取分量内常量赋值最多的变量。
+
+    多状态变种（dispatcher 同时比较 x19/x5 等）会自然产生多个候选，
+    调用方可以逐个尝试或进一步组合成元组。
     """
     cmp_ids = _collect_comparison_var_ids(mlil, dispatcher_entry)
     if not cmp_ids:
-        return None
+        return []
     const_values, var_by_id = _collect_const_value_sets(mlil)
 
+    classes: List[StateClass] = []
+
     # 路径 1：直连
-    direct_ids = [
-        vid
-        for vid in cmp_ids
-        if vid in const_values and len(const_values[vid]) >= 2
-    ]
-    if direct_ids:
-        primary_id = max(direct_ids, key=lambda vid: len(const_values[vid]))
-        primary = var_by_id[primary_id]
-        values: Set[int] = set(const_values[primary_id])
+    for vid in sorted(
+        cmp_ids, key=lambda x: -len(const_values.get(x, set()))
+    ):
+        values = const_values.get(vid, set())
+        if len(values) < 2:
+            continue
         if require_cff_heuristic and not _looks_like_cff_values(values):
-            return None
-        return StateClass(
-            primary=primary,
-            vars=frozenset({primary}),
-            var_ids=frozenset({primary_id}),
-            assigned_values=frozenset(values),
-            unique_counts={primary_id: len(values)},
+            continue
+        primary = var_by_id.get(vid)
+        if primary is None:
+            continue
+        classes.append(
+            StateClass(
+                primary=primary,
+                vars=frozenset({primary}),
+                var_ids=frozenset({vid}),
+                assigned_values=frozenset(values),
+                unique_counts={vid: len(values)},
+            )
         )
+
+    if classes:
+        classes.sort(key=lambda sc: -len(sc.assigned_values))
+        return classes[:limit]
 
     # 路径 2：alias 类
     uf = _UnionFind()
@@ -374,9 +387,13 @@ def find_state_class(
     for vid in var_by_id:
         comp_vars.setdefault(uf.find(vid), []).append(vid)
 
-    best: Optional[Tuple[int, int, List[int]]] = None  # (unique, primary, ids)
+    seen_roots: Set[int] = set()
+    candidates: List[Tuple[int, int, List[int]]] = []
     for cmp_id in cmp_ids:
         root = uf.find(cmp_id)
+        if root in seen_roots:
+            continue
+        seen_roots.add(root)
         ids = comp_vars.get(root, [])
         if not ids:
             continue
@@ -392,42 +409,54 @@ def find_state_class(
         if require_cff_heuristic and not _looks_like_cff_values(union_values):
             continue
         primary_id = max(counts, key=lambda k: counts[k]) if counts else cmp_id
-        if best is None or len(union_values) > best[0]:
-            best = (len(union_values), primary_id, ids)
+        candidates.append((len(union_values), primary_id, ids))
 
-    if best is None:
-        return None
+    candidates.sort(key=lambda t: -t[0])
+    for _, primary_id, ids in candidates[:limit]:
+        primary = var_by_id.get(primary_id)
+        if primary is None:
+            primary = var_by_id.get(next(iter(cmp_ids)))
+        if primary is None:
+            continue
+        state_vars: Set[Variable] = set()
+        counts: Dict[int, int] = {}
+        union_values: Set[int] = set()
+        for vid in ids:
+            var = var_by_id.get(vid)
+            if var is not None:
+                state_vars.add(var)
+            vs = const_values.get(vid, set())
+            if vs:
+                counts[vid] = len(vs)
+            union_values.update(vs)
+        classes.append(
+            StateClass(
+                primary=primary,
+                vars=frozenset(state_vars),
+                var_ids=frozenset(ids),
+                assigned_values=frozenset(union_values),
+                unique_counts=counts,
+            )
+        )
 
-    _, primary_id, ids = best
-    primary = var_by_id.get(primary_id)
-    if primary is None:
-        primary = var_by_id.get(next(iter(cmp_ids)))
-    if primary is None:
-        return None
-    ids = ids or list(cmp_ids)
-    union_values: Set[int] = set()
-    counts: Dict[int, int] = {}
-    state_vars: Set[Variable] = set()
-    for vid in ids:
-        var = var_by_id.get(vid)
-        if var is not None:
-            state_vars.add(var)
-        vs = const_values.get(vid, set())
-        if vs:
-            counts[vid] = len(vs)
-        union_values.update(vs)
+    for sc in classes:
+        log_info(
+            f"[cff_core] alias-aware state class: primary={sc.primary.name} "
+            f"aliases={len(sc.vars)} values={len(sc.assigned_values)}"
+        )
+    return classes
 
-    log_info(
-        f"[cff_core] alias-aware state class: primary={primary.name} "
-        f"aliases={len(state_vars)} values={len(union_values)}"
+
+def find_state_class(
+    mlil: MediumLevelILFunction,
+    dispatcher_entry: MediumLevelILBasicBlock,
+    require_cff_heuristic: bool = True,
+) -> Optional[StateClass]:
+    """兼容入口：返回排名第一的状态类（等价于旧版单候选行为）。"""
+    classes = find_state_classes(
+        mlil, dispatcher_entry, require_cff_heuristic, limit=1
     )
-    return StateClass(
-        primary=primary,
-        vars=frozenset(state_vars),
-        var_ids=frozenset(ids),
-        assigned_values=frozenset(union_values),
-        unique_counts=counts,
-    )
+    return classes[0] if classes else None
 
 
 # ---------------------------------------------------------------------------

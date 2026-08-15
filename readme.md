@@ -354,17 +354,25 @@ g = build_real_block_transition_graph(func.mlil)
 6. **批量快分裂**：决策条件为直接 `(state|alias) op const` 时，CMP_E/NE 用
    hash O(m) 分裂活跃值集合，signed/unsigned range 比较排序后 bisect
    O(m log m)；flag / AND / OR 等复杂条件回退逐值求值。
+7. **条件状态赋值改写**：对 `if (c) s=A else s=B` 的 handler，沿无条件
+   goto 链收集 `s=A; ...; goto dispatcher_entry` 的无副作用 SetVar 序列，
+   复制进 mini-block 后改写为 `if (c) goto mini_A else goto mini_B`；
+   链上任何分支 / 副作用 / 未解析值都会让该分支保持原样。
+8. **多候选状态类**：`find_state_classes` 返回全部候选状态类，general pass
+   逐个解析并选择 resolved 最多、target 最分散的候选，避免被单变量
+   unique 数启发式卡死；多状态元组合成仍待实现。
 
 实测（手动冒烟）：
 
 | 样本 | 效果 |
 |------|------|
-| `example/cff-arm64-v8a.elf` target_function | auto 模式 31→41 无 switch；general 模式 31→43 且 HLIL 渲染为 `switch`（tail-define 短路已生效），0 MLIL/HLIL 副作用丢失、0 orphan |
+| `example/cff-arm64-v8a.elf` target_function | auto 模式 31→41 无 switch；general 模式 31→40 且 HLIL 渲染为 `switch`（条件状态分支 + tail-define 短路均已生效），0 MLIL/HLIL 副作用丢失、0 orphan |
 | `libmsaoaidsec.so` 标准 CFF | general 能输出 switch，case 体比此前干净；块数压缩仍不如 auto，继续向 auto 收敛 |
 
 **已知 trade-off**：general 是独立实验入口，默认不进入 auto，不影响既有
-39 函数基线。equality-hash / interval-bisect 与安全 state 短路已落地，
-下一步是条件状态赋值改写与多状态元组合成，逐步向 auto 收敛。
+39 函数基线。equality-hash / interval-bisect、安全 state 短路、条件状态
+分支改写与多候选状态类已落地；下一步是多状态元组合成与 dispatcher 死代码
+清理，逐步向 auto 收敛。
 
 ## 7. 路径 auto (B 优先 / A 兜底)
 

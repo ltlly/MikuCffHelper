@@ -167,7 +167,8 @@ python tools/regression_test.py --update-baseline
   - 总变换率 37/39，0 副作用丢失，0 orphan jump。
 - 实验入口 `workflow_patch_mlil_general`（路径 C）默认关闭；当前已支持
   alias-only 状态变量 + flag 条件变种、equality-hash / interval-bisect
-  批量分裂、安全 tail-define 短路（含 dispatcher 前导重放），验证 0
-  副作用丢失 / 0 orphan；标准样本仍以 auto 为准。
+  批量分裂、安全 tail-define 短路（含 dispatcher 前导重放）、条件状态
+  分支改写、多候选状态类选择；验证 0 副作用丢失 / 0 orphan；标准样本
+  仍以 auto 为准。
 - 已知限制：条件状态赋值、多状态联合分发、跨函数 CFF、超大函数超时等，
   详见 `readme.md` 第 10 节。
