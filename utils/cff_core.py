@@ -343,35 +343,8 @@ def find_state_classes(
         return []
     const_values, var_by_id = _collect_const_value_sets(mlil)
 
-    classes: List[StateClass] = []
-
-    # 路径 1：直连
-    for vid in sorted(
-        cmp_ids, key=lambda x: -len(const_values.get(x, set()))
-    ):
-        values = const_values.get(vid, set())
-        if len(values) < 2:
-            continue
-        if require_cff_heuristic and not _looks_like_cff_values(values):
-            continue
-        primary = var_by_id.get(vid)
-        if primary is None:
-            continue
-        classes.append(
-            StateClass(
-                primary=primary,
-                vars=frozenset({primary}),
-                var_ids=frozenset({vid}),
-                assigned_values=frozenset(values),
-                unique_counts={vid: len(values)},
-            )
-        )
-
-    if classes:
-        classes.sort(key=lambda sc: -len(sc.assigned_values))
-        return classes[:limit]
-
-    # 路径 2：alias 类
+    # 变量拷贝图：直连候选也先按拷贝连通分量归并，避免 BN 拆出的
+    # x8_168 / x8_304 这类 SSA alias 被当成独立状态类（多候选爆炸）。
     uf = _UnionFind()
     for instr in mlil.instructions:
         if not isinstance(instr, MediumLevelILSetVar):
@@ -387,6 +360,53 @@ def find_state_classes(
     for vid in var_by_id:
         comp_vars.setdefault(uf.find(vid), []).append(vid)
 
+    classes: List[StateClass] = []
+
+    # 路径 1：直连候选按连通分量归并
+    direct_roots: Dict[int, Set[int]] = {}
+    for vid in cmp_ids:
+        values = const_values.get(vid, set())
+        if len(values) >= 2:
+            direct_roots.setdefault(uf.find(vid), set()).add(vid)
+    for root, member_ids in direct_roots.items():
+        ids = comp_vars.get(root, [])
+        union_values: Set[int] = set()
+        counts: Dict[int, int] = {}
+        for vid in ids:
+            vs = const_values.get(vid, set())
+            if vs:
+                counts[vid] = len(vs)
+            union_values.update(vs)
+        if len(union_values) < 2:
+            continue
+        if require_cff_heuristic and not _looks_like_cff_values(union_values):
+            continue
+        primary_id = max(counts, key=lambda k: counts[k]) if counts else next(
+            iter(member_ids)
+        )
+        primary = var_by_id.get(primary_id)
+        if primary is None:
+            continue
+        state_vars: Set[Variable] = set()
+        for vid in ids:
+            var = var_by_id.get(vid)
+            if var is not None:
+                state_vars.add(var)
+        classes.append(
+            StateClass(
+                primary=primary,
+                vars=frozenset(state_vars),
+                var_ids=frozenset(ids),
+                assigned_values=frozenset(union_values),
+                unique_counts=counts,
+            )
+        )
+
+    if classes:
+        classes.sort(key=lambda sc: -len(sc.assigned_values))
+        return classes[:limit]
+
+    # 路径 2：alias 类（复用上面的 uf / comp_vars）
     seen_roots: Set[int] = set()
     candidates: List[Tuple[int, int, List[int]]] = []
     for cmp_id in cmp_ids:

@@ -1,5 +1,6 @@
-"""回归测试 driver: 跑 workflow_patch_mlil_auto 在样本集上，输出 JSON +
-人类可读总结，并与 baseline.json 对比检测回归。
+"""回归测试 driver: 按模式跑 MikuCffHelper 工作流在样本集上，输出 JSON +
+人类可读总结，并与 baseline 对比检测回归。默认 auto；可用 --mode general
+等切换实验路径。
 
 使用:
     # 跑全部样本，更新 baseline.json (慎用！只在确认改进无误后跑)
@@ -36,6 +37,13 @@ SAMPLE_DIR = Path(os.environ.get(
     "SAMPLE_DIR", str(REPO_ROOT / "example")
 ))
 BASELINE_PATH = REPO_ROOT / "tools" / "baseline.json"
+
+MODES = {
+    "auto": ("MikuCffHelper_workflow", "analysis.plugins.workflow_patch_mlil_auto"),
+    "general": ("MikuCffHelper_general_workflow", "analysis.plugins.workflow_patch_mlil_general"),
+    "switch": ("MikuCffHelper_workflow", "analysis.plugins.workflow_patch_mlil_switch"),
+    "deflate": ("MikuCffHelper_workflow", "analysis.plugins.workflow_patch_mlil"),
+}
 
 # 默认样本：3 个 .so 各跑前 N 个 CFF 函数
 DEFAULT_TARGETS = [
@@ -137,6 +145,7 @@ def _collect_hlil_side_effects(func):
     rets: set = set()
 
     def visitor(expr):
+        nonlocal stores, rets
         if not isinstance(expr, HighLevelILInstruction):
             return
         if expr.operation in call_ops:
@@ -169,33 +178,101 @@ def _collect_hlil_side_effects(func):
     return {"calls": calls, "stores": stores, "rets": rets}
 
 
+def _collect_hlil_side_effects_semantic(func):
+    """general 模式用的地址无关副作用计数。
+
+    call 按 callee 地址计数；store / ret 按 op 计数。跳转重写会移动指令
+    地址，(addr) 集合比对会假阳性。
+    """
+    from collections import Counter
+
+    empty = {"calls": Counter(), "stores": 0, "rets": 0}
+    if func.hlil is None:
+        return empty
+    try:
+        from binaryninja import HighLevelILOperation, HighLevelILInstruction
+    except ImportError:
+        return empty
+    call_ops = {
+        HighLevelILOperation.HLIL_CALL,
+        HighLevelILOperation.HLIL_CALL_SSA,
+        HighLevelILOperation.HLIL_TAILCALL,
+    }
+    calls = Counter()
+    stores = 0
+    rets = 0
+
+    def visitor(expr):
+        nonlocal stores, rets
+        if not isinstance(expr, HighLevelILInstruction):
+            return
+        if expr.operation in call_ops:
+            target = None
+            try:
+                d = expr.dest
+                if hasattr(d, "constant"):
+                    target = d.constant
+            except Exception:
+                pass
+            calls[target] += 1
+        elif expr.operation == HighLevelILOperation.HLIL_ASSIGN:
+            try:
+                dest = expr.dest
+                if dest is not None and dest.operation in (
+                    HighLevelILOperation.HLIL_DEREF,
+                    HighLevelILOperation.HLIL_ARRAY_INDEX,
+                ):
+                    stores += 1
+            except Exception:
+                pass
+        elif expr.operation in (
+            HighLevelILOperation.HLIL_RET,
+            HighLevelILOperation.HLIL_NORET,
+        ):
+            rets += 1
+
+    for instr in func.hlil.instructions:
+        try:
+            list(instr.traverse(visitor))
+        except Exception:
+            continue
+    return {"calls": calls, "stores": stores, "rets": rets}
+
+
 # 兼容性 alias：原 _collect_hlil_calls 仍然可用
 def _collect_hlil_calls(func):
     return _collect_hlil_side_effects(func)["calls"]
 
 
-def test_func(bv, addr):
+def test_func(bv, addr, mode="auto"):
     import binaryninja as bn
     from plugins.MikuCffHelper.passes.mid.deflatHardPass import (
         _collect_side_effect_signatures,
+        _collect_side_effect_signatures_semantic,
     )
     func = bv.get_function_at(addr)
     if not func:
         return None
+    semantic = mode == "general"
     before = len(list(func.mlil.basic_blocks))
-    se_before = _collect_side_effect_signatures(func.mlil)
-    # HLIL 层副作用快照 (workflow 尚未启用，是 BN 默认分析的 baseline HLIL)
-    hlil_se_before = _collect_hlil_side_effects(func)
+    if semantic:
+        se_before = _collect_side_effect_signatures_semantic(func.mlil)
+        hlil_se_before = _collect_hlil_side_effects_semantic(func)
+    else:
+        se_before = _collect_side_effect_signatures(func.mlil)
+        # HLIL 层副作用快照 (workflow 尚未启用，是 BN 默认分析的 baseline HLIL)
+        hlil_se_before = _collect_hlil_side_effects(func)
     hlil_calls_before = hlil_se_before["calls"]
     hlil_stores_before = hlil_se_before["stores"]
     hlil_rets_before = hlil_se_before["rets"]
 
+    workflow_name, activity = MODES[mode]
     settings = bn.Settings()
     settings.set_string(
-        "analysis.workflows.functionWorkflow", "MikuCffHelper_workflow", func
+        "analysis.workflows.functionWorkflow", workflow_name, func
     )
-    wf = bn.Workflow("MikuCffHelper_workflow", object_handle=func.handle)
-    wf._machine.override_set("analysis.plugins.workflow_patch_mlil_auto", True)
+    wf = bn.Workflow(workflow_name, object_handle=func.handle)
+    wf._machine.override_set(activity, True)
     t0 = time.time()
     bv.reanalyze()
     bv.update_analysis_and_wait()
@@ -212,14 +289,33 @@ def test_func(bv, addr):
                 has_switch = True
             if "jump(0x" in s:
                 has_orphan = True
-    se_after = (
-        _collect_side_effect_signatures(func.mlil) if func.mlil else set()
-    )
-    lost = se_before - se_after
-    hlil_se_after = _collect_hlil_side_effects(func)
-    hlil_calls_lost = hlil_calls_before - hlil_se_after["calls"]
-    hlil_stores_lost = hlil_stores_before - hlil_se_after["stores"]
-    hlil_rets_lost = hlil_rets_before - hlil_se_after["rets"]
+    if semantic:
+        se_after = (
+            _collect_side_effect_signatures_semantic(func.mlil)
+            if func.mlil else {}
+        )
+        lost = sum(max(c - se_after.get(k, 0), 0) for k, c in se_before.items())
+        hlil_se_after = _collect_hlil_side_effects_semantic(func)
+        if hasattr(hlil_calls_before, "items"):
+            hlil_calls_lost = sum(
+                max(c - hlil_se_after["calls"].get(k, 0), 0)
+                for k, c in hlil_calls_before.items()
+            )
+        else:
+            hlil_calls_lost = max(
+                0, hlil_calls_before - hlil_se_after["calls"]
+            )
+        hlil_stores_lost = max(0, hlil_stores_before - hlil_se_after["stores"])
+        hlil_rets_lost = max(0, hlil_rets_before - hlil_se_after["rets"])
+    else:
+        se_after = (
+            _collect_side_effect_signatures(func.mlil) if func.mlil else set()
+        )
+        lost = len(se_before - se_after)
+        hlil_se_after = _collect_hlil_side_effects(func)
+        hlil_calls_lost = len(hlil_calls_before - hlil_se_after["calls"])
+        hlil_stores_lost = len(hlil_stores_before - hlil_se_after["stores"])
+        hlil_rets_lost = len(hlil_rets_before - hlil_se_after["rets"])
     return {
         "blocks_before": before,
         "blocks_after": after,
@@ -227,23 +323,37 @@ def test_func(bv, addr):
         "time": round(t1 - t0, 2),
         "switch": has_switch,
         "orphan": has_orphan,
-        "se_lost": len(lost),
+        "se_lost": lost,
         # 关键的等价性指标：HLIL 层副作用不能丢
-        "hlil_calls_before": len(hlil_calls_before),
-        "hlil_calls_after": len(hlil_se_after["calls"]),
-        "hlil_calls_lost": len(hlil_calls_lost),
-        "hlil_stores_before": len(hlil_stores_before),
-        "hlil_stores_after": len(hlil_se_after["stores"]),
-        "hlil_stores_lost": len(hlil_stores_lost),
-        "hlil_rets_before": len(hlil_rets_before),
-        "hlil_rets_after": len(hlil_se_after["rets"]),
-        "hlil_rets_lost": len(hlil_rets_lost),
+        "hlil_calls_before": (
+            sum(hlil_calls_before.values())
+            if semantic else len(hlil_calls_before)
+        ),
+        "hlil_calls_after": (
+            sum(hlil_se_after["calls"].values())
+            if semantic else len(hlil_se_after["calls"])
+        ),
+        "hlil_calls_lost": hlil_calls_lost,
+        "hlil_stores_before": (
+            hlil_stores_before if semantic else len(hlil_stores_before)
+        ),
+        "hlil_stores_after": (
+            hlil_se_after["stores"] if semantic else len(hlil_se_after["stores"])
+        ),
+        "hlil_stores_lost": hlil_stores_lost,
+        "hlil_rets_before": (
+            hlil_rets_before if semantic else len(hlil_rets_before)
+        ),
+        "hlil_rets_after": (
+            hlil_se_after["rets"] if semantic else len(hlil_se_after["rets"])
+        ),
+        "hlil_rets_lost": hlil_rets_lost,
         # deflated = no switch but block reduction ≥ 30%
         "deflated": (not has_switch) and (after < before * 0.7),
     }
 
 
-def run_binary(path, max_count, only_addr=None):
+def run_binary(path, max_count, only_addr=None, mode="auto"):
     import binaryninja as bn
     print(f"[load] {path.name}", flush=True)
     bv = bn.load(str(path), update_analysis=True)
@@ -261,7 +371,7 @@ def run_binary(path, max_count, only_addr=None):
     out = {"binary": path.name, "results": {}}
     for c in cands:
         try:
-            r = test_func(bv, c["addr"])
+            r = test_func(bv, c["addr"], mode=mode)
             if r is None:
                 continue
             r["name"] = c["name"]
@@ -403,9 +513,16 @@ def main():
     ap.add_argument("--only", metavar="BIN", help="只跑指定 binary 文件名")
     ap.add_argument("--bin", metavar="BIN", help="搭配 --func 用：指定 binary")
     ap.add_argument("--func", metavar="ADDR", help="只跑指定地址 (hex)")
-    ap.add_argument("--baseline", default=str(BASELINE_PATH),
-                    help="baseline.json 路径")
+    ap.add_argument("--mode", choices=list(MODES.keys()), default="auto",
+                    help="要回归的工作流模式 (默认 auto)")
+    ap.add_argument("--baseline", default=None,
+                    help="baseline 路径；默认 auto 用 baseline.json，其它模式用 baseline_<mode>.json")
     args = ap.parse_args()
+    if args.baseline is None:
+        if args.mode == "auto":
+            args.baseline = str(BASELINE_PATH)
+        else:
+            args.baseline = str(REPO_ROOT / "tools" / f"baseline_{args.mode}.json")
 
     setup_path()
 
@@ -419,7 +536,7 @@ def main():
             print(f"sample 不存在: {path}", file=sys.stderr)
             sys.exit(2)
         addr = int(args.func, 16)
-        report.append(run_binary(path, max_count=1, only_addr=addr))
+        report.append(run_binary(path, max_count=1, only_addr=addr, mode=args.mode))
     else:
         for name, max_count in DEFAULT_TARGETS:
             if args.only and args.only != name:
@@ -428,7 +545,7 @@ def main():
             if not path.exists():
                 print(f"[skip] {name} not found at {SAMPLE_DIR}", flush=True)
                 continue
-            report.append(run_binary(path, max_count))
+            report.append(run_binary(path, max_count, mode=args.mode))
 
     summary = summarize(report)
     print("\n=== 汇总 ===")

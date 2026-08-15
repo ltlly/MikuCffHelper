@@ -38,6 +38,10 @@ python tools/regression_test.py --only arm64-v8a.so
 
 # 只跑某个函数 (debug 用)
 python tools/regression_test.py --func 0x4259f4 --bin arm64-v8a.so
+
+# general 实验路径的语义等价回归（默认 baseline_general.json）
+python tools/regression_test.py --mode general
+python tools/regression_test.py --mode general --update-baseline
 ```
 
 ### baseline.json 维护

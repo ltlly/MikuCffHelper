@@ -69,18 +69,9 @@ def register_workflow():
         Activity(configuration_mlil_switch, action=workflow_patch_mlil_switch)
     )
 
-    # 实验性：新框架通用路径（linear detect + alias-aware state + P3）
-    configuration_mlil_general = json.dumps(
-        {
-            "name": "analysis.plugins.workflow_patch_mlil_general",
-            "description": "General CFF: linear detect + alias-aware state + preamble-preserving switch",
-            "eligibility": {"auto": {"default": False}},
-        }
-    )
-    cff_workflow.register_activity(
-        Activity(configuration_mlil_general, action=workflow_patch_mlil_general)
-    )
-
+    # 实验性：新框架通用路径使用独立 workflow，避免主 workflow 的 LLIL
+    # copy/split 预处理把 general 的输入块数撑大（实测 sub_407368 31→90）。
+    # general workflow 只注册 MLIL activity，不插入 workflow_patch_llil。
     configuration_hlil = json.dumps(
         {
             "name": "analysis.plugins.workflow_patch_hlil",
@@ -92,6 +83,34 @@ def register_workflow():
         Activity(configuration_hlil, action=workflow_patch_hlil)
     )
 
+    configuration_mlil_general = json.dumps(
+        {
+            "name": "analysis.plugins.workflow_patch_mlil_general",
+            "description": "General CFF: linear detect + alias-aware state + preamble-preserving switch",
+            "eligibility": {"auto": {"default": True}},
+        }
+    )
+
+    general_workflow = Workflow("core.function.metaAnalysis").clone(
+        "MikuCffHelper_general_workflow"
+    )
+    general_workflow.register_activity(
+        Activity(configuration_mlil_general, action=workflow_patch_mlil_general)
+    )
+    general_workflow.register_activity(
+        Activity(configuration_hlil, action=workflow_patch_hlil)
+    )
+    general_workflow.insert(
+        "core.function.analyzeConditionalNoReturns",
+        ["analysis.plugins.workflow_patch_mlil_general"],
+    )
+    general_workflow.insert(
+        "core.function.runCompletionCallbacks",
+        ["analysis.plugins.workflow_patch_hlil"],
+    )
+    general_workflow.register()
+    log_info(f"Registered workflow: {general_workflow.name}")
+
     cff_workflow.insert(
         "core.function.generateMediumLevelIL", ["analysis.plugins.workflow_patch_llil"]
     )
@@ -101,7 +120,6 @@ def register_workflow():
             "analysis.plugins.workflow_patch_mlil_auto",
             "analysis.plugins.workflow_patch_mlil",
             "analysis.plugins.workflow_patch_mlil_switch",
-            "analysis.plugins.workflow_patch_mlil_general",
         ],
     )
     cff_workflow.insert(

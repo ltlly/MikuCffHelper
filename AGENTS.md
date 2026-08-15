@@ -87,10 +87,11 @@ AGENTS.md                    # 本文档（开发/AI 指南）
 
 现有验证手段：
 
-- pass 内嵌 MLIL 副作用集合比对。
+- pass 内嵌 MLIL 副作用集合比对；general 模式使用地址无关的语义签名
+  （call 按 callee 计数，store/ret 按 op 计数），因为重写会移动指令地址。
 - `tools/regression_test.py` 在 HLIL 层检查 call / store / ret 是否丢失、
-  是否出现 orphan jump。
-- 修改后必须跑回归测试；确有改进时再更新 `tools/baseline.json`。
+  是否出现 orphan jump；general 模式默认与 `baseline_general.json` 对比。
+- 修改后必须跑回归测试；确有改进时再更新对应 baseline。
 
 ## 4. 开发 / 修改指南
 
@@ -141,8 +142,9 @@ python tools/regression_test.py --update-baseline
   默认加入 pipeline。
 - 修改 `mikuWorkflow.py` 时注意 `workflow_patch_mlil_auto` 的 B→A fallback
   顺序：B 成功后不要再跑 A，否则可能把 guard block 误当 dispatcher。
-- `workflow_patch_mlil_general` 是实验入口，eligibility 默认 false，**不要**
-  未经验证就把它加入 auto pipeline；它面向 alias-only 状态变量 / flag 条件
+- `workflow_patch_mlil_general` 是实验入口，注册在独立 workflow
+  `MikuCffHelper_general_workflow`（不跑 LLIL copy/split）；**不要**未经
+  验证就把它加入 auto pipeline。它面向 alias-only 状态变量 / flag 条件
   变种，标准 OLLVM 样本仍应优先走 B/A。
 - BN 版本相关 API 兼容问题放在 `fix_binaryninja_api/` 中处理，不要在核心
   pass 里堆版本判断。
@@ -165,11 +167,14 @@ python tools/regression_test.py --update-baseline
   - 7 个被进一步还原为纯 if/while/goto 链；
   - 2 个未显著变换（`sub_42a21c`、`sub_45985c`）；
   - 总变换率 37/39，0 副作用丢失，0 orphan jump。
-- 实验入口 `workflow_patch_mlil_general`（路径 C）默认关闭；当前已支持
+- general 回归基线 `tools/baseline_general.json`：39 函数，31/39 变换，
+  0 orphan、0 语义副作用丢失；总体弱于 auto，但 B/A 失败的函数上有收益。
+- 实验入口 `workflow_patch_mlil_general`（路径 C，独立 workflow）默认关闭；
+  当前已支持
   alias-only 状态变量 + flag 条件变种、equality-hash / interval-bisect
   批量分裂、安全 tail-define 短路（含 dispatcher 前导重放）、条件状态
-  分支改写、多候选状态类选择、N 状态元组 P3（两状态 64-bit 编码，
-  N>2 嵌套 jump_to）；验证 0 副作用丢失 / 0 orphan；标准样本仍以
-  auto 为准。
+  分支改写、多候选状态类选择、两状态元组 P3（64-bit 编码）；N>2 嵌套
+  jump_to 代码保留但默认关闭（嵌套 CFF 会误并内层状态机）；验证 0
+  副作用丢失 / 0 orphan；标准样本仍以 auto 为准。
 - 已知限制：条件状态赋值、多状态联合分发、跨函数 CFF、超大函数超时等，
   详见 `readme.md` 第 10 节。

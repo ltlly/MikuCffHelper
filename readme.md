@@ -49,9 +49,12 @@ OLLVM `-fla` 把函数变成「dispatcher + 真实块」状态机。本插件用
 | `workflow_patch_mlil_auto` | **首选**：先 B，B 不动则 A 兜底 | 不确定函数特征时直接选这个 |
 | `workflow_patch_mlil_switch` | 只跑 B (synthesize_switch) | 只想要 switch 形态、能接受部分函数无变换 |
 | `workflow_patch_mlil` | 只跑 A (deflate_hard) | 函数已知不适合 switch、要最大压缩块数 |
-| `workflow_patch_mlil_general` | 实验性 general：新框架 (见 §6.4) | alias-only 状态变量 / flag 条件等 B/A 无法识别的变种 |
+| `workflow_patch_mlil_general` | 实验性 general：新框架 (见 §6.4)，位于独立 workflow `MikuCffHelper_general_workflow` | alias-only 状态变量 / flag 条件等 B/A 无法识别的变种；建议 CLI `--mode general` |
 
 启用后 BN 会自动重分析。HLIL 视图刷新后能看到 switch 或 goto 链形态。
+general 模式因不经过 LLIL 公共块复制预处理，使用独立 workflow；推荐用
+`deflate_cli.py --mode general` 或嵌入式脚本指定
+`MikuCffHelper_general_workflow`。
 
 ### 3.2 命令行 (推荐用于批量 / 脚本化)
 
@@ -100,6 +103,19 @@ bv.update_analysis_and_wait()
 # 输出去混淆后的 HLIL
 for instr in func.hlil.instructions:
     print(instr)
+```
+
+general 模式使用独立 workflow：
+
+```python
+settings.set_string(
+    "analysis.workflows.functionWorkflow",
+    "MikuCffHelper_general_workflow", func
+)
+wf = bn.Workflow("MikuCffHelper_general_workflow", object_handle=func.handle)
+wf._machine.override_set("analysis.plugins.workflow_patch_mlil_general", True)
+bv.reanalyze()
+bv.update_analysis_and_wait()
 ```
 
 ## 4. 整体 Pipeline
@@ -334,7 +350,9 @@ g = build_real_block_transition_graph(func.mlil)
 ### 6.4 路径 general (新框架原型，实验性)
 
 针对 §10 已知限制里的 alias-only 状态变量、布尔 flag 条件、dispatcher
-前导数据拷贝等变种，新框架 `pass_general_cff` 做四件事：
+前导数据拷贝等变种，新框架 `pass_general_cff` 做以下事情。它运行在独立
+workflow `MikuCffHelper_general_workflow` 中，不经过主 workflow 的 LLIL
+公共块复制预处理：
 
 1. **线性检测**：`utils/cff_core.DominatorInfo` 用 DFS interval 把
    `d in bb.dominators` 的 O(N) 列表成员判断替换为 O(1)，Blazytko 检测
@@ -358,24 +376,25 @@ g = build_real_block_transition_graph(func.mlil)
    goto 链收集 `s=A; ...; goto dispatcher_entry` 的无副作用 SetVar 序列，
    复制进 mini-block 后改写为 `if (c) goto mini_A else goto mini_B`；
    链上任何分支 / 副作用 / 未解析值都会让该分支保持原样。
-8. **多候选状态类 + N 状态元组**：`find_state_classes` 返回全部候选状态类；
-   常规候选之外，general pass 用宽松启发式补充 secondary 候选，尝试
-   N=2..4 的联合解析（组合总数 ≤4096）。两状态用 64-bit 编码
-   `jump_to((v0 << 32) | v1)`，N>2 用逐状态嵌套 `jump_to` guard；
-   联合解析优于单候选时启用。
+8. **多候选状态类 + 元组分发**：`find_state_classes` 返回全部候选状态类；
+   常规候选之外，general pass 用宽松启发式补充 secondary 候选。默认只做
+   两状态联合解析（64-bit 编码 `jump_to((v0 << 32) | v1)`，组合 ≤4096）；
+   N>2 的嵌套 jump_to 代码保留，但默认不选择——嵌套 CFF 会把内层状态机
+   误并入 tuple 导致块数爆炸。
 
 实测（手动冒烟）：
 
 | 样本 | 效果 |
 |------|------|
-| `example/cff-arm64-v8a.elf` target_function | auto 模式 31→41 无 switch；general 模式 31→40 且 HLIL 渲染为 `switch`（条件状态分支 + tail-define 短路均已生效），0 MLIL/HLIL 副作用丢失、0 orphan |
+| `example/cff-arm64-v8a.elf` target_function | auto 模式 31→41 无 switch；general 模式 31→28 且 HLIL 渲染为 `switch`（条件状态分支 + tail-define 短路均已生效），0 MLIL/HLIL 副作用丢失、0 orphan |
 | `libmsaoaidsec.so` 标准 CFF | general 能输出 switch，case 体比此前干净；块数压缩仍不如 auto，继续向 auto 收敛 |
-| `libmsaoaidsec.so` sub_425b30（多状态） | tuple 模式 36→41，`switch (x19 << 32 \| arg7)` 联合分发，0 副作用丢失 / 0 orphan |
+| `libmsaoaidsec.so` sub_425b30（多状态） | general 36→37 switch；本样本在安全过滤下选择单状态模式，tuple 代码路径保留但未启用，0 副作用丢失 / 0 orphan |
 
-**已知 trade-off**：general 是独立实验入口，默认不进入 auto，不影响既有
-39 函数基线。equality-hash / interval-bisect、安全 state 短路、条件状态
-分支改写、多候选状态类与两状态元组 P3 已落地；下一步是 dispatcher 死代码
-清理与更多元组（>2 状态）扩展，逐步向 auto 收敛。
+**已知 trade-off**：general 是独立 workflow，默认不进入 auto，不影响既有
+39 函数 auto 基线。general 基线（`baseline_general.json`）同样覆盖 39
+函数：31/39 变换、0 orphan、0 语义副作用丢失；总体不如 auto 的 37/39，
+但在 sub_42a21c（97→77 vs auto 97→165）、sub_45985c 等 B/A 失败样本上
+更好。下一步是 dispatcher 死代码清理与有条件的 auto fallback。
 
 ## 7. 路径 auto (B 优先 / A 兜底)
 
@@ -413,6 +432,11 @@ python tools/regression_test.py --only arm64-v8a.so
 
 # 单函数调试
 python tools/regression_test.py --func 0x4259f4 --bin arm64-v8a.so
+
+# general 实验路径（独立 workflow，语义副作用签名，默认 baseline_general.json）
+# general 会移动 call/store 指令地址，所以用「callee / op 计数」而不是地址集合比对
+python tools/regression_test.py --mode general
+python tools/regression_test.py --mode general --update-baseline
 ```
 
 详见 `tools/README.md`。

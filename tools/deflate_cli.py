@@ -37,10 +37,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 MODES = {
-    "auto": "analysis.plugins.workflow_patch_mlil_auto",
-    "switch": "analysis.plugins.workflow_patch_mlil_switch",
-    "deflate": "analysis.plugins.workflow_patch_mlil",
-    "general": "analysis.plugins.workflow_patch_mlil_general",
+    "auto": ("MikuCffHelper_workflow", "analysis.plugins.workflow_patch_mlil_auto"),
+    "switch": ("MikuCffHelper_workflow", "analysis.plugins.workflow_patch_mlil_switch"),
+    "deflate": ("MikuCffHelper_workflow", "analysis.plugins.workflow_patch_mlil"),
+    "general": ("MikuCffHelper_general_workflow", "analysis.plugins.workflow_patch_mlil_general"),
 }
 
 
@@ -93,12 +93,12 @@ def hlil_text(func):
 def run_workflow(bv, func, mode_key):
     """对函数启用指定 activity，触发重分析并等待"""
     import binaryninja as bn
-    activity = MODES[mode_key]
+    workflow_name, activity = MODES[mode_key]
     settings = bn.Settings()
     settings.set_string(
-        "analysis.workflows.functionWorkflow", "MikuCffHelper_workflow", func
+        "analysis.workflows.functionWorkflow", workflow_name, func
     )
-    wf = bn.Workflow("MikuCffHelper_workflow", object_handle=func.handle)
+    wf = bn.Workflow(workflow_name, object_handle=func.handle)
     wf._machine.override_set(activity, True)
     bv.reanalyze()
     bv.update_analysis_and_wait()

@@ -47,9 +47,9 @@ from binaryninja import (
 )
 
 from .deflatHardPass import (
-    _collect_side_effect_signatures,
+    _collect_side_effect_signatures_semantic,
     _tarjan_scc,
-    _verify_no_side_effect_loss,
+    _verify_no_side_effect_loss_semantic,
 )
 from ...utils.cff_core import (
     EnvEvaluator,
@@ -313,6 +313,31 @@ def _partition_by_state_compare(
         [(t[2], t[3]) for t in true_part],
         [(t[2], t[3]) for t in false_part],
     )
+
+
+def _state_class_used_in_route(
+    mlil: MediumLevelILFunction,
+    route_starts: Set[int],
+    candidate: StateClass,
+) -> bool:
+    """候选状态类是否被当前 dispatcher 决策路由块实际比较。
+
+    嵌套 CFF 的内层状态变量只会出现在真实块里，不会出现在外层 route
+    decision blocks；用这个检查把它们从 tuple secondary 候选中排除。
+    """
+    for start in route_starts:
+        bb = mlil.get_basic_block_at(start)
+        if bb is None:
+            continue
+        for idx in range(bb.start, bb.end):
+            instr = mlil[idx]
+            if isinstance(instr, MediumLevelILIf):
+                if _is_state_comparison(instr.condition, candidate):
+                    return True
+            elif isinstance(instr, MediumLevelILSetVar):
+                if _is_state_comparison(instr.src, candidate):
+                    return True
+    return False
 
 
 def _resolve_dispatch_map(
@@ -749,15 +774,14 @@ def _install_tuple_guarded_jump_to(
             lbl = MediumLevelILLabel()
             lbl.operand = target_idx
             label_map[encoded] = lbl
-        if not fully_resolved:
-            for v0 in sorted(first.assigned_values):
-                for v1 in sorted(second.assigned_values):
-                    if (v0, v1) in resolved_keys:
-                        continue
-                    encoded = ((v0 & 0xFFFFFFFF) << 32) | (v1 & 0xFFFFFFFF)
-                    lbl = MediumLevelILLabel()
-                    lbl.operand = dispatcher_entry_start
-                    label_map[encoded] = lbl
+        for v0 in sorted(first.assigned_values):
+            for v1 in sorted(second.assigned_values):
+                if (v0, v1) in resolved_keys:
+                    continue
+                encoded = ((v0 & 0xFFFFFFFF) << 32) | (v1 & 0xFFFFFFFF)
+                lbl = MediumLevelILLabel()
+                lbl.operand = dispatcher_entry_start
+                label_map[encoded] = lbl
         if not label_map:
             return None
 
@@ -836,14 +860,13 @@ def _install_preamble_guarded_jump_to(
             lbl = MediumLevelILLabel()
             lbl.operand = target_idx
             label_map[value] = lbl
-        if not fully_resolved:
-            unresolved = (case_values | set(state_class.assigned_values)) - set(
-                transitions.keys()
-            )
-            for value in unresolved:
-                lbl = MediumLevelILLabel()
-                lbl.operand = dispatcher_entry_start
-                label_map[value] = lbl
+        unresolved = (case_values | set(state_class.assigned_values)) - set(
+            transitions.keys()
+        )
+        for value in unresolved:
+            lbl = MediumLevelILLabel()
+            lbl.operand = dispatcher_entry_start
+            label_map[value] = lbl
 
         if not label_map:
             return None
@@ -1182,7 +1205,7 @@ def pass_general_cff(analysis_context: AnalysisContext) -> bool:
 
     from .deflatHardPass import _SIDE_EFFECT_OPS
 
-    side_effects_before = _collect_side_effect_signatures(mlil)
+    side_effects_before = _collect_side_effect_signatures_semantic(mlil)
     fname = function.name
     deadline = time.time() + _TIME_BUDGET_SECONDS
 
@@ -1260,12 +1283,19 @@ def pass_general_cff(analysis_context: AnalysisContext) -> bool:
             extra_classes = find_state_classes(
                 mlil, dispatcher_entry, require_cff_heuristic=False, limit=4
             )
+        # 安全过滤：secondary 必须真实出现在 primary 的 dispatcher 决策路由
+        # 块中。嵌套 CFF 的内层状态变量（如 i_1）只出现在真实块，把它并进
+        # tuple 会生成现实不存在的 (outer,inner) 组合，跳转后丢失副作用
+        # （sub_40831c 实测 lost call/store）。
         extra_pool = [
             c for c in extra_classes
             if c.primary.identifier not in state_class.var_ids
+            and _state_class_used_in_route(mlil, route_starts, c)
         ]
-        # 尝试 [primary]+1 到 [primary]+3 个 secondary
-        for width in range(1, min(3, len(extra_pool)) + 1):
+        # 先只尝试 [primary]+1 个 secondary（N>2 嵌套 guard 在嵌套 CFF 上
+        # 会把内层状态机误并入 tuple，导致块数爆炸；保留 ntuple 代码但
+        # 不在默认选择中使用）
+        for width in range(1, min(1, len(extra_pool)) + 1):
             tuple_classes = [state_class] + extra_pool[:width]
             combo_count = 1
             for cls in tuple_classes:
@@ -1390,9 +1420,8 @@ def pass_general_cff(analysis_context: AnalysisContext) -> bool:
 
     mlil.finalize()
     mlil.generate_ssa_form()
-
-    side_effects_after = _collect_side_effect_signatures(mlil)
-    _verify_no_side_effect_loss(side_effects_before, side_effects_after, fname)
+    side_effects_after = _collect_side_effect_signatures_semantic(mlil)
+    _verify_no_side_effect_loss_semantic(side_effects_before, side_effects_after, fname)
     log_info(
         f"[general] {fname}: P3 installed guard=0x{guard_label_op:x} "
         f"mode={log_tag} transitions={resolved_count} "

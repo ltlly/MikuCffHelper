@@ -364,6 +364,65 @@ def _collect_side_effect_signatures(mlil: MediumLevelILFunction) -> Set[Tuple[in
     return sigs
 
 
+def _collect_side_effect_signatures_semantic(
+    mlil: MediumLevelILFunction,
+) -> "Counter":
+    """按语义收集副作用签名（地址无关的 multiset）。
+
+    pass_clear / jump_to 重写会移动指令地址，按 (op,address) 比对会把
+    「同一条 call/store 被复制或搬移」误报为丢失。这里：
+    - call 类操作保留 callee 常量地址；
+    - store / ret / trap 等只计数 op。
+    """
+    from collections import Counter
+
+    sigs: Counter = Counter()
+
+    def visitor(operand_name, expr, type_name, parent):
+        if not isinstance(expr, MediumLevelILInstruction):
+            return
+        if expr.operation not in _SIDE_EFFECT_OPS:
+            return
+        target = None
+        try:
+            dest = getattr(expr, "dest", None)
+            if dest is not None and hasattr(dest, "constant"):
+                target = dest.constant
+        except Exception:
+            pass
+        key = (int(expr.operation), target) if target is not None else (int(expr.operation),)
+        sigs[key] += 1
+
+    for top in mlil.instructions:
+        try:
+            list(top.traverse(visitor))
+        except Exception:
+            if top.operation in _SIDE_EFFECT_OPS:
+                sigs[(int(top.operation),)] += 1
+    return sigs
+
+
+def _verify_no_side_effect_loss_semantic(
+    before,
+    after,
+    function_name: str,
+) -> bool:
+    """语义签名 multiset 比对：after 中每类副作用数量必须 ≥ before。"""
+    missing = []
+    for key, count in before.items():
+        if after.get(key, 0) < count:
+            missing.append((key, count, after.get(key, 0)))
+    if not missing:
+        return True
+    log_error(
+        f"[deflate verifier] Function {function_name}: semantic side-effect "
+        f"loss {len(missing)} kinds!"
+    )
+    for key, b, a in missing[:10]:
+        log_error(f"  lost: {key} before={b} after={a}")
+    return False
+
+
 def _verify_no_side_effect_loss(
     before: Set[Tuple[int, int]],
     after: Set[Tuple[int, int]],
