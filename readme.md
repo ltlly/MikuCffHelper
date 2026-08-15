@@ -61,7 +61,7 @@ general 模式因不经过 LLIL 公共块复制预处理，使用独立 workflow
 `tools/deflate_cli.py` 不需要打开 BN UI，直接对二进制跑工作流并输出 HLIL：
 
 ```bash
-# 单函数 (auto 模式，B 优先 / A 兜底)
+# 单函数 (默认 auto-select，按特征自动选 auto/general)
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4
 
 # 二进制内所有 CFF 候选 (按 Blazytko 启发式自动找)

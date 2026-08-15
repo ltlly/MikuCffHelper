@@ -2,7 +2,7 @@
 不需要打开 Binary Ninja UI。
 
 用法示例:
-    # 单函数 (auto 模式，B 优先 / A 兜底)
+    # 单函数 (默认 auto-select，按特征选 auto/general)
     python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4
 
     # 二进制内所有 CFF 候选函数 (按启发式自动找)
@@ -18,7 +18,8 @@
     python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --before
 
 模式:
-    auto    - workflow_patch_mlil_auto  (推荐)：先 B (synthesize_switch)，
+    auto-select - (默认，推荐实验)：变换前按便宜特征自动选 auto / general
+    auto    - workflow_patch_mlil_auto：先 B (synthesize_switch)，
               失败 fallback A (deflate_hard)
     switch  - workflow_patch_mlil_switch：只跑 B
     deflate - workflow_patch_mlil：只跑 A
@@ -148,8 +149,8 @@ def main():
         help="处理所有 CFF 候选函数 (按 Blazytko 启发式自动找)",
     )
     ap.add_argument(
-        "--mode", choices=list(MODES.keys()) + ["auto-select"], default="auto",
-        help="工作流模式 (默认 auto)",
+        "--mode", choices=list(MODES.keys()) + ["auto-select"], default="auto-select",
+        help="工作流模式 (默认 auto-select)",
     )
     ap.add_argument(
         "--out", metavar="FILE",
