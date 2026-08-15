@@ -165,8 +165,9 @@ python tools/regression_test.py --update-baseline
   - 7 个被进一步还原为纯 if/while/goto 链；
   - 2 个未显著变换（`sub_42a21c`、`sub_45985c`）；
   - 总变换率 37/39，0 副作用丢失，0 orphan jump。
-- 实验入口 `workflow_patch_mlil_general`（路径 C）默认关闭；当前已验证
-  `example/cff-arm64-v8a.elf` 的 alias-only 状态变量 + flag 条件变种能输出
-  switch 且 0 副作用丢失 / 0 orphan；标准样本仍以 auto 为准。
+- 实验入口 `workflow_patch_mlil_general`（路径 C）默认关闭；当前已支持
+  alias-only 状态变量 + flag 条件变种、equality-hash / interval-bisect
+  批量分裂、安全 tail-define 短路（含 dispatcher 前导重放），验证 0
+  副作用丢失 / 0 orphan；标准样本仍以 auto 为准。
 - 已知限制：条件状态赋值、多状态联合分发、跨函数 CFF、超大函数超时等，
   详见 `readme.md` 第 10 节。

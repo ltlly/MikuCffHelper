@@ -28,6 +28,7 @@
 """
 
 import time
+from bisect import bisect_left, bisect_right
 from typing import Dict, List, Optional, Set, Tuple
 
 from binaryninja import (
@@ -56,6 +57,7 @@ from ...utils.cff_core import (
     detect_flattening_candidate,
     find_state_class,
     mask,
+    to_signed,
 )
 from ...utils import log_info
 
@@ -171,6 +173,124 @@ def _classify_route_blocks(
     return route
 
 
+def _partition_by_state_compare(
+    cond: MediumLevelILInstruction,
+    entries: List[Tuple[int, Dict]],
+    state_class: StateClass,
+) -> Optional[Tuple[List[Tuple[int, Dict]], List[Tuple[int, Dict]]]]:
+    """把 entries 按 ``(state|alias) op const`` 快速分裂为 true/false。
+
+    - CMP_E/CMP_NE 用哈希表 O(m)；
+    - 有符号/无符号 range 比较把当前状态值排序后 bisect，O(m log m)。
+
+    无法识别为直接状态比较（例如 flag 变量、AND/OR 组合）时返回 None，
+    调用方回退到逐 entry 的 EnvEvaluator。
+    """
+    op = cond.operation
+    if not (hasattr(cond, "left") and hasattr(cond, "right")):
+        return None
+    left, right = cond.left, cond.right
+
+    state_var = None
+    const_expr = None
+    reversed_ = False
+    if isinstance(right, MediumLevelILConst):
+        src = getattr(getattr(left, "src", None), "identifier", None)
+        if src is not None and state_class.contains_id(src):
+            state_var = getattr(left, "src", None)
+            const_expr = right
+    elif isinstance(left, MediumLevelILConst):
+        src = getattr(getattr(right, "src", None), "identifier", None)
+        if src is not None and state_class.contains_id(src):
+            state_var = getattr(right, "src", None)
+            const_expr = left
+            reversed_ = True
+    if state_var is None or const_expr is None:
+        return None
+
+    c = const_expr.constant & mask(const_expr.size or state_var.type.width or 4)
+    # 归一到 value op const 方向
+    if reversed_:
+        rev = {
+            MediumLevelILOperation.MLIL_CMP_SLT: MediumLevelILOperation.MLIL_CMP_SGT,
+            MediumLevelILOperation.MLIL_CMP_SLE: MediumLevelILOperation.MLIL_CMP_SGE,
+            MediumLevelILOperation.MLIL_CMP_SGT: MediumLevelILOperation.MLIL_CMP_SLT,
+            MediumLevelILOperation.MLIL_CMP_SGE: MediumLevelILOperation.MLIL_CMP_SLE,
+            MediumLevelILOperation.MLIL_CMP_ULT: MediumLevelILOperation.MLIL_CMP_UGT,
+            MediumLevelILOperation.MLIL_CMP_ULE: MediumLevelILOperation.MLIL_CMP_UGE,
+            MediumLevelILOperation.MLIL_CMP_UGT: MediumLevelILOperation.MLIL_CMP_ULT,
+            MediumLevelILOperation.MLIL_CMP_UGE: MediumLevelILOperation.MLIL_CMP_ULE,
+        }
+        op = rev.get(op, op)
+
+    # 取每个 entry 的当前状态值；失败则整体回退逐值求值
+    keyed = []
+    for value, env in entries:
+        v = env.get(state_var)
+        if v is None:
+            return None
+        keyed.append((v & mask(state_var.type.width or 4), value, env))
+
+    if op == MediumLevelILOperation.MLIL_CMP_E:
+        by_key: Dict[int, List[Tuple[int, Dict]]] = {}
+        for key, value, env in keyed:
+            by_key.setdefault(key, []).append((value, env))
+        others = [(value, env) for key, value, env in keyed if key != c]
+        return (by_key.get(c, []), others)
+    if op == MediumLevelILOperation.MLIL_CMP_NE:
+        by_key = {}
+        for key, value, env in keyed:
+            by_key.setdefault(key, []).append((value, env))
+        others = [(value, env) for key, value, env in keyed if key != c]
+        return (others, by_key.get(c, []))
+
+    range_ops = {
+        MediumLevelILOperation.MLIL_CMP_ULT,
+        MediumLevelILOperation.MLIL_CMP_ULE,
+        MediumLevelILOperation.MLIL_CMP_UGT,
+        MediumLevelILOperation.MLIL_CMP_UGE,
+        MediumLevelILOperation.MLIL_CMP_SLT,
+        MediumLevelILOperation.MLIL_CMP_SLE,
+        MediumLevelILOperation.MLIL_CMP_SGT,
+        MediumLevelILOperation.MLIL_CMP_SGE,
+    }
+    if op not in range_ops:
+        return None
+
+    signed = op in {
+        MediumLevelILOperation.MLIL_CMP_SLT,
+        MediumLevelILOperation.MLIL_CMP_SLE,
+        MediumLevelILOperation.MLIL_CMP_SGT,
+        MediumLevelILOperation.MLIL_CMP_SGE,
+    }
+    width = state_var.type.width or 4
+    if signed:
+        keys = [(to_signed(k, width), i, value, env) for i, (k, value, env) in enumerate(keyed)]
+    else:
+        keys = [(k, i, value, env) for i, (k, value, env) in enumerate(keyed)]
+    keys.sort(key=lambda t: (t[0], t[1]))
+    sorted_keys = [t[0] for t in keys]
+    c_cmp = to_signed(c, width) if signed else c
+
+    if op in (MediumLevelILOperation.MLIL_CMP_SLE, MediumLevelILOperation.MLIL_CMP_ULE):
+        idx = bisect_right(sorted_keys, c_cmp)
+        true_part, false_part = keys[:idx], keys[idx:]
+    elif op in (MediumLevelILOperation.MLIL_CMP_SLT, MediumLevelILOperation.MLIL_CMP_ULT):
+        idx = bisect_left(sorted_keys, c_cmp)
+        true_part, false_part = keys[:idx], keys[idx:]
+    elif op in (MediumLevelILOperation.MLIL_CMP_SGT, MediumLevelILOperation.MLIL_CMP_UGT):
+        idx = bisect_right(sorted_keys, c_cmp)
+        true_part, false_part = keys[idx:], keys[:idx]
+    else:  # SGE / UGE
+        idx = bisect_left(sorted_keys, c_cmp)
+        true_part, false_part = keys[idx:], keys[:idx]
+
+    return (
+        [(t[2], t[3]) for t in true_part],
+        [(t[2], t[3]) for t in false_part],
+    )
+
+
 def _resolve_dispatch_map(
     mlil: MediumLevelILFunction,
     state_class: StateClass,
@@ -185,11 +305,12 @@ def _resolve_dispatch_map(
     - 同一个块对当前活跃的值集合只解释一次；
     - terminator 条件把活跃值按 true/false 分裂，各自继续；
     - 每条值路径受 `visited_by_value` 循环检测约束；
-    - 总步数 = Σ 每块活跃值数，比逐值模拟共享更多前缀，且受
-      _MAX_BATCH_STEPS 预算限制，超预算/无法求值 → unresolved 走原树兜底。
-
-    这离理想 O(U log K) 还差 equality-hash / interval-map 两个优化，但已经把
-    「每个 define 各自从头走 dispatcher」的结构性重复去掉了。
+    - 直接 state 比较用 `_partition_by_state_compare`：
+        * CMP_E/CMP_NE → hash 分裂，每块 O(m)；
+        * signed/unsigned range → 排序 + bisect，每块 O(m log m)；
+      flag / AND / OR 等复杂条件回退逐值求值；
+    - 总步数 = Σ 每块活跃值数，且受 _MAX_BATCH_STEPS 预算限制；
+      超预算/无法求值 → unresolved 走原树兜底。
     """
     transitions: Dict[int, int] = {}
     # 初始：一个状态值 = 一个环境，全部从 dispatcher 入口出发
@@ -242,13 +363,21 @@ def _resolve_dispatch_map(
                 next_groups.append((instr.dest, entries))
                 break
             if isinstance(instr, MediumLevelILIf):
-                true_entries: List[Tuple[int, Dict]] = []
-                false_entries: List[Tuple[int, Dict]] = []
-                for value, env in entries:
-                    branch = EnvEvaluator.eval_if(instr, env)
-                    if branch is None:
-                        continue
-                    (true_entries if branch else false_entries).append((value, env))
+                partition = _partition_by_state_compare(
+                    instr.condition, entries, state_class
+                )
+                if partition is None:
+                    true_entries = []
+                    false_entries = []
+                    for value, env in entries:
+                        branch = EnvEvaluator.eval_if(instr, env)
+                        if branch is None:
+                            continue
+                        (true_entries if branch else false_entries).append(
+                            (value, env)
+                        )
+                else:
+                    true_entries, false_entries = partition
                 if true_entries:
                     next_groups.append((instr.true, true_entries))
                 if false_entries:
@@ -322,6 +451,32 @@ def _redirect_edges_to_dispatcher(
     return redirected
 
 
+def _collect_entry_preamble(
+    mlil: MediumLevelILFunction,
+    dispatcher_entry_start: int,
+) -> Optional[List[MediumLevelILInstruction]]:
+    """收集 dispatcher 入口块内可安全重放的前导 SetVar。
+
+    只允许 idempotent 拷贝/常量赋值；出现其它形式时返回 None，调用方
+    必须放弃需要重放前导的变换。
+    """
+    entry_bb = mlil.get_basic_block_at(dispatcher_entry_start)
+    if entry_bb is None or entry_bb.length == 0:
+        return None
+    preamble: List[MediumLevelILInstruction] = []
+    for idx in range(entry_bb.start, entry_bb.end - 1):
+        instr = mlil[idx]
+        if not isinstance(instr, MediumLevelILSetVar):
+            return None
+        if not isinstance(
+            instr.src,
+            (MediumLevelILConst, MediumLevelILVar, MediumLevelILVarSsa),
+        ):
+            return None
+        preamble.append(instr)
+    return preamble
+
+
 def _install_preamble_guarded_jump_to(
     mlil: MediumLevelILFunction,
     state_class: StateClass,
@@ -334,31 +489,16 @@ def _install_preamble_guarded_jump_to(
 
     成功条件：
     - 至少 _MIN_TRANSITIONS 个 resolved value；
-    - dispatcher 入口的非终结指令全部是本地 SetVar（否则拒绝复制）；
+    - dispatcher 入口前导全部可安全重放（idempotent SetVar）；
     - 至少重定向一条真实块回边。
     """
     if len(transitions) < _MIN_TRANSITIONS:
         return None
-    entry_bb = mlil.get_basic_block_at(dispatcher_entry_start)
-    if entry_bb is None or entry_bb.length == 0:
+    preamble = _collect_entry_preamble(mlil, dispatcher_entry_start)
+    if preamble is None:
         return None
 
-    preamble: List[MediumLevelILInstruction] = []
-    for idx in range(entry_bb.start, entry_bb.end - 1):
-        instr = mlil[idx]
-        if not isinstance(instr, MediumLevelILSetVar):
-            # dispatcher 入口出现非 SetVar 前导，先保守拒绝
-            return None
-        # 只允许 idempotent 拷贝/常量赋值，保证 guard 重放 + 未解析路径
-        # 再走原 dispatcher 入口时语义不改变
-        if not isinstance(
-            instr.src,
-            (MediumLevelILConst, MediumLevelILVar, MediumLevelILVarSsa),
-        ):
-            return None
-        preamble.append(instr)
-
-    anchor = mlil[entry_bb.start]
+    anchor = mlil[dispatcher_entry_start]
     loc = ILSourceLocation.from_instruction(anchor)
     primary_size = state_class.primary.type.width if state_class.primary.type else 4
 
@@ -397,6 +537,89 @@ def _install_preamble_guarded_jump_to(
     except Exception:
         return None
     return int(guard_label.operand)
+
+
+def _shortcircuit_safe_state_defines(
+    mlil: MediumLevelILFunction,
+    state_class: StateClass,
+    transitions: Dict[int, int],
+    dispatcher_entry_start: int,
+) -> Tuple[int, Set[int]]:
+    """对「定义在块尾且块终结直接回 dispatcher 入口」的 state=const 做短路。
+
+    只处理这一种形态：
+        ...; primary = V; goto dispatcher_entry
+    重写为：
+        ...; goto mini;  mini: primary = V; <dispatcher 前导拷贝...>; goto T(V)
+
+    安全性：
+    - 原 state 写入保留在 mini-block；
+    - dispatcher 入口前导被复制进 mini-block，目标块不会缺少 alias/result
+      等前导值；
+    - 只删除一条 goto dispatcher_entry，不跳过任何真实块指令；
+    - 若 dispatcher 前导不可重放（非 idempotent SetVar），本函数直接放弃。
+
+    返回 (patch 数, 新建 mini-block label operand 集合)。
+    """
+    if not transitions:
+        return 0, set()
+    preamble = _collect_entry_preamble(mlil, dispatcher_entry_start)
+    if preamble is None:
+        return 0, set()
+
+    cache: Dict[Tuple[int, int, int], MediumLevelILLabel] = {}
+    mini_label_ops: Set[int] = set()
+    patched = 0
+
+    for instr in list(mlil.instructions):
+        if not isinstance(instr, MediumLevelILSetVar):
+            continue
+        if instr.dest.identifier not in state_class.var_ids:
+            continue
+        if not isinstance(instr.src, MediumLevelILConst):
+            continue
+        value = instr.src.constant & mask(instr.size or 4)
+        target_idx = transitions.get(value)
+        if target_idx is None:
+            continue
+
+        bb = mlil.get_basic_block_at(instr.instr_index)
+        if bb is None:
+            continue
+        # 只接受「define 是块内最后一条非终结指令」的形态
+        if instr.instr_index != bb.end - 2:
+            continue
+        last = mlil[bb.end - 1]
+        if not isinstance(last, MediumLevelILGoto):
+            continue
+        if last.dest != dispatcher_entry_start:
+            continue
+
+        key = (instr.dest.identifier, value, target_idx)
+        cached_label = cache.get(key)
+        loc = ILSourceLocation.from_instruction(instr)
+        try:
+            if cached_label is None:
+                target_label = MediumLevelILLabel()
+                target_label.operand = target_idx
+                new_block_label = MediumLevelILLabel()
+                mlil.mark_label(new_block_label)
+                # 原顺序：先 state 写入，再 dispatcher 入口前导，再路由
+                mlil.append(mlil.copy_expr(instr), loc)
+                for preamble_instr in preamble:
+                    mlil.append(mlil.copy_expr(preamble_instr), loc)
+                mlil.append(mlil.goto(target_label, loc))
+                cached_label = new_block_label
+                cache[key] = cached_label
+                mini_label_ops.add(int(new_block_label.operand))
+            mlil.replace_expr(
+                instr.expr_index,
+                mlil.goto(cached_label, loc),
+            )
+            patched += 1
+        except Exception:
+            continue
+    return patched, mini_label_ops
 
 
 def pass_general_cff(analysis_context: AnalysisContext) -> bool:
@@ -462,6 +685,13 @@ def pass_general_cff(analysis_context: AnalysisContext) -> bool:
 
     # case_values 覆盖检查：dispatcher SCC 内全部状态比较常量
     case_values = collect_state_case_values(mlil, state_class, dispatcher_scc)
+
+    # 先短路 tail state defines：必须在 redirect 之前做，否则真实块的
+    # goto dispatcher 已经被改成 goto guard，形态检测不到
+    n_short, mini_ops = _shortcircuit_safe_state_defines(
+        mlil, state_class, transitions, dispatcher_entry.start
+    )
+
     guard_label_op = _install_preamble_guarded_jump_to(
         mlil,
         state_class,
@@ -481,6 +711,7 @@ def pass_general_cff(analysis_context: AnalysisContext) -> bool:
     _verify_no_side_effect_loss(side_effects_before, side_effects_after, fname)
     log_info(
         f"[general] {fname}: P3 installed guard=0x{guard_label_op:x} "
-        f"transitions={len(transitions)} case_values={len(case_values)}"
+        f"transitions={len(transitions)} case_values={len(case_values)} "
+        f"shortcircuited={n_short} miniblocks={len(mini_ops)}"
     )
     return True
