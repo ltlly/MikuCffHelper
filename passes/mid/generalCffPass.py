@@ -735,6 +735,32 @@ def _collect_entry_preamble(
     return preamble
 
 
+def _all_return_edges_unconditional(
+    mlil: MediumLevelILFunction,
+    route_starts: Set[int],
+) -> bool:
+    """非 route 块回到 dispatcher 的边是否全部是无条件 Goto。
+
+    用于判断 fully_resolved 时能否安全省略 fallback label：只有每个真实块
+    都以无条件边回到 route 集合时，guard 的完整 label_map 才能覆盖所有
+    路径；若存在 ``if (cond) goto route``，cond 可能依赖其它变量，省略
+    fallback 会切断该分支的兜底路径。
+    """
+    for b in mlil.basic_blocks:
+        if b.start in route_starts or b.length == 0:
+            continue
+        last = mlil[b.end - 1]
+        if isinstance(last, MediumLevelILGoto):
+            if last.dest in route_starts:
+                continue
+            # 直接落到真实块/出口的边不经过 dispatcher，不影响 fallback
+            continue
+        if isinstance(last, MediumLevelILIf):
+            if last.true in route_starts or last.false in route_starts:
+                return False
+    return True
+
+
 def _install_tuple_guarded_jump_to(
     mlil: MediumLevelILFunction,
     first: StateClass,
@@ -774,14 +800,15 @@ def _install_tuple_guarded_jump_to(
             lbl = MediumLevelILLabel()
             lbl.operand = target_idx
             label_map[encoded] = lbl
-        for v0 in sorted(first.assigned_values):
-            for v1 in sorted(second.assigned_values):
-                if (v0, v1) in resolved_keys:
-                    continue
-                encoded = ((v0 & 0xFFFFFFFF) << 32) | (v1 & 0xFFFFFFFF)
-                lbl = MediumLevelILLabel()
-                lbl.operand = dispatcher_entry_start
-                label_map[encoded] = lbl
+        if not fully_resolved:
+            for v0 in sorted(first.assigned_values):
+                for v1 in sorted(second.assigned_values):
+                    if (v0, v1) in resolved_keys:
+                        continue
+                    encoded = ((v0 & 0xFFFFFFFF) << 32) | (v1 & 0xFFFFFFFF)
+                    lbl = MediumLevelILLabel()
+                    lbl.operand = dispatcher_entry_start
+                    label_map[encoded] = lbl
         if not label_map:
             return None
 
@@ -860,13 +887,14 @@ def _install_preamble_guarded_jump_to(
             lbl = MediumLevelILLabel()
             lbl.operand = target_idx
             label_map[value] = lbl
-        unresolved = (case_values | set(state_class.assigned_values)) - set(
-            transitions.keys()
-        )
-        for value in unresolved:
-            lbl = MediumLevelILLabel()
-            lbl.operand = dispatcher_entry_start
-            label_map[value] = lbl
+        if not fully_resolved:
+            unresolved = (case_values | set(state_class.assigned_values)) - set(
+                transitions.keys()
+            )
+            for value in unresolved:
+                lbl = MediumLevelILLabel()
+                lbl.operand = dispatcher_entry_start
+                label_map[value] = lbl
 
         if not label_map:
             return None
@@ -1360,7 +1388,10 @@ def pass_general_cff(analysis_context: AnalysisContext) -> bool:
         total_combos = 1
         for cls in classes_c:
             total_combos *= len(cls.assigned_values)
-        tuple_fully_resolved = len(trans_c) == total_combos
+        tuple_fully_resolved = (
+            len(trans_c) == total_combos
+            and _all_return_edges_unconditional(mlil, route_c)
+        )
         if len(classes_c) == 2:
             guard_label_op = _install_tuple_guarded_jump_to(
                 mlil,
@@ -1400,8 +1431,9 @@ def pass_general_cff(analysis_context: AnalysisContext) -> bool:
             mlil, state_class, transitions, dispatcher_entry.start
         )
 
-        single_fully_resolved = set(state_class.assigned_values) <= set(
-            transitions.keys()
+        single_fully_resolved = (
+            set(state_class.assigned_values) <= set(transitions.keys())
+            and _all_return_edges_unconditional(mlil, route_starts)
         )
         guard_label_op = _install_preamble_guarded_jump_to(
             mlil,

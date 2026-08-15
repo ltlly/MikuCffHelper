@@ -365,7 +365,9 @@ workflow `MikuCffHelper_general_workflow` 中，不经过主 workflow 的 LLIL
 4. **P3 preamble-preserving guarded jump_to**：不在 dispatcher 入口首指令
    直接替换，而是在函数末尾 guard 中重放入口前导 SetVar，再
    `jump_to(primary, {resolved: T, unresolved: dispatcher_entry})`；真实块
-   内容与状态写入原样保留，只有回 dispatcher 的边被重定向。
+   内容与状态写入原样保留，只有回 dispatcher 的边被重定向。仅当全部
+   assigned 值解析且所有回 dispatcher 边都是无条件 goto 时，才省略
+   fallback label（条件回边保持兜底，防止 sub_40831c 类副作用丢失）。
 5. **安全 state 短路**：对「`primary = V` 是块内最后一条非终结指令且块尾
    `goto dispatcher_entry`」的 define，改写为 mini-block
    `[primary=V; 入口前导拷贝...; goto T(V)]`；前导不可安全重放时放弃短路。
@@ -393,7 +395,7 @@ workflow `MikuCffHelper_general_workflow` 中，不经过主 workflow 的 LLIL
 **已知 trade-off**：general 是独立 workflow，默认不进入 auto，不影响既有
 39 函数 auto 基线。general 基线（`baseline_general.json`）同样覆盖 39
 函数：31/39 变换、0 orphan、0 语义副作用丢失；总体不如 auto 的 37/39，
-但在 sub_42a21c（97→77 vs auto 97→165）、sub_45985c 等 B/A 失败样本上
+但在 sub_42a21c（97→57 vs auto 97→165）、sub_45985c 等 B/A 失败样本上
 更好。下一步是 dispatcher 死代码清理与有条件的 auto fallback。
 
 ## 7. 路径 auto (B 优先 / A 兜底)

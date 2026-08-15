@@ -89,6 +89,7 @@ AGENTS.md                    # 本文档（开发/AI 指南）
 
 - pass 内嵌 MLIL 副作用集合比对；general 模式使用地址无关的语义签名
   （call 按 callee 计数，store/ret 按 op 计数），因为重写会移动指令地址。
+  P3 只有 assigned 全解析且回边全为无条件 goto 时才省略 fallback。
 - `tools/regression_test.py` 在 HLIL 层检查 call / store / ret 是否丢失、
   是否出现 orphan jump；general 模式默认与 `baseline_general.json` 对比。
 - 修改后必须跑回归测试；确有改进时再更新对应 baseline。
