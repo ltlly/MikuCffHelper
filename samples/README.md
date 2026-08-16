@@ -132,6 +132,12 @@ APK 解包目录中另外 45 个 fast 检测无候选的 arm64 libs 只保留在
    - 离 deob 参考件（23 blocks / HLIL 134）仍有距离：条件树把控制流直接
      化了，但 BN HLIL restructure 仍会按残留 dispatcher 展开；下一步是
      条件树 + 不可达 dispatcher 移除的融合。
+6. **guard 重定向原型结论（未接入代码）**：auto 后只有 5 条真实块边仍直
+   接回 dispatcher 入口，其余已进条件树 mini-block；对 19 个可解析 state
+   值安装带完整 preamble 回放的 jump_to guard 并重定向这 5 条边，HLIL
+   仍 219、0 orphan。说明残余展开来自已生成的条件树与真实块内条件转移，
+   不是这 5 条边；要逼近参考件必须做**真实块返回边的条件树重建**
+   （每个真实块尾部都按 state 生成条件 goto），而不是仅靠 guard。
 
 ### obpo ground truth 对齐结论
 
