@@ -141,6 +141,7 @@ bv.update_analysis_and_wait()
 | `pass_deflate_hard` | **路径 A 核心**：基于支配树识别 + 前向符号执行的去平坦化 |
 | `pass_synthesize_switch` | **路径 B 核心**：识别 dispatcher 后写入 jump_to 让 HLIL 渲染为 switch |
 | `pass_general_cff` | **实验路径 C**：`utils/cff_core` 线性检测 + alias-aware 状态类 + P3 guarded jump_to |
+| `pass_order_jump_tables` | general 后置：按值排序 MLIL_JUMP_TO case 表，稳定 HLIL switch 展示顺序 |
 
 ### 4.3 HLIL 层
 
@@ -415,7 +416,10 @@ workflow `MikuCffHelper_general_workflow` 中，不经过主 workflow 的 LLIL
 - 表达式最大嵌套深度；
 - 语义副作用丢失与 orphan jump。
 
-选择策略：先排除任何有副作用丢失/orphan 的模式；再按坏指标集合做 Pareto
+实现层面，`utils.cfg_analyzer.CFGIndex` 一次构建前驱/度/SCC 索引，
+`pass_merge_block` 与 LLIL `pass_copy_common_block` 不再逐查询全图扫描；
+`_vars_aliased_to` 改为 union-find；`_function_looks_like_cff` 一遍预计算
+值集。选择策略：先排除任何有副作用丢失/orphan 的模式；再按坏指标集合做 Pareto
 支配；都不支配时用 `default_penalty`（块 0.5 / 圈复杂度 1 / 行数 1 /
 goto+jump 3 / 深度 1）取低分。权重全部集中在 `utils/readability.py`，
 可配置、可解释，不藏在 workflow 编排里。

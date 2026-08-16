@@ -70,41 +70,39 @@ def _vars_aliased_to(
     primary,
     dispatcher_blocks,
 ):
-    """收集所有通过 `alias = primary` 链传递的别名变量。
+    """收集 primary 的变量拷贝连通分量（union-find，O(I·α)）。
 
-    BN SSA 经常拆出 `x9_1 = x8_2; if (x9_1 == K)` 这种 rename，x9_1 不在
-    state_vars (没 const 赋值) 但实际承载 primary 的值。识别这种别名能让
-    case_values 收集到正确的比较。
-
-    扫描范围 *扩大到整个函数*，不限于 dispatcher_blocks。原因：
-    sub_408b94 上 `x21_1 = lr_1` SetVar 所在的块 0x1a 还含有 `x0 = x3`
-    这种寄存器赋值，被 _block_is_pure_dispatcher 严格判据排除在
-    dispatcher_blocks 之外。但 x21_1 之后在 dispatcher_blocks 内部被大量
-    用作 cmp 左操作数 (`if (x21_1 == K) goto handler`)，原本只看
-    dispatcher_blocks 找别名时漏了 x21_1 → case_values=0 → 整个函数被拒。
-
-    对应的安全保证：扩大 alias 搜集范围只影响 *case_values* 集合 (它
-    enumerate dispatcher_blocks 内 cmp 的 const)，不影响 dispatcher_blocks
-    本身的边界。dispatcher_blocks 仍然由 `_block_is_pure_dispatcher` 严格
-    判断，假阳性风险不变。
+    替换旧的不动点全函数重扫实现，语义不变：返回所有通过
+    ``dest = src`` 拷贝与 primary 连通的变量。
     """
-    aliases = {primary}
-    # 不动点迭代：在整个函数中找 `new = existing_alias` 形式
-    changed = True
-    while changed:
-        changed = False
-        for instr in mlil.instructions:
-            if not isinstance(instr, MediumLevelILSetVar):
-                continue
-            if instr.dest in aliases:
-                continue
-            if (
-                isinstance(instr.src, MediumLevelILVar)
-                and instr.src.src in aliases
-            ):
-                aliases.add(instr.dest)
-                changed = True
-    return aliases
+    parent: Dict[int, int] = {}
+
+    def find(x: int) -> int:
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a: int, b: int) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    var_by_id: Dict[int, Variable] = {primary.identifier: primary}
+    for instr in mlil.instructions:
+        if not isinstance(instr, MediumLevelILSetVar):
+            continue
+        var_by_id[instr.dest.identifier] = instr.dest
+        if isinstance(instr.src, MediumLevelILVar):
+            var_by_id[instr.src.src.identifier] = instr.src.src
+            union(instr.dest.identifier, instr.src.src.identifier)
+    root = find(primary.identifier)
+    return {
+        var
+        for identifier, var in var_by_id.items()
+        if find(identifier) == root
+    }
 
 
 def _collect_dispatcher_case_values(

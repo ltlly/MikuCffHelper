@@ -8,6 +8,7 @@ from .passes.mid.clearPass import pass_clear
 from .passes.mid.movStateDefine import pass_mov_state_define
 from .passes.mid.synthesizeSwitchPass import pass_synthesize_switch
 from .passes.mid.generalCffPass import pass_general_cff
+from .passes.mid.orderJumpToPass import pass_order_jump_tables
 from .utils import log_info
 
 
@@ -105,6 +106,7 @@ def workflow_patch_mlil_general(analysis_context: AnalysisContext):
         return
     pass_clear(analysis_context)
     pass_general_cff(analysis_context)
+    pass_order_jump_tables(analysis_context)
     pass_clear(analysis_context)
 
 

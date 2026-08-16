@@ -39,7 +39,7 @@ passes/
     deflatHardPass.py        # 路径 A：前向模拟 + 短路 state SetVar
     synthesizeSwitchPass.py  # 路径 B：生成 jump_to / guard
     generalCffPass.py        # 路径 C（实验）：线性检测 + P3 guarded jump_to
-    reverseIfPass.py         # 备用/未接入 workflow 的反向 if pass
+    orderJumpToPass.py       # general 后置：jump_to case 表排序
 utils/                       # 公共工具
   cff_core.py                # 新框架基础：DominatorInfo / StateClass / EnvEvaluator
   state_machine.py           # 状态变量收集 / 启发式
@@ -142,8 +142,6 @@ python tools/regression_test.py --update-baseline
 
 - `pass_clear` 目前包含 `pass_swap_if` 和 `pass_clear_SSA_const_if`。历史文档
   曾建议删除它们，但当前实现对嵌套 CFF 迭代收敛有帮助，**不要仅凭旧结论删除**。
-- `reverseIfPass.py` 未接入任何 workflow；若不需要可保留作参考，但不要把它
-  默认加入 pipeline。
 - 修改 `mikuWorkflow.py` 时注意 `workflow_patch_mlil_auto` 的 B→A fallback
   顺序：B 成功后不要再跑 A，否则可能把 guard block 误当 dispatcher。
 - `workflow_patch_mlil_general` 是实验入口，注册在独立 workflow
@@ -173,6 +171,8 @@ python tools/regression_test.py --update-baseline
   - 总变换率 37/39，0 副作用丢失，0 orphan jump。
 - general 回归基线 `tools/baseline_general.json`：39 函数，31/39 变换，
   0 orphan、0 语义副作用丢失；总体弱于 auto，但 B/A 失败的函数上有收益。
+- `CFGIndex` 缓存前驱/度/SCC；LLIL copy 与 MLIL merge 已复用；别名链改
+  union-find；已删除未接入的 `reverseIfPass.py` 与 MLIL `pass_copy_common_block_mid`。
 - 不硬编码模式选择规则；`tools/eval_modes.py` 实际试跑 auto/general 后，
   用多维可读性指标 + Pareto/可配置罚分选优；69 样本结果在
   `tools/eval_samples.json`（trial：general 37 / auto 32，0 丢失）。

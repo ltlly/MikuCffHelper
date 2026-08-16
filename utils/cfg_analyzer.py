@@ -18,6 +18,62 @@ def log_error(msg: str):
     mikuLogger.log_error(msg)
 
 
+class CFGIndex:
+    """一次构建、多次查询的块级 CFG 索引。
+
+    缓存 reverse adjacency、in/out degree 与 SCC membership，替代反复
+    ``MLIL_get_incoming_blocks``（每查询全图扫描）和 ``is_node_in_loop``
+    （每次重算全部 SCC）。
+    """
+
+    def __init__(self, il):
+        self.il = il
+        if isinstance(il, MediumLevelILFunction):
+            self.IfInstr = MediumLevelILIf
+            self.GotoInstr = MediumLevelILGoto
+        elif isinstance(il, LowLevelILFunction):
+            self.IfInstr = LowLevelILIf
+            self.GotoInstr = LowLevelILGoto
+        else:
+            raise TypeError("il must be MediumLevelILFunction or LowLevelILFunction")
+        self.graph = nx.DiGraph()
+        self.incoming = {}
+        for block in il.basic_blocks:
+            self.graph.add_node(block.start)
+            self.incoming.setdefault(block.start, [])
+        for block in il.basic_blocks:
+            targets = []
+            if block.length == 0:
+                continue
+            last = block[-1]
+            if isinstance(last, self.IfInstr):
+                targets = [last.true, last.false]
+            elif isinstance(last, self.GotoInstr):
+                targets = [last.dest]
+            else:
+                targets = [e.target.start for e in block.outgoing_edges]
+            for target in targets:
+                if target not in self.graph:
+                    continue
+                self.graph.add_edge(block.start, target)
+                tbb = il.get_basic_block_at(target)
+                if tbb is not None:
+                    self.incoming.setdefault(target, []).append(block)
+        # 保持与旧 MLIL/LLIL_get_incoming_blocks 相同的行为：不去重，
+        # if 两分支同目标时允许同一前驱出现两次。
+        self.scc_membership = {}
+        for scc in nx.strongly_connected_components(self.graph):
+            for node in scc:
+                self.scc_membership[node] = scc
+
+    def incoming_blocks(self, bb_index: int):
+        return sorted(self.incoming.get(bb_index, []), key=lambda b: b.start)
+
+    def is_node_in_loop(self, node) -> bool:
+        scc = self.scc_membership.get(node, {node})
+        return len(scc) > 1 or self.graph.has_edge(node, node)
+
+
 class CFGAnalyzer:
     """控制流图分析器，负责控制流图的分析和操作"""
 

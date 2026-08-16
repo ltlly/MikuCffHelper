@@ -16,6 +16,7 @@ from binaryninja import (
 
 from ...utils.state_machine import StateMachine
 from ...utils import CFGAnalyzer
+from ...utils.cfg_analyzer import CFGIndex
 from ...utils import log_error
 
 
@@ -297,8 +298,8 @@ def pass_merge_block(analysis_context: AnalysisContext):
     if mlil is None:
         return
     for _ in range(len(mlil.basic_blocks)):
-        block_cfg = CFGAnalyzer.create_cfg_graph(mlil)
-        groups = CFGAnalyzer.find_cfg_groups(block_cfg)
+        index = CFGIndex(mlil)
+        groups = CFGAnalyzer.find_cfg_groups(index.graph)
         updated = False
         for group in groups:
             # 因为函数必须从0开始, 如果要求合并的话 需要特殊处理0部分,因此不处理
@@ -306,7 +307,7 @@ def pass_merge_block(analysis_context: AnalysisContext):
                 group.pop(0)
             blocks = [mlil.get_basic_block_at(idx) for idx in group]
             block0 = blocks[0]
-            pre_blocks = CFGAnalyzer.MLIL_get_incoming_blocks(mlil, block0.start)
+            pre_blocks = index.incoming_blocks(block0.start)
             pre_instrs = [x[-1] for x in pre_blocks]
             instrs = []
             for x in blocks[:-1]:
@@ -424,45 +425,6 @@ def handle_pre_last_instr(mlil: MediumLevelILFunction, pre_last_instr, bb, copy_
             log_error("ERROR IF")
     else:
         log_error("ERROR")
-
-
-def pass_copy_common_block_mid(analysis_context: AnalysisContext):
-    mlil = analysis_context.function.mlil
-    for _ in range(len(mlil.basic_blocks)):
-        updated = False
-        g = CFGAnalyzer.create_cfg_graph(mlil)
-        for bb in mlil.basic_blocks:
-            if bb.length > 5:
-                continue
-            pre_blocks = CFGAnalyzer.MLIL_get_incoming_blocks(mlil, bb.start)
-            pre_instrs = [prebb[-1] for prebb in pre_blocks]
-            if not all(
-                isinstance(instr, MediumLevelILGoto)
-                or isinstance(instr, MediumLevelILIf)
-                for instr in pre_instrs
-            ):
-                continue
-            if len(pre_blocks) <= 1:
-                continue
-            if CFGAnalyzer.is_node_in_loop(g, bb.start):
-                continue
-            for j in range(1, len(pre_blocks)):
-                updated = True
-                pre_block = pre_blocks[j]
-                pre_last_instr = mlil[pre_block.end - 1]
-                copy_label = MediumLevelILLabel()
-                mlil.mark_label(copy_label)
-                for copy_instr_index in range(bb.start, bb.end):
-                    mlil.append(mlil.copy_expr(mlil[copy_instr_index]))
-                handle_pre_last_instr(mlil, pre_last_instr, bb, copy_label)
-            break
-        if updated:
-            mlil.finalize()
-            mlil.generate_ssa_form()
-        else:
-            break
-    mlil.finalize()
-    mlil.generate_ssa_form()
 
 
 def pass_clear(analysis_context: AnalysisContext):

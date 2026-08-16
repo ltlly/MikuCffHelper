@@ -2,7 +2,7 @@
 包含控制流分析、状态机分析、指令分析等工具类
 """
 
-from .cfg_analyzer import CFGAnalyzer
+from .cfg_analyzer import CFGAnalyzer, CFGIndex
 from .state_machine import StateMachine
 from .instruction_analyzer import (
     InstructionAnalyzer,
@@ -13,6 +13,7 @@ from .mikuPlugin import suggest_stateVar, log_info, log_warn, log_error
 
 __all__ = [
     "CFGAnalyzer",
+    "CFGIndex",
     "SimpleVisitor",
     "StateMachine",
     "InstructionAnalyzer",

@@ -10,6 +10,8 @@ from binaryninja import (
 )
 
 from ...utils import CFGAnalyzer, log_error
+from ...utils.cfg_analyzer import CFGIndex
+from ...utils.cff_core import DominatorInfo
 
 
 def _llil_function_likely_cff(llil: LowLevelILFunction) -> bool:
@@ -22,33 +24,17 @@ def _llil_function_likely_cff(llil: LowLevelILFunction) -> bool:
     n = len(bbs)
     if n < 8:
         return False
-    bb_by_start = {b.start: b for b in bbs}
+    info = DominatorInfo(bbs)
     for d in bbs:
-        # 估算被 d 支配的子树大小
-        subtree = {d.start}
-        stack = [d]
-        while stack:
-            x = stack.pop()
-            for c in x.dominator_tree_children:
-                if c.start not in subtree:
-                    subtree.add(c.start)
-                    stack.append(c)
-        if len(subtree) / n < 0.3:
+        size = info.subtree_size.get(d.start, 0)
+        if size / n < 0.3:
             continue
-        # 检查 back-edge：被 d 支配的某个块跳回 d
-        has_back_edge = False
-        for src_start in subtree:
-            src = bb_by_start.get(src_start)
-            if src is None:
-                continue
-            for edge in src.outgoing_edges:
-                if edge.target.start == d.start and src.start != d.start:
-                    has_back_edge = True
-                    break
-            if has_back_edge:
-                break
-        if has_back_edge:
-            return True
+        for edge in d.incoming_edges:
+            if (
+                edge.source.start != d.start
+                and info.is_in_subtree(d.start, edge.source.start)
+            ):
+                return True
     return False
 
 
@@ -125,11 +111,11 @@ def pass_copy_common_block(analysis_context: AnalysisContext):
         if len(llil.basic_blocks) > max_total_blocks:
             break
         updated = False
-        g = CFGAnalyzer.create_cfg_graph(llil)
+        index = CFGIndex(llil)
         for bb in llil.basic_blocks:
             if bb.length > 8:
                 continue
-            pre_blocks = CFGAnalyzer.LLIL_get_incoming_blocks(llil, bb.start)
+            pre_blocks = index.incoming_blocks(bb.start)
             if len(pre_blocks) <= 1:
                 continue
             pre_instrs = [prebb[-1] for prebb in pre_blocks]
@@ -138,7 +124,7 @@ def pass_copy_common_block(analysis_context: AnalysisContext):
                 for instr in pre_instrs
             ):
                 continue
-            if CFGAnalyzer.is_node_in_loop(g, bb.start):
+            if index.is_node_in_loop(bb.start):
                 continue
             for j in range(1, len(pre_blocks)):
                 if len(llil.basic_blocks) > max_total_blocks:

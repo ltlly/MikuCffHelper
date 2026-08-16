@@ -273,29 +273,24 @@ def _function_looks_like_cff(
     mlil: MediumLevelILFunction,
     state_vars: Set[Variable],
 ) -> bool:
-    """函数级 CFF 启发式过滤：避免 Rust match / C++ stdlib 小常量分发被
-    误判为 OLLVM CFF (task #16 发现)。
+    """函数级 CFF 启发式：一遍扫描预计算每个变量的 const 值集。
 
-    判据（必须 *同时* 满足）：
-      1) 跨所有 state var 的 unique 常量值总数 ≥ 4 (OLLVM 通常多 case)
-      2) 值域跨度 max - min ≥ 0x10000000 (OLLVM 状态值是 32-bit 随机；
-         Rust SIMD 常量 0x8000_0000_0000_{0,1,3} 跨度只有 3；
-         C++ 异常 0,1 跨度只有 1)
-
-    单看平均值不够（Rust SIMD 常量平均也很大）；单看 unique 数也不够
-    (有些函数有几个真大值)。两个一起能可靠区分 CFF。
+    旧实现对每个 state var 重扫全部指令 O(S×I)；这里改为 O(I)。
     """
     if not state_vars:
         return False
+    values_by_var: Dict[int, Set[int]] = {}
+    for instr in mlil.instructions:
+        if (
+            isinstance(instr, MediumLevelILSetVar)
+            and isinstance(instr.src, MediumLevelILConst)
+        ):
+            values_by_var.setdefault(instr.dest.identifier, set()).add(
+                instr.src.constant & _mask(instr.size or 4)
+            )
     all_vals: Set[int] = set()
     for var in state_vars:
-        for instr in mlil.instructions:
-            if (
-                isinstance(instr, MediumLevelILSetVar)
-                and instr.dest == var
-                and isinstance(instr.src, MediumLevelILConst)
-            ):
-                all_vals.add(instr.src.constant & _mask(instr.size or 4))
+        all_vals.update(values_by_var.get(var.identifier, set()))
     if len(all_vals) < 4:
         return False
     spread = max(all_vals) - min(all_vals)
