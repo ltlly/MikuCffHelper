@@ -116,6 +116,15 @@ APK 解包目录中另外 45 个 fast 检测无候选的 arm64 libs 只保留在
      （如 `if (arg1 != 0) state=A else state=B`），deflate 一个 state 值
      只对应一个目标，条件转移无法完整短路；下一步应做条件多目标解析/
      与 general 条件分支改写融合，而不是清理 pass。
+5. **条件多目标解析原型结论（进行中）**：
+   - 条件状态赋值模式形如 `bb: rax=A; if (input_cond) ...; var_38=rax;
+     goto dispatcher`；两个分支给 state 不同常量，必须生成条件 goto 树。
+   - 原型决策树解析器验证了两个关键点：需要支持 **dispatcher re-entry**
+     （条件赋值完成后带着新 state 重新从 dispatcher 走），否则会把合法
+     state chain 当环；递归深度必须放宽到 20+。
+   - 仍待解决：同一 state 值二次回到 dispatcher 的终止条件、每层条件
+     replay 的去重，以及把解析树落成 MLIL 条件 mini-block 的 builder。
+   - 暂未接入代码；39 函数回归基线不受影响。
 
 ### obpo ground truth 对齐结论
 
