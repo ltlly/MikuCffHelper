@@ -254,11 +254,6 @@ def test_func(bv, addr, mode="auto"):
     if not func:
         return None
     selected_mode = mode
-    if mode == "auto-select":
-        from plugins.MikuCffHelper.utils.cff_core import select_workflow_mode
-        selected_mode = (
-            select_workflow_mode(func.mlil) if func.mlil else "auto"
-        )
     semantic = selected_mode == "general"
     before = len(list(func.mlil.basic_blocks))
     if semantic:
@@ -324,7 +319,6 @@ def test_func(bv, addr, mode="auto"):
         hlil_rets_lost = len(hlil_rets_before - hlil_se_after["rets"])
     return {
         "name": func.name,
-        "selected_mode": selected_mode,
         "blocks_before": before,
         "blocks_after": after,
         "hlil": hlil_n,
@@ -521,7 +515,7 @@ def main():
     ap.add_argument("--only", metavar="BIN", help="只跑指定 binary 文件名")
     ap.add_argument("--bin", metavar="BIN", help="搭配 --func 用：指定 binary")
     ap.add_argument("--func", metavar="ADDR", help="只跑指定地址 (hex)")
-    ap.add_argument("--mode", choices=list(MODES.keys()) + ["auto-select"], default="auto",
+    ap.add_argument("--mode", choices=list(MODES.keys()), default="auto",
                     help="要回归的工作流模式 (默认 auto)")
     ap.add_argument("--baseline", default=None,
                     help="baseline 路径；默认 auto 用 baseline.json，其它模式用 baseline_<mode>.json")

@@ -2,7 +2,7 @@
 不需要打开 Binary Ninja UI。
 
 用法示例:
-    # 单函数 (默认 auto-select，按特征选 auto/general)
+    # 单函数 (默认 auto：先 B，失败 fallback A)
     python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4
 
     # 二进制内所有 CFF 候选函数 (按启发式自动找)
@@ -18,8 +18,7 @@
     python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --before
 
 模式:
-    auto-select - (默认，推荐实验)：变换前按便宜特征自动选 auto / general
-    auto    - workflow_patch_mlil_auto：先 B (synthesize_switch)，
+    auto    - workflow_patch_mlil_auto (默认)：先 B (synthesize_switch)，
               失败 fallback A (deflate_hard)
     switch  - workflow_patch_mlil_switch：只跑 B
     deflate - workflow_patch_mlil：只跑 A
@@ -95,9 +94,6 @@ def hlil_text(func):
 def run_workflow(bv, func, mode_key):
     """对函数启用指定 activity，触发重分析并等待"""
     import binaryninja as bn
-    if mode_key == "auto-select":
-        from plugins.MikuCffHelper.utils.cff_core import select_workflow_mode
-        mode_key = select_workflow_mode(func.mlil) if func.mlil else "auto"
     workflow_name, activity = MODES[mode_key]
     settings = bn.Settings()
     settings.set_string(
@@ -149,8 +145,8 @@ def main():
         help="处理所有 CFF 候选函数 (按 Blazytko 启发式自动找)",
     )
     ap.add_argument(
-        "--mode", choices=list(MODES.keys()) + ["auto-select"], default="auto-select",
-        help="工作流模式 (默认 auto-select)",
+        "--mode", choices=list(MODES.keys()), default="auto",
+        help="工作流模式 (默认 auto)",
     )
     ap.add_argument(
         "--out", metavar="FILE",

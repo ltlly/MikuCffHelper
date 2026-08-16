@@ -99,7 +99,7 @@ AGENTS.md                    # 本文档（开发/AI 指南）
 ### 4.1 日常命令
 
 ```bash
-# 快速验证单个函数（CLI 默认 auto-select）
+# 快速验证单个函数（CLI 默认 auto）
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4
 
 # 只跑路径 B / A
@@ -170,9 +170,9 @@ python tools/regression_test.py --update-baseline
   - 总变换率 37/39，0 副作用丢失，0 orphan jump。
 - general 回归基线 `tools/baseline_general.json`：39 函数，31/39 变换，
   0 orphan、0 语义副作用丢失；总体弱于 auto，但 B/A 失败的函数上有收益。
-- auto-select 基线 `tools/baseline_auto-select.json`：39 函数，38/39 变换，
-  0 orphan、0 副作用丢失；由 `select_workflow_mode` 按特征逐函数选择
-  auto/general；CLI 默认入口已切到 auto-select，BN 主 workflow 默认仍为 auto。
+- 不硬编码模式选择规则；`tools/eval_modes.py` 实际试跑 auto/general 后，
+  用多维可读性指标 + Pareto/可配置罚分选优；33 样本结果在
+  `tools/eval_samples.json`（trial：general 18 / auto 15，0 丢失）。
 - 实验入口 `workflow_patch_mlil_general`（路径 C，独立 workflow）默认关闭；
   当前已支持
   alias-only 状态变量 + flag 条件变种、equality-hash / interval-bisect

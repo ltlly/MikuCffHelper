@@ -5,7 +5,7 @@
 不开 BN UI 直接对二进制跑工作流并输出 HLIL。
 
 ```bash
-# 单函数 (默认 auto-select：按特征自动选 auto/general)
+# 单函数 (默认 auto：先 B，失败 fallback A)
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4
 
 # 二进制内所有 CFF 候选
@@ -14,8 +14,6 @@ python tools/deflate_cli.py example/arm64-v8a.so --all-cff
 # 指定模式：auto / switch (只跑 B) / deflate (只跑 A) / general (实验路径 C)
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --mode switch
 
-# 变换前按便宜特征自动选择 auto / general
-python tools/deflate_cli.py example/cff-arm64-v8a.elf --addr 0x400698 --mode auto-select
 
 # 输出到文件
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --out /tmp/out.c
@@ -46,9 +44,9 @@ python tools/regression_test.py --func 0x4259f4 --bin arm64-v8a.so
 python tools/regression_test.py --mode general
 python tools/regression_test.py --mode general --update-baseline
 
-# auto-select 选择器回归（默认 baseline_auto-select.json）
-python tools/regression_test.py --mode auto-select
-python tools/regression_test.py --mode auto-select --update-baseline
+# 多维可读性评估（实际试跑 auto/general，Pareto/罚分选优）
+python tools/eval_modes.py --baseline-targets --out /tmp/eval_baseline.json
+python tools/eval_modes.py example/arm64-v8a.so --scan --max-funcs 20
 ```
 
 ### baseline.json 维护

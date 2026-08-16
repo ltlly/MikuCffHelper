@@ -1,0 +1,2840 @@
+[
+ {
+  "path": "example/arm64-v8a.so",
+  "addr": "0x406c0c",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 97,
+     "mlil_edges": 143,
+     "mlil_cyclomatic": 48,
+     "mlil_branches": 47,
+     "hlil_lines": 120,
+     "hlil_if": 39,
+     "hlil_loops": 12,
+     "hlil_goto": 1,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 2,
+     "max_expr_depth": 34
+    },
+    "after": {
+     "mlil_blocks": 93,
+     "mlil_edges": 139,
+     "mlil_cyclomatic": 48,
+     "mlil_branches": 43,
+     "hlil_lines": 136,
+     "hlil_if": 39,
+     "hlil_loops": 11,
+     "hlil_goto": 6,
+     "hlil_jump": 0,
+     "hlil_switch": 2,
+     "hlil_cases": 5,
+     "hlil_calls": 2,
+     "max_expr_depth": 23
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 15.58
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 97,
+     "mlil_edges": 143,
+     "mlil_cyclomatic": 48,
+     "mlil_branches": 47,
+     "hlil_lines": 120,
+     "hlil_if": 39,
+     "hlil_loops": 12,
+     "hlil_goto": 1,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 2,
+     "max_expr_depth": 34
+    },
+    "after": {
+     "mlil_blocks": 95,
+     "mlil_edges": 141,
+     "mlil_cyclomatic": 48,
+     "mlil_branches": 47,
+     "hlil_lines": 120,
+     "hlil_if": 39,
+     "hlil_loops": 12,
+     "hlil_goto": 1,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 2,
+     "max_expr_depth": 34
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 15.26
+   }
+  },
+  "best": {
+   "mode": "general",
+   "reason": "penalty"
+  }
+ },
+ {
+  "path": "example/arm64-v8a.so",
+  "addr": "0x407368",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 31,
+     "mlil_edges": 46,
+     "mlil_cyclomatic": 17,
+     "mlil_branches": 16,
+     "hlil_lines": 49,
+     "hlil_if": 14,
+     "hlil_loops": 4,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 1,
+     "max_expr_depth": 24
+    },
+    "after": {
+     "mlil_blocks": 34,
+     "mlil_edges": 51,
+     "mlil_cyclomatic": 19,
+     "mlil_branches": 13,
+     "hlil_lines": 60,
+     "hlil_if": 6,
+     "hlil_loops": 3,
+     "hlil_goto": 7,
+     "hlil_jump": 0,
+     "hlil_switch": 3,
+     "hlil_cases": 12,
+     "hlil_calls": 2,
+     "max_expr_depth": 18
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 15.23
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 31,
+     "mlil_edges": 46,
+     "mlil_cyclomatic": 17,
+     "mlil_branches": 16,
+     "hlil_lines": 49,
+     "hlil_if": 14,
+     "hlil_loops": 4,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 1,
+     "max_expr_depth": 24
+    },
+    "after": {
+     "mlil_blocks": 28,
+     "mlil_edges": 40,
+     "mlil_cyclomatic": 14,
+     "mlil_branches": 9,
+     "hlil_lines": 36,
+     "hlil_if": 7,
+     "hlil_loops": 4,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 3,
+     "hlil_calls": 1,
+     "max_expr_depth": 23
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 15.34
+   }
+  },
+  "best": {
+   "mode": "general",
+   "reason": "penalty"
+  }
+ },
+ {
+  "path": "example/arm64-v8a.so",
+  "addr": "0x4075a0",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 31,
+     "mlil_edges": 46,
+     "mlil_cyclomatic": 17,
+     "mlil_branches": 16,
+     "hlil_lines": 42,
+     "hlil_if": 14,
+     "hlil_loops": 5,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 3,
+     "max_expr_depth": 22
+    },
+    "after": {
+     "mlil_blocks": 5,
+     "mlil_edges": 5,
+     "mlil_cyclomatic": 2,
+     "mlil_branches": 1,
+     "hlil_lines": 4,
+     "hlil_if": 1,
+     "hlil_loops": 0,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 3,
+     "max_expr_depth": 9
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 15.37
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 31,
+     "mlil_edges": 46,
+     "mlil_cyclomatic": 17,
+     "mlil_branches": 16,
+     "hlil_lines": 42,
+     "hlil_if": 14,
+     "hlil_loops": 5,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 3,
+     "max_expr_depth": 22
+    },
+    "after": {
+     "mlil_blocks": 31,
+     "mlil_edges": 46,
+     "mlil_cyclomatic": 17,
+     "mlil_branches": 16,
+     "hlil_lines": 42,
+     "hlil_if": 14,
+     "hlil_loops": 5,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 3,
+     "max_expr_depth": 22
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 15.41
+   }
+  },
+  "best": {
+   "mode": "auto",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/arm64-v8a.so",
+  "addr": "0x40831c",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 57,
+     "mlil_edges": 88,
+     "mlil_cyclomatic": 33,
+     "mlil_branches": 32,
+     "hlil_lines": 159,
+     "hlil_if": 30,
+     "hlil_loops": 3,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 4,
+     "max_expr_depth": 20
+    },
+    "after": {
+     "mlil_blocks": 69,
+     "mlil_edges": 120,
+     "mlil_cyclomatic": 53,
+     "mlil_branches": 29,
+     "hlil_lines": 182,
+     "hlil_if": 27,
+     "hlil_loops": 4,
+     "hlil_goto": 30,
+     "hlil_jump": 0,
+     "hlil_switch": 3,
+     "hlil_cases": 19,
+     "hlil_calls": 4,
+     "max_expr_depth": 22
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 15.94
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 57,
+     "mlil_edges": 88,
+     "mlil_cyclomatic": 33,
+     "mlil_branches": 32,
+     "hlil_lines": 159,
+     "hlil_if": 30,
+     "hlil_loops": 3,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 4,
+     "max_expr_depth": 20
+    },
+    "after": {
+     "mlil_blocks": 60,
+     "mlil_edges": 102,
+     "mlil_cyclomatic": 44,
+     "mlil_branches": 32,
+     "hlil_lines": 192,
+     "hlil_if": 30,
+     "hlil_loops": 4,
+     "hlil_goto": 18,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 12,
+     "hlil_calls": 4,
+     "max_expr_depth": 18
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 15.72
+   }
+  },
+  "best": {
+   "mode": "general",
+   "reason": "penalty"
+  }
+ },
+ {
+  "path": "example/libkste.so",
+  "addr": "0x42a21c",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 97,
+     "mlil_edges": 128,
+     "mlil_cyclomatic": 33,
+     "mlil_branches": 32,
+     "hlil_lines": 151,
+     "hlil_if": 32,
+     "hlil_loops": 1,
+     "hlil_goto": 1,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 0,
+     "max_expr_depth": 15
+    },
+    "after": {
+     "mlil_blocks": 165,
+     "mlil_edges": 225,
+     "mlil_cyclomatic": 62,
+     "mlil_branches": 61,
+     "hlil_lines": 285,
+     "hlil_if": 61,
+     "hlil_loops": 1,
+     "hlil_goto": 9,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 0,
+     "max_expr_depth": 15
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 11.59
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 97,
+     "mlil_edges": 128,
+     "mlil_cyclomatic": 33,
+     "mlil_branches": 32,
+     "hlil_lines": 151,
+     "hlil_if": 32,
+     "hlil_loops": 1,
+     "hlil_goto": 1,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 0,
+     "max_expr_depth": 15
+    },
+    "after": {
+     "mlil_blocks": 57,
+     "mlil_edges": 82,
+     "mlil_cyclomatic": 27,
+     "mlil_branches": 13,
+     "hlil_lines": 129,
+     "hlil_if": 13,
+     "hlil_loops": 2,
+     "hlil_goto": 9,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 13,
+     "hlil_calls": 0,
+     "max_expr_depth": 14
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 7.04
+   }
+  },
+  "best": {
+   "mode": "general",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/libkste.so",
+  "addr": "0x429c7c",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 109,
+     "mlil_edges": 146,
+     "mlil_cyclomatic": 39,
+     "mlil_branches": 38,
+     "hlil_lines": 126,
+     "hlil_if": 33,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 5,
+     "max_expr_depth": 12
+    },
+    "after": {
+     "mlil_blocks": 76,
+     "mlil_edges": 120,
+     "mlil_cyclomatic": 46,
+     "mlil_branches": 34,
+     "hlil_lines": 161,
+     "hlil_if": 17,
+     "hlil_loops": 2,
+     "hlil_goto": 20,
+     "hlil_jump": 0,
+     "hlil_switch": 2,
+     "hlil_cases": 22,
+     "hlil_calls": 5,
+     "max_expr_depth": 17
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 7.49
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 109,
+     "mlil_edges": 146,
+     "mlil_cyclomatic": 39,
+     "mlil_branches": 38,
+     "hlil_lines": 126,
+     "hlil_if": 33,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 5,
+     "max_expr_depth": 12
+    },
+    "after": {
+     "mlil_blocks": 54,
+     "mlil_edges": 83,
+     "mlil_cyclomatic": 31,
+     "mlil_branches": 10,
+     "hlil_lines": 142,
+     "hlil_if": 10,
+     "hlil_loops": 3,
+     "hlil_goto": 19,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 20,
+     "hlil_calls": 6,
+     "max_expr_depth": 13
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 7.12
+   }
+  },
+  "best": {
+   "mode": "general",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/libSeQing.so",
+  "addr": "0x45985c",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 29,
+     "mlil_edges": 43,
+     "mlil_cyclomatic": 16,
+     "mlil_branches": 15,
+     "hlil_lines": 55,
+     "hlil_if": 15,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 0,
+     "max_expr_depth": 12
+    },
+    "after": {
+     "mlil_blocks": 39,
+     "mlil_edges": 53,
+     "mlil_cyclomatic": 16,
+     "mlil_branches": 15,
+     "hlil_lines": 57,
+     "hlil_if": 15,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 0,
+     "max_expr_depth": 12
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.33
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 29,
+     "mlil_edges": 43,
+     "mlil_cyclomatic": 16,
+     "mlil_branches": 15,
+     "hlil_lines": 55,
+     "hlil_if": 15,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 0,
+     "max_expr_depth": 12
+    },
+    "after": {
+     "mlil_blocks": 31,
+     "mlil_edges": 50,
+     "mlil_cyclomatic": 21,
+     "mlil_branches": 15,
+     "hlil_lines": 85,
+     "hlil_if": 15,
+     "hlil_loops": 2,
+     "hlil_goto": 10,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 6,
+     "hlil_calls": 0,
+     "max_expr_depth": 12
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.29
+   }
+  },
+  "best": {
+   "mode": "auto",
+   "reason": "penalty"
+  }
+ },
+ {
+  "path": "example/libSeQing.so",
+  "addr": "0x45ba24",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 79,
+     "mlil_edges": 116,
+     "mlil_cyclomatic": 39,
+     "mlil_branches": 39,
+     "hlil_lines": 160,
+     "hlil_if": 39,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 16,
+     "max_expr_depth": 20
+    },
+    "after": {
+     "mlil_blocks": 73,
+     "mlil_edges": 110,
+     "mlil_cyclomatic": 39,
+     "mlil_branches": 30,
+     "hlil_lines": 178,
+     "hlil_if": 30,
+     "hlil_loops": 2,
+     "hlil_goto": 19,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 10,
+     "hlil_calls": 29,
+     "max_expr_depth": 18
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 19.24
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 79,
+     "mlil_edges": 116,
+     "mlil_cyclomatic": 39,
+     "mlil_branches": 39,
+     "hlil_lines": 160,
+     "hlil_if": 39,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 16,
+     "max_expr_depth": 20
+    },
+    "after": {
+     "mlil_blocks": 83,
+     "mlil_edges": 139,
+     "mlil_cyclomatic": 58,
+     "mlil_branches": 39,
+     "hlil_lines": 239,
+     "hlil_if": 38,
+     "hlil_loops": 2,
+     "hlil_goto": 43,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 17,
+     "hlil_calls": 29,
+     "max_expr_depth": 21
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 19.88
+   }
+  },
+  "best": {
+   "mode": "auto",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/cff-arm64-v8a.elf",
+  "addr": "0x400698",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 31,
+     "mlil_edges": 46,
+     "mlil_cyclomatic": 17,
+     "mlil_branches": 16,
+     "hlil_lines": 55,
+     "hlil_if": 16,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 0,
+     "max_expr_depth": 15
+    },
+    "after": {
+     "mlil_blocks": 41,
+     "mlil_edges": 56,
+     "mlil_cyclomatic": 17,
+     "mlil_branches": 16,
+     "hlil_lines": 55,
+     "hlil_if": 16,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 0,
+     "max_expr_depth": 15
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 0.21
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 31,
+     "mlil_edges": 46,
+     "mlil_cyclomatic": 17,
+     "mlil_branches": 16,
+     "hlil_lines": 55,
+     "hlil_if": 16,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 0,
+     "max_expr_depth": 15
+    },
+    "after": {
+     "mlil_blocks": 28,
+     "mlil_edges": 49,
+     "mlil_cyclomatic": 23,
+     "mlil_branches": 16,
+     "hlil_lines": 86,
+     "hlil_if": 16,
+     "hlil_loops": 2,
+     "hlil_goto": 15,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 7,
+     "hlil_calls": 0,
+     "max_expr_depth": 11
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 0.16
+   }
+  },
+  "best": {
+   "mode": "auto",
+   "reason": "penalty"
+  }
+ },
+ {
+  "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libmsaoaidsec.so",
+  "addr": "0x425964",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 16,
+     "mlil_edges": 21,
+     "mlil_cyclomatic": 7,
+     "mlil_branches": 7,
+     "hlil_lines": 20,
+     "hlil_if": 5,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 4,
+     "max_expr_depth": 8
+    },
+    "after": {
+     "mlil_blocks": 9,
+     "mlil_edges": 9,
+     "mlil_cyclomatic": 2,
+     "mlil_branches": 2,
+     "hlil_lines": 10,
+     "hlil_if": 2,
+     "hlil_loops": 0,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 4,
+     "max_expr_depth": 6
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 29.38
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 16,
+     "mlil_edges": 21,
+     "mlil_cyclomatic": 7,
+     "mlil_branches": 7,
+     "hlil_lines": 20,
+     "hlil_if": 5,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 4,
+     "max_expr_depth": 8
+    },
+    "after": {
+     "mlil_blocks": 12,
+     "mlil_edges": 15,
+     "mlil_cyclomatic": 5,
+     "mlil_branches": 2,
+     "hlil_lines": 23,
+     "hlil_if": 2,
+     "hlil_loops": 1,
+     "hlil_goto": 1,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 4,
+     "hlil_calls": 4,
+     "max_expr_depth": 8
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 29.28
+   }
+  },
+  "best": {
+   "mode": "auto",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/libkste.so",
+  "addr": "0x429c7c",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 109,
+     "mlil_edges": 146,
+     "mlil_cyclomatic": 39,
+     "mlil_branches": 38,
+     "hlil_lines": 126,
+     "hlil_if": 33,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 5,
+     "max_expr_depth": 12
+    },
+    "after": {
+     "mlil_blocks": 76,
+     "mlil_edges": 120,
+     "mlil_cyclomatic": 46,
+     "mlil_branches": 34,
+     "hlil_lines": 161,
+     "hlil_if": 17,
+     "hlil_loops": 2,
+     "hlil_goto": 20,
+     "hlil_jump": 0,
+     "hlil_switch": 2,
+     "hlil_cases": 22,
+     "hlil_calls": 5,
+     "max_expr_depth": 17
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 7.29
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 109,
+     "mlil_edges": 146,
+     "mlil_cyclomatic": 39,
+     "mlil_branches": 38,
+     "hlil_lines": 126,
+     "hlil_if": 33,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 5,
+     "max_expr_depth": 12
+    },
+    "after": {
+     "mlil_blocks": 54,
+     "mlil_edges": 83,
+     "mlil_cyclomatic": 31,
+     "mlil_branches": 10,
+     "hlil_lines": 142,
+     "hlil_if": 10,
+     "hlil_loops": 3,
+     "hlil_goto": 19,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 20,
+     "hlil_calls": 6,
+     "max_expr_depth": 13
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 7.06
+   }
+  },
+  "best": {
+   "mode": "general",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/libkste.so",
+  "addr": "0x42a21c",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 97,
+     "mlil_edges": 128,
+     "mlil_cyclomatic": 33,
+     "mlil_branches": 32,
+     "hlil_lines": 151,
+     "hlil_if": 32,
+     "hlil_loops": 1,
+     "hlil_goto": 1,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 0,
+     "max_expr_depth": 15
+    },
+    "after": {
+     "mlil_blocks": 165,
+     "mlil_edges": 225,
+     "mlil_cyclomatic": 62,
+     "mlil_branches": 61,
+     "hlil_lines": 285,
+     "hlil_if": 61,
+     "hlil_loops": 1,
+     "hlil_goto": 9,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 0,
+     "max_expr_depth": 15
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 11.05
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 97,
+     "mlil_edges": 128,
+     "mlil_cyclomatic": 33,
+     "mlil_branches": 32,
+     "hlil_lines": 151,
+     "hlil_if": 32,
+     "hlil_loops": 1,
+     "hlil_goto": 1,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 0,
+     "max_expr_depth": 15
+    },
+    "after": {
+     "mlil_blocks": 57,
+     "mlil_edges": 82,
+     "mlil_cyclomatic": 27,
+     "mlil_branches": 13,
+     "hlil_lines": 129,
+     "hlil_if": 13,
+     "hlil_loops": 2,
+     "hlil_goto": 9,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 13,
+     "hlil_calls": 0,
+     "max_expr_depth": 14
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 6.93
+   }
+  },
+  "best": {
+   "mode": "general",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/libkste.so",
+  "addr": "0x42a690",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 38,
+     "mlil_edges": 50,
+     "mlil_cyclomatic": 14,
+     "mlil_branches": 13,
+     "hlil_lines": 43,
+     "hlil_if": 12,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 6,
+     "max_expr_depth": 16
+    },
+    "after": {
+     "mlil_blocks": 29,
+     "mlil_edges": 46,
+     "mlil_cyclomatic": 19,
+     "mlil_branches": 13,
+     "hlil_lines": 62,
+     "hlil_if": 2,
+     "hlil_loops": 2,
+     "hlil_goto": 7,
+     "hlil_jump": 0,
+     "hlil_switch": 2,
+     "hlil_cases": 14,
+     "hlil_calls": 6,
+     "max_expr_depth": 18
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 6.74
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 38,
+     "mlil_edges": 50,
+     "mlil_cyclomatic": 14,
+     "mlil_branches": 13,
+     "hlil_lines": 43,
+     "hlil_if": 12,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 6,
+     "max_expr_depth": 16
+    },
+    "after": {
+     "mlil_blocks": 11,
+     "mlil_edges": 11,
+     "mlil_cyclomatic": 2,
+     "mlil_branches": 2,
+     "hlil_lines": 20,
+     "hlil_if": 1,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 6,
+     "max_expr_depth": 11
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 6.68
+   }
+  },
+  "best": {
+   "mode": "general",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/libkste.so",
+  "addr": "0x4365cc",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 67,
+     "mlil_edges": 87,
+     "mlil_cyclomatic": 22,
+     "mlil_branches": 22,
+     "hlil_lines": 104,
+     "hlil_if": 22,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 21,
+     "max_expr_depth": 14
+    },
+    "after": {
+     "mlil_blocks": 50,
+     "mlil_edges": 79,
+     "mlil_cyclomatic": 31,
+     "mlil_branches": 22,
+     "hlil_lines": 122,
+     "hlil_if": 22,
+     "hlil_loops": 2,
+     "hlil_goto": 15,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 10,
+     "hlil_calls": 21,
+     "max_expr_depth": 18
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 7.11
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 67,
+     "mlil_edges": 87,
+     "mlil_cyclomatic": 22,
+     "mlil_branches": 22,
+     "hlil_lines": 104,
+     "hlil_if": 22,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 21,
+     "max_expr_depth": 14
+    },
+    "after": {
+     "mlil_blocks": 26,
+     "mlil_edges": 31,
+     "mlil_cyclomatic": 7,
+     "mlil_branches": 7,
+     "hlil_lines": 48,
+     "hlil_if": 7,
+     "hlil_loops": 0,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 21,
+     "max_expr_depth": 11
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 6.88
+   }
+  },
+  "best": {
+   "mode": "general",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libmsaoaidsec.so",
+  "addr": "0x4111b8",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 92,
+     "mlil_edges": 138,
+     "mlil_cyclomatic": 48,
+     "mlil_branches": 48,
+     "hlil_lines": 170,
+     "hlil_if": 48,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 7,
+     "max_expr_depth": 20
+    },
+    "after": {
+     "mlil_blocks": 107,
+     "mlil_edges": 163,
+     "mlil_cyclomatic": 58,
+     "mlil_branches": 41,
+     "hlil_lines": 211,
+     "hlil_if": 41,
+     "hlil_loops": 4,
+     "hlil_goto": 33,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 18,
+     "hlil_calls": 9,
+     "max_expr_depth": 20
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 29.11
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 92,
+     "mlil_edges": 138,
+     "mlil_cyclomatic": 48,
+     "mlil_branches": 48,
+     "hlil_lines": 170,
+     "hlil_if": 48,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 7,
+     "max_expr_depth": 20
+    },
+    "after": {
+     "mlil_blocks": 111,
+     "mlil_edges": 184,
+     "mlil_cyclomatic": 75,
+     "mlil_branches": 48,
+     "hlil_lines": 251,
+     "hlil_if": 46,
+     "hlil_loops": 3,
+     "hlil_goto": 67,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 27,
+     "hlil_calls": 8,
+     "max_expr_depth": 16
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 29.9
+   }
+  },
+  "best": {
+   "mode": "auto",
+   "reason": "penalty"
+  }
+ },
+ {
+  "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libmsaoaidsec.so",
+  "addr": "0x413728",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 50,
+     "mlil_edges": 73,
+     "mlil_cyclomatic": 25,
+     "mlil_branches": 25,
+     "hlil_lines": 80,
+     "hlil_if": 25,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 16,
+     "max_expr_depth": 16
+    },
+    "after": {
+     "mlil_blocks": 50,
+     "mlil_edges": 75,
+     "mlil_cyclomatic": 27,
+     "mlil_branches": 20,
+     "hlil_lines": 98,
+     "hlil_if": 20,
+     "hlil_loops": 2,
+     "hlil_goto": 16,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 8,
+     "hlil_calls": 17,
+     "max_expr_depth": 21
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 29.0
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 50,
+     "mlil_edges": 73,
+     "mlil_cyclomatic": 25,
+     "mlil_branches": 25,
+     "hlil_lines": 80,
+     "hlil_if": 25,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 16,
+     "max_expr_depth": 16
+    },
+    "after": {
+     "mlil_blocks": 44,
+     "mlil_edges": 76,
+     "mlil_cyclomatic": 34,
+     "mlil_branches": 25,
+     "hlil_lines": 124,
+     "hlil_if": 24,
+     "hlil_loops": 3,
+     "hlil_goto": 24,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 10,
+     "hlil_calls": 16,
+     "max_expr_depth": 19
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 28.96
+   }
+  },
+  "best": {
+   "mode": "auto",
+   "reason": "penalty"
+  }
+ },
+ {
+  "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libmsaoaidsec.so",
+  "addr": "0x414400",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 71,
+     "mlil_edges": 104,
+     "mlil_cyclomatic": 35,
+     "mlil_branches": 35,
+     "hlil_lines": 95,
+     "hlil_if": 29,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 20,
+     "max_expr_depth": 13
+    },
+    "after": {
+     "mlil_blocks": 70,
+     "mlil_edges": 111,
+     "mlil_cyclomatic": 43,
+     "mlil_branches": 30,
+     "hlil_lines": 162,
+     "hlil_if": 30,
+     "hlil_loops": 3,
+     "hlil_goto": 25,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 14,
+     "hlil_calls": 36,
+     "max_expr_depth": 19
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 29.17
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 71,
+     "mlil_edges": 104,
+     "mlil_cyclomatic": 35,
+     "mlil_branches": 35,
+     "hlil_lines": 95,
+     "hlil_if": 29,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 20,
+     "max_expr_depth": 13
+    },
+    "after": {
+     "mlil_blocks": 27,
+     "mlil_edges": 32,
+     "mlil_cyclomatic": 7,
+     "mlil_branches": 7,
+     "hlil_lines": 28,
+     "hlil_if": 7,
+     "hlil_loops": 0,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 21,
+     "max_expr_depth": 10
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 28.91
+   }
+  },
+  "best": {
+   "mode": "general",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libmsaoaidsec.so",
+  "addr": "0x41a4e8",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 49,
+     "mlil_edges": 70,
+     "mlil_cyclomatic": 23,
+     "mlil_branches": 23,
+     "hlil_lines": 68,
+     "hlil_if": 22,
+     "hlil_loops": 2,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 3,
+     "max_expr_depth": 18
+    },
+    "after": {
+     "mlil_blocks": 22,
+     "mlil_edges": 37,
+     "mlil_cyclomatic": 17,
+     "mlil_branches": 4,
+     "hlil_lines": 66,
+     "hlil_if": 4,
+     "hlil_loops": 1,
+     "hlil_goto": 9,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 13,
+     "hlil_calls": 4,
+     "max_expr_depth": 11
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 29.05
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 49,
+     "mlil_edges": 70,
+     "mlil_cyclomatic": 23,
+     "mlil_branches": 23,
+     "hlil_lines": 68,
+     "hlil_if": 22,
+     "hlil_loops": 2,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 3,
+     "max_expr_depth": 18
+    },
+    "after": {
+     "mlil_blocks": 43,
+     "mlil_edges": 64,
+     "mlil_cyclomatic": 23,
+     "mlil_branches": 23,
+     "hlil_lines": 68,
+     "hlil_if": 22,
+     "hlil_loops": 2,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 3,
+     "max_expr_depth": 18
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 29.18
+   }
+  },
+  "best": {
+   "mode": "general",
+   "reason": "penalty"
+  }
+ },
+ {
+  "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libmsaoaidsec.so",
+  "addr": "0x41b924",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 75,
+     "mlil_edges": 112,
+     "mlil_cyclomatic": 39,
+     "mlil_branches": 39,
+     "hlil_lines": 186,
+     "hlil_if": 37,
+     "hlil_loops": 3,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 15,
+     "max_expr_depth": 24
+    },
+    "after": {
+     "mlil_blocks": 82,
+     "mlil_edges": 137,
+     "mlil_cyclomatic": 57,
+     "mlil_branches": 30,
+     "hlil_lines": 230,
+     "hlil_if": 29,
+     "hlil_loops": 1,
+     "hlil_goto": 45,
+     "hlil_jump": 0,
+     "hlil_switch": 2,
+     "hlil_cases": 27,
+     "hlil_calls": 18,
+     "max_expr_depth": 17
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 29.33
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 75,
+     "mlil_edges": 112,
+     "mlil_cyclomatic": 39,
+     "mlil_branches": 39,
+     "hlil_lines": 186,
+     "hlil_if": 37,
+     "hlil_loops": 3,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 15,
+     "max_expr_depth": 24
+    },
+    "after": {
+     "mlil_blocks": 89,
+     "mlil_edges": 146,
+     "mlil_cyclomatic": 59,
+     "mlil_branches": 39,
+     "hlil_lines": 246,
+     "hlil_if": 39,
+     "hlil_loops": 2,
+     "hlil_goto": 50,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 20,
+     "hlil_calls": 22,
+     "max_expr_depth": 21
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 29.22
+   }
+  },
+  "best": {
+   "mode": "auto",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libmsaoaidsec.so",
+  "addr": "0x424be8",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 109,
+     "mlil_edges": 171,
+     "mlil_cyclomatic": 64,
+     "mlil_branches": 64,
+     "hlil_lines": 476,
+     "hlil_if": 46,
+     "hlil_loops": 19,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 22,
+     "max_expr_depth": 22
+    },
+    "after": {
+     "mlil_blocks": 138,
+     "mlil_edges": 197,
+     "mlil_cyclomatic": 61,
+     "mlil_branches": 48,
+     "hlil_lines": 493,
+     "hlil_if": 17,
+     "hlil_loops": 19,
+     "hlil_goto": 13,
+     "hlil_jump": 0,
+     "hlil_switch": 2,
+     "hlil_cases": 21,
+     "hlil_calls": 24,
+     "max_expr_depth": 15
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 30.97
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 109,
+     "mlil_edges": 171,
+     "mlil_cyclomatic": 64,
+     "mlil_branches": 64,
+     "hlil_lines": 476,
+     "hlil_if": 46,
+     "hlil_loops": 19,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 22,
+     "max_expr_depth": 22
+    },
+    "after": {
+     "mlil_blocks": 119,
+     "mlil_edges": 198,
+     "mlil_cyclomatic": 81,
+     "mlil_branches": 64,
+     "hlil_lines": 509,
+     "hlil_if": 24,
+     "hlil_loops": 20,
+     "hlil_goto": 36,
+     "hlil_jump": 0,
+     "hlil_switch": 2,
+     "hlil_cases": 35,
+     "hlil_calls": 24,
+     "max_expr_depth": 16
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 30.03
+   }
+  },
+  "best": {
+   "mode": "auto",
+   "reason": "penalty"
+  }
+ },
+ {
+  "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libmsaoaidsec.so",
+  "addr": "0x425964",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 16,
+     "mlil_edges": 21,
+     "mlil_cyclomatic": 7,
+     "mlil_branches": 7,
+     "hlil_lines": 20,
+     "hlil_if": 5,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 4,
+     "max_expr_depth": 8
+    },
+    "after": {
+     "mlil_blocks": 9,
+     "mlil_edges": 9,
+     "mlil_cyclomatic": 2,
+     "mlil_branches": 2,
+     "hlil_lines": 10,
+     "hlil_if": 2,
+     "hlil_loops": 0,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 4,
+     "max_expr_depth": 6
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 28.89
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 16,
+     "mlil_edges": 21,
+     "mlil_cyclomatic": 7,
+     "mlil_branches": 7,
+     "hlil_lines": 20,
+     "hlil_if": 5,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 4,
+     "max_expr_depth": 8
+    },
+    "after": {
+     "mlil_blocks": 12,
+     "mlil_edges": 15,
+     "mlil_cyclomatic": 5,
+     "mlil_branches": 2,
+     "hlil_lines": 23,
+     "hlil_if": 2,
+     "hlil_loops": 1,
+     "hlil_goto": 1,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 4,
+     "hlil_calls": 4,
+     "max_expr_depth": 8
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 28.99
+   }
+  },
+  "best": {
+   "mode": "auto",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libmsaoaidsec.so",
+  "addr": "0x425b30",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 36,
+     "mlil_edges": 51,
+     "mlil_cyclomatic": 17,
+     "mlil_branches": 17,
+     "hlil_lines": 51,
+     "hlil_if": 17,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 2,
+     "max_expr_depth": 13
+    },
+    "after": {
+     "mlil_blocks": 44,
+     "mlil_edges": 63,
+     "mlil_cyclomatic": 21,
+     "mlil_branches": 17,
+     "hlil_lines": 79,
+     "hlil_if": 17,
+     "hlil_loops": 2,
+     "hlil_goto": 11,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 5,
+     "hlil_calls": 2,
+     "max_expr_depth": 18
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 29.09
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 36,
+     "mlil_edges": 51,
+     "mlil_cyclomatic": 17,
+     "mlil_branches": 17,
+     "hlil_lines": 51,
+     "hlil_if": 17,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 2,
+     "max_expr_depth": 13
+    },
+    "after": {
+     "mlil_blocks": 37,
+     "mlil_edges": 60,
+     "mlil_cyclomatic": 25,
+     "mlil_branches": 17,
+     "hlil_lines": 71,
+     "hlil_if": 17,
+     "hlil_loops": 1,
+     "hlil_goto": 14,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 7,
+     "hlil_calls": 2,
+     "max_expr_depth": 13
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 28.93
+   }
+  },
+  "best": {
+   "mode": "general",
+   "reason": "penalty"
+  }
+ },
+ {
+  "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libmsaoaidsec.so",
+  "addr": "0x425de8",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 49,
+     "mlil_edges": 71,
+     "mlil_cyclomatic": 24,
+     "mlil_branches": 24,
+     "hlil_lines": 81,
+     "hlil_if": 22,
+     "hlil_loops": 2,
+     "hlil_goto": 2,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 7,
+     "max_expr_depth": 22
+    },
+    "after": {
+     "mlil_blocks": 56,
+     "mlil_edges": 78,
+     "mlil_cyclomatic": 24,
+     "mlil_branches": 15,
+     "hlil_lines": 82,
+     "hlil_if": 14,
+     "hlil_loops": 2,
+     "hlil_goto": 6,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 8,
+     "hlil_calls": 12,
+     "max_expr_depth": 16
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 29.24
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 49,
+     "mlil_edges": 71,
+     "mlil_cyclomatic": 24,
+     "mlil_branches": 24,
+     "hlil_lines": 81,
+     "hlil_if": 22,
+     "hlil_loops": 2,
+     "hlil_goto": 2,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 7,
+     "max_expr_depth": 22
+    },
+    "after": {
+     "mlil_blocks": 27,
+     "mlil_edges": 36,
+     "mlil_cyclomatic": 11,
+     "mlil_branches": 11,
+     "hlil_lines": 51,
+     "hlil_if": 10,
+     "hlil_loops": 1,
+     "hlil_goto": 2,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 9,
+     "max_expr_depth": 12
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 29.04
+   }
+  },
+  "best": {
+   "mode": "general",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/libSeQing.so",
+  "addr": "0x45985c",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 29,
+     "mlil_edges": 43,
+     "mlil_cyclomatic": 16,
+     "mlil_branches": 15,
+     "hlil_lines": 55,
+     "hlil_if": 15,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 0,
+     "max_expr_depth": 12
+    },
+    "after": {
+     "mlil_blocks": 39,
+     "mlil_edges": 53,
+     "mlil_cyclomatic": 16,
+     "mlil_branches": 15,
+     "hlil_lines": 57,
+     "hlil_if": 15,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 0,
+     "max_expr_depth": 12
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.12
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 29,
+     "mlil_edges": 43,
+     "mlil_cyclomatic": 16,
+     "mlil_branches": 15,
+     "hlil_lines": 55,
+     "hlil_if": 15,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 0,
+     "max_expr_depth": 12
+    },
+    "after": {
+     "mlil_blocks": 31,
+     "mlil_edges": 50,
+     "mlil_cyclomatic": 21,
+     "mlil_branches": 15,
+     "hlil_lines": 85,
+     "hlil_if": 15,
+     "hlil_loops": 2,
+     "hlil_goto": 10,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 6,
+     "hlil_calls": 0,
+     "max_expr_depth": 12
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.17
+   }
+  },
+  "best": {
+   "mode": "auto",
+   "reason": "penalty"
+  }
+ },
+ {
+  "path": "example/libSeQing.so",
+  "addr": "0x459a40",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 35,
+     "mlil_edges": 50,
+     "mlil_cyclomatic": 17,
+     "mlil_branches": 17,
+     "hlil_lines": 68,
+     "hlil_if": 17,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 7,
+     "max_expr_depth": 16
+    },
+    "after": {
+     "mlil_blocks": 38,
+     "mlil_edges": 55,
+     "mlil_cyclomatic": 19,
+     "mlil_branches": 14,
+     "hlil_lines": 80,
+     "hlil_if": 14,
+     "hlil_loops": 2,
+     "hlil_goto": 8,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 6,
+     "hlil_calls": 10,
+     "max_expr_depth": 15
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.46
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 35,
+     "mlil_edges": 50,
+     "mlil_cyclomatic": 17,
+     "mlil_branches": 17,
+     "hlil_lines": 68,
+     "hlil_if": 17,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 7,
+     "max_expr_depth": 16
+    },
+    "after": {
+     "mlil_blocks": 38,
+     "mlil_edges": 61,
+     "mlil_cyclomatic": 25,
+     "mlil_branches": 17,
+     "hlil_lines": 103,
+     "hlil_if": 16,
+     "hlil_loops": 4,
+     "hlil_goto": 16,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 9,
+     "hlil_calls": 10,
+     "max_expr_depth": 16
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.38
+   }
+  },
+  "best": {
+   "mode": "auto",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/libSeQing.so",
+  "addr": "0x459ed8",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 18,
+     "mlil_edges": 25,
+     "mlil_cyclomatic": 9,
+     "mlil_branches": 8,
+     "hlil_lines": 26,
+     "hlil_if": 6,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 2,
+     "max_expr_depth": 13
+    },
+    "after": {
+     "mlil_blocks": 7,
+     "mlil_edges": 8,
+     "mlil_cyclomatic": 3,
+     "mlil_branches": 2,
+     "hlil_lines": 17,
+     "hlil_if": 1,
+     "hlil_loops": 1,
+     "hlil_goto": 1,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 2,
+     "max_expr_depth": 10
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.3
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 18,
+     "mlil_edges": 25,
+     "mlil_cyclomatic": 9,
+     "mlil_branches": 8,
+     "hlil_lines": 26,
+     "hlil_if": 6,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 2,
+     "max_expr_depth": 13
+    },
+    "after": {
+     "mlil_blocks": 9,
+     "mlil_edges": 10,
+     "mlil_cyclomatic": 3,
+     "mlil_branches": 2,
+     "hlil_lines": 17,
+     "hlil_if": 1,
+     "hlil_loops": 1,
+     "hlil_goto": 1,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 2,
+     "max_expr_depth": 10
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.32
+   }
+  },
+  "best": {
+   "mode": "auto",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/libSeQing.so",
+  "addr": "0x45a1ec",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 34,
+     "mlil_edges": 49,
+     "mlil_cyclomatic": 17,
+     "mlil_branches": 16,
+     "hlil_lines": 47,
+     "hlil_if": 15,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 1,
+     "max_expr_depth": 12
+    },
+    "after": {
+     "mlil_blocks": 48,
+     "mlil_edges": 74,
+     "mlil_cyclomatic": 28,
+     "mlil_branches": 20,
+     "hlil_lines": 79,
+     "hlil_if": 9,
+     "hlil_loops": 3,
+     "hlil_goto": 6,
+     "hlil_jump": 0,
+     "hlil_switch": 3,
+     "hlil_cases": 16,
+     "hlil_calls": 4,
+     "max_expr_depth": 17
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.37
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 34,
+     "mlil_edges": 49,
+     "mlil_cyclomatic": 17,
+     "mlil_branches": 16,
+     "hlil_lines": 47,
+     "hlil_if": 15,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 1,
+     "max_expr_depth": 12
+    },
+    "after": {
+     "mlil_blocks": 36,
+     "mlil_edges": 59,
+     "mlil_cyclomatic": 25,
+     "mlil_branches": 16,
+     "hlil_lines": 60,
+     "hlil_if": 3,
+     "hlil_loops": 3,
+     "hlil_goto": 6,
+     "hlil_jump": 0,
+     "hlil_switch": 2,
+     "hlil_cases": 15,
+     "hlil_calls": 3,
+     "max_expr_depth": 13
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.28
+   }
+  },
+  "best": {
+   "mode": "general",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/libSeQing.so",
+  "addr": "0x45a3b8",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 22,
+     "mlil_edges": 30,
+     "mlil_cyclomatic": 10,
+     "mlil_branches": 10,
+     "hlil_lines": 71,
+     "hlil_if": 8,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 2,
+     "max_expr_depth": 15
+    },
+    "after": {
+     "mlil_blocks": 18,
+     "mlil_edges": 23,
+     "mlil_cyclomatic": 7,
+     "mlil_branches": 3,
+     "hlil_lines": 73,
+     "hlil_if": 1,
+     "hlil_loops": 1,
+     "hlil_goto": 2,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 4,
+     "hlil_calls": 3,
+     "max_expr_depth": 12
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.29
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 22,
+     "mlil_edges": 30,
+     "mlil_cyclomatic": 10,
+     "mlil_branches": 10,
+     "hlil_lines": 71,
+     "hlil_if": 8,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 2,
+     "max_expr_depth": 15
+    },
+    "after": {
+     "mlil_blocks": 12,
+     "mlil_edges": 13,
+     "mlil_cyclomatic": 3,
+     "mlil_branches": 3,
+     "hlil_lines": 51,
+     "hlil_if": 1,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 2,
+     "max_expr_depth": 8
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.32
+   }
+  },
+  "best": {
+   "mode": "general",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/libSeQing.so",
+  "addr": "0x45a620",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 20,
+     "mlil_edges": 27,
+     "mlil_cyclomatic": 9,
+     "mlil_branches": 9,
+     "hlil_lines": 72,
+     "hlil_if": 9,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 3,
+     "max_expr_depth": 15
+    },
+    "after": {
+     "mlil_blocks": 17,
+     "mlil_edges": 22,
+     "mlil_cyclomatic": 7,
+     "mlil_branches": 3,
+     "hlil_lines": 70,
+     "hlil_if": 3,
+     "hlil_loops": 1,
+     "hlil_goto": 4,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 4,
+     "hlil_calls": 3,
+     "max_expr_depth": 13
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.26
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 20,
+     "mlil_edges": 27,
+     "mlil_cyclomatic": 9,
+     "mlil_branches": 9,
+     "hlil_lines": 72,
+     "hlil_if": 9,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 3,
+     "max_expr_depth": 15
+    },
+    "after": {
+     "mlil_blocks": 12,
+     "mlil_edges": 13,
+     "mlil_cyclomatic": 3,
+     "mlil_branches": 3,
+     "hlil_lines": 58,
+     "hlil_if": 2,
+     "hlil_loops": 1,
+     "hlil_goto": 1,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 3,
+     "max_expr_depth": 10
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.25
+   }
+  },
+  "best": {
+   "mode": "general",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/libSeQing.so",
+  "addr": "0x45a864",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 18,
+     "mlil_edges": 25,
+     "mlil_cyclomatic": 9,
+     "mlil_branches": 8,
+     "hlil_lines": 32,
+     "hlil_if": 8,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 5,
+     "max_expr_depth": 14
+    },
+    "after": {
+     "mlil_blocks": 14,
+     "mlil_edges": 19,
+     "mlil_cyclomatic": 7,
+     "mlil_branches": 2,
+     "hlil_lines": 28,
+     "hlil_if": 2,
+     "hlil_loops": 1,
+     "hlil_goto": 3,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 4,
+     "hlil_calls": 6,
+     "max_expr_depth": 11
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 19.0
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 18,
+     "mlil_edges": 25,
+     "mlil_cyclomatic": 9,
+     "mlil_branches": 8,
+     "hlil_lines": 32,
+     "hlil_if": 8,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 5,
+     "max_expr_depth": 14
+    },
+    "after": {
+     "mlil_blocks": 9,
+     "mlil_edges": 10,
+     "mlil_cyclomatic": 3,
+     "mlil_branches": 2,
+     "hlil_lines": 19,
+     "hlil_if": 1,
+     "hlil_loops": 1,
+     "hlil_goto": 1,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 5,
+     "max_expr_depth": 8
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.57
+   }
+  },
+  "best": {
+   "mode": "general",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/libSeQing.so",
+  "addr": "0x45aa54",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 18,
+     "mlil_edges": 25,
+     "mlil_cyclomatic": 9,
+     "mlil_branches": 8,
+     "hlil_lines": 27,
+     "hlil_if": 6,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 2,
+     "max_expr_depth": 13
+    },
+    "after": {
+     "mlil_blocks": 7,
+     "mlil_edges": 8,
+     "mlil_cyclomatic": 3,
+     "mlil_branches": 2,
+     "hlil_lines": 18,
+     "hlil_if": 1,
+     "hlil_loops": 1,
+     "hlil_goto": 1,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 2,
+     "max_expr_depth": 8
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.72
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 18,
+     "mlil_edges": 25,
+     "mlil_cyclomatic": 9,
+     "mlil_branches": 8,
+     "hlil_lines": 27,
+     "hlil_if": 6,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 2,
+     "max_expr_depth": 13
+    },
+    "after": {
+     "mlil_blocks": 9,
+     "mlil_edges": 10,
+     "mlil_cyclomatic": 3,
+     "mlil_branches": 2,
+     "hlil_lines": 18,
+     "hlil_if": 1,
+     "hlil_loops": 1,
+     "hlil_goto": 1,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 2,
+     "max_expr_depth": 8
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.66
+   }
+  },
+  "best": {
+   "mode": "auto",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/libSeQing.so",
+  "addr": "0x45abfc",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 18,
+     "mlil_edges": 25,
+     "mlil_cyclomatic": 9,
+     "mlil_branches": 8,
+     "hlil_lines": 28,
+     "hlil_if": 6,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 4,
+     "max_expr_depth": 14
+    },
+    "after": {
+     "mlil_blocks": 7,
+     "mlil_edges": 8,
+     "mlil_cyclomatic": 3,
+     "mlil_branches": 2,
+     "hlil_lines": 19,
+     "hlil_if": 1,
+     "hlil_loops": 1,
+     "hlil_goto": 1,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 4,
+     "max_expr_depth": 10
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.7
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 18,
+     "mlil_edges": 25,
+     "mlil_cyclomatic": 9,
+     "mlil_branches": 8,
+     "hlil_lines": 28,
+     "hlil_if": 6,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 4,
+     "max_expr_depth": 14
+    },
+    "after": {
+     "mlil_blocks": 9,
+     "mlil_edges": 10,
+     "mlil_cyclomatic": 3,
+     "mlil_branches": 2,
+     "hlil_lines": 19,
+     "hlil_if": 1,
+     "hlil_loops": 1,
+     "hlil_goto": 1,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 4,
+     "max_expr_depth": 10
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.87
+   }
+  },
+  "best": {
+   "mode": "auto",
+   "reason": "pareto"
+  }
+ },
+ {
+  "path": "example/libSeQing.so",
+  "addr": "0x45adc0",
+  "modes": {
+   "auto": {
+    "before": {
+     "mlil_blocks": 18,
+     "mlil_edges": 25,
+     "mlil_cyclomatic": 9,
+     "mlil_branches": 8,
+     "hlil_lines": 30,
+     "hlil_if": 8,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 6,
+     "max_expr_depth": 15
+    },
+    "after": {
+     "mlil_blocks": 14,
+     "mlil_edges": 19,
+     "mlil_cyclomatic": 7,
+     "mlil_branches": 2,
+     "hlil_lines": 27,
+     "hlil_if": 2,
+     "hlil_loops": 1,
+     "hlil_goto": 3,
+     "hlil_jump": 0,
+     "hlil_switch": 1,
+     "hlil_cases": 4,
+     "hlil_calls": 6,
+     "max_expr_depth": 13
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.57
+   },
+   "general": {
+    "before": {
+     "mlil_blocks": 18,
+     "mlil_edges": 25,
+     "mlil_cyclomatic": 9,
+     "mlil_branches": 8,
+     "hlil_lines": 30,
+     "hlil_if": 8,
+     "hlil_loops": 1,
+     "hlil_goto": 0,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 6,
+     "max_expr_depth": 15
+    },
+    "after": {
+     "mlil_blocks": 9,
+     "mlil_edges": 10,
+     "mlil_cyclomatic": 3,
+     "mlil_branches": 2,
+     "hlil_lines": 19,
+     "hlil_if": 1,
+     "hlil_loops": 1,
+     "hlil_goto": 1,
+     "hlil_jump": 0,
+     "hlil_switch": 0,
+     "hlil_cases": 0,
+     "hlil_calls": 6,
+     "max_expr_depth": 10
+    },
+    "se_lost": 0,
+    "calls_lost": 0,
+    "stores_lost": 0,
+    "rets_lost": 0,
+    "orphan": false,
+    "time": 18.52
+   }
+  },
+  "best": {
+   "mode": "general",
+   "reason": "pareto"
+  }
+ }
+]
