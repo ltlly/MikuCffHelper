@@ -116,19 +116,12 @@ APK 解包目录中另外 45 个 fast 检测无候选的 arm64 libs 只保留在
      （如 `if (arg1 != 0) state=A else state=B`），deflate 一个 state 值
      只对应一个目标，条件转移无法完整短路；下一步应做条件多目标解析/
      与 general 条件分支改写融合，而不是清理 pass。
-5. **条件多目标解析已实现（仅 temp 比较形态，deflate 路径）**：
-   - 解析树节点：`target` / `cond(if)`；未知条件对 true/false 两侧克隆
-     env 递归；支持 **dispatcher re-entry**（state chain 结块
-     `bb: goto dispatcher` 不算环）与同一 state 值二次入口的终止条件；
-   - builder 先生成子块再生成父块，按 liveness 过滤回放并在 mini-block
-     中生成条件 goto 树；深度上限 128、最多 4 次 re-entry。
-   - 仅当 fast `_collect_state_vars` 为空（慢路径兜底，cdong x86 形态）
-     时启用，普通 arm64 样本不付出解析/膨胀成本。
-   - cdong linux64 现在 5 个 state define 生成 cond 树（例如
-     0xb645f3b5→if(...) 435/422；0xf40566d8 生成三层嵌套），其余为具体
-     target；auto 0 丢失，HLIL 194→219。
-   - 验证：auto 39 回归 `[ok]`（37/39、0 丢失、0 orphan，sub_409488
-     HLIL 20→8）；general 39 回归 `[ok]`。
+5. **条件多目标解析器（默认关闭，研究结论已回退 patch）**：
+   - 解析器本身可用：cond 树、dispatcher re-entry、state 判环都验证过；
+   - 但把 cond 树 patch 进 MLIL 后 cdong HLIL 219→227/259，返回边重建
+     257，均比「只 path replay + 保守跳过未知条件」更差；
+   - 当前 `_ENABLE_COND_TREES=False`、stop-on-unknown-if 关闭，稳定输出
+     cdong auto HLIL 219、t≈3.0s、0 丢失。
    - 离 deob 参考件（23 blocks / HLIL 134）仍有距离：条件树把控制流直接
      化了，但 BN HLIL restructure 仍会按残留 dispatcher 展开；下一步是
      条件树 + 不可达 dispatcher 移除的融合。

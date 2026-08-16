@@ -69,6 +69,9 @@ _FLATTENING_SCORE_THRESHOLD = 0.3
 _MIN_BLOCKS_FOR_CFF = 5
 # 特殊返回值：遇到未知条件时停在当前 dispatcher 块，把该块当真实目标。
 _STOP_AT_BLOCK = -1
+# 条件树 patch 在 cdong 上实测 HLIL 变差（219→227/259），默认关闭；
+# 保留解析器供后续与不可达 dispatcher 融合研究。
+_ENABLE_COND_TREES = False
 
 _WIDTH_TO_MASK = {1: 0xFF, 2: 0xFFFF, 4: 0xFFFFFFFF, 8: 0xFFFFFFFFFFFFFFFF}
 
@@ -1217,28 +1220,24 @@ def _resolve_conditional_path(
     return result
 
 
-def _build_conditional_patch(
+def _build_resolution_tree(
     mlil: MediumLevelILFunction,
-    define_instr: MediumLevelILSetVar,
     node: Tuple,
+    loc: ILSourceLocation,
+    state_vars: Set[Variable],
+    prefix: Tuple[MediumLevelILInstruction, ...] = (),
 ) -> int:
-    """把条件解析树落成 MLIL mini-block，返回根 block 的 label operand。
-
-    为避免 label operand 在 append 之后才确定，子块先于父块构建：
-    - target 子块：label + 回放 + goto target；
-    - cond 父块：先构建两个子块拿到它们的起始 instr_index，再 append
-      `label + 回放 + if(cond) true/false`，父块最后出现，根 define 直接
-      goto 到父块。
-    """
-    loc = ILSourceLocation.from_instruction(define_instr)
-
-    def build(cur: Tuple, already_ids: frozenset) -> int:
+    """把解析树落成 MLIL，返回根 label operand。prefix 指令在根块回放前追加。"""
+    def build(cur: Tuple, already_ids: frozenset, is_root: bool) -> int:
         kind = cur[0]
         if kind == "target":
             _, target_idx, replay, skipped = cur
             replay = _filter_replay_indices(mlil, replay, state_vars, skipped)
             label = MediumLevelILLabel()
             mlil.mark_label(label)
+            if is_root:
+                for instr in prefix:
+                    mlil.append(mlil.copy_expr(instr), loc)
             for idx in replay:
                 if idx in already_ids:
                     continue
@@ -1249,14 +1248,16 @@ def _build_conditional_patch(
             mlil.append(mlil.goto(target_label, loc))
             return label.operand
 
-        # cond 节点：先建子块，再建父块。
         _, cond_idx, true_node, false_node, replay, skipped = cur
         replay = _filter_replay_indices(mlil, replay, state_vars, skipped)
         child_already = already_ids | set(replay)
-        true_start = build(true_node, child_already)
-        false_start = build(false_node, child_already)
+        true_start = build(true_node, child_already, False)
+        false_start = build(false_node, child_already, False)
         label = MediumLevelILLabel()
         mlil.mark_label(label)
+        if is_root:
+            for instr in prefix:
+                mlil.append(mlil.copy_expr(instr), loc)
         for idx in replay:
             if idx in already_ids:
                 continue
@@ -1277,7 +1278,18 @@ def _build_conditional_patch(
         )
         return label.operand
 
-    return build(node, frozenset())
+    return build(node, frozenset(), True)
+
+
+def _build_conditional_patch(
+    mlil: MediumLevelILFunction,
+    define_instr: MediumLevelILSetVar,
+    node: Tuple,
+    state_vars: Set[Variable],
+) -> int:
+    """define patch 的解析树落地：根块先复制 define，再回放/条件分支。"""
+    loc = ILSourceLocation.from_instruction(define_instr)
+    return _build_resolution_tree(mlil, node, loc, state_vars, prefix=(define_instr,))
 
 
 def _forward_resolve(
@@ -1420,7 +1432,7 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
                 continue
             target, replay = _forward_resolve_with_replay(
                 mlil, instr, state_vars, dispatcher_blocks, resolve_memo,
-                dead_vars, stop_on_unknown_if=used_slow_state,
+                dead_vars, stop_on_unknown_if=False,
             )
             if target == instr.instr_index:
                 continue
@@ -1428,7 +1440,7 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
             # 只有 temp 比较形态（used_slow_state），且简单解析失败或停在
             # dispatcher 内未知条件块时，才尝试条件多目标解析。
             cond_node = None
-            if used_slow_state and (target is None or target in dispatcher_blocks):
+            if _ENABLE_COND_TREES and used_slow_state and target is None:
                 try:
                     env = _seed_env_from_block(
                         mlil, instr, state_vars, dispatcher_blocks
@@ -1475,7 +1487,7 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
             try:
                 if cond_node is not None:
                     # 条件解析树：生成 if(cond) 分支 mini-block 链。
-                    root_label = _build_conditional_patch(mlil, define, cond_node)
+                    root_label = _build_conditional_patch(mlil, define, cond_node, state_vars)
                     root_lbl = MediumLevelILLabel()
                     root_lbl.operand = root_label
                     mlil.replace_expr(

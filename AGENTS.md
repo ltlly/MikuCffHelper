@@ -243,13 +243,13 @@ python tools/regression_test.py --update-baseline
   134 / calls 28）确认差距来自「依赖输入的条件状态转移未完整短路」
   （如 `if (arg1 != 0) state=A else state=B`），BN HLIL restructure 对
   残留 dispatcher 的直连边重复展开。
-- **条件多目标解析已实现**（仅 deflate + slow-state 兜底形态）：
-  `_resolve_conditional_path` 生成 target/cond 树，支持 state-chain
-  dispatcher re-entry、按 state 值判环、深度 128 / 4 次重入；
-  `_build_conditional_patch` 先建子块再建父块，用 liveness 过滤 replay。
-  解析结果按 `(tail去向, env, primary id)` memo。验证：cdong linux64
-  5 个 define 生成 cond 树、0 丢失（HLIL 194→219，auto 7.2s）；
-  auto 39 回归 `[ok]`、general 39 回归 `[ok]`。
+- **条件多目标解析器存在但默认关闭**（`_ENABLE_COND_TREES=False`）：
+  `_resolve_conditional_path` 支持 state-chain dispatcher re-entry、按
+  state 值判环；但 cdong 实测把 cond 树 patch 进 MLIL 后 HLIL
+  219→227/259、auto 8.5s，stop-on-unknown-if 也 219→227，均已回退。
+  当前稳定默认：仅 path replay，cdong auto HLIL 219、t≈3.0s。
+  返回边重建原型同样 HLIL 不降（257），helpers 已删除。结论：剩余差距
+  需要先解决 BN HLIL restructure 的重复展开，再谈 dispatcher 移除。
 - **不可达 dispatcher 移除结论**：cdong auto 后 99/99 块仍可达、77 个
   dispatcher 块仍有来自真实块的返回边。安全移除不能靠 NOP 可达性清理，
   必须把「真实块 → dispatcher 入口」的返回边重定向到条件树/guard（等价于
