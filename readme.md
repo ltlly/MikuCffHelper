@@ -40,10 +40,13 @@ OLLVM `-fla` 把函数变成「dispatcher + 真实块」状态机。插件提供
 - **不删除**原版 `deflate_hard` / `synthesize_switch`；
 - 原版大函数复杂度高的问题，通过独立 workflow + trial/时间预估规避，
   并在本分支完成了 CFGIndex 线性建图 + 懒 SCC、union-find 别名链、线性
-  detector、clear 状态变量扫描提升等性能优化。pass 级实测（不含 BN 重分析）：
-  sub_45ba24 auto 2.42s→0.74s（其中 pass_clear 2.22s→0.55s），
-  sub_406c0c 0.27s→0.19s；39 函数回归输出与基线一致（37/39 变换、
-  0 副作用丢失、0 orphan）；
+  detector、clear 状态变量扫描提升、dispatcher 段 trace 缓存、无改动
+  跳过 finalize/SSA 重建等性能优化。pass 级实测（不含 BN 重分析）：
+  sub_45ba24 auto 2.42s→0.73s（其中 pass_clear 2.22s→0.56s），
+  sub_406c0c auto 0.27s→0.18s，sub_4365cc deflate 0.127s→0.100s
+  （deflate1 0.056s→0.040s）；sub_40831c 21 次前向解析有 10 次命中
+  trace 缓存。39 函数回归输出与基线一致（37/39 变换、0 副作用丢失、
+  0 orphan）；
 - 若未来更大样本证明 模式3 在标准 CFF 上全面不劣于 auto，再讨论替换。
 
 ## 2. 安装
@@ -442,9 +445,12 @@ workflow `MikuCffHelper_general_workflow` 中，不经过主 workflow 的 LLIL
 per-instruction 块映射（O(总指令数) 建表、O(1) 查询，等价于
 `get_basic_block_at` 的含块中段语义）替代逐边查询；SCC 只在需要判环时
 懒计算。`pass_merge_block` 与 LLIL `pass_copy_common_block` 不再逐查询
-全图扫描；`pass_clear_SSA_const_if` 把 `find_state_var` 提到外层循环外，
-避免每轮全函数重扫；`_vars_aliased_to` 改为 union-find；
-`_function_looks_like_cff` 一遍预计算值集。选择策略：先排除任何有副作用丢失/orphan 的模式；再按坏指标集合做 Pareto
+全图扫描；`_forward_resolve` 的 dispatcher 段模拟按 `(tail 去向, env)`
+做 trace 缓存，deflate 与 switch 候选收集都复用；`pass_clear` 各子 pass
+无改动时不再执行多余的 finalize/generate_ssa_form（39 函数 A/B 证明
+`pass_clear_SSA_const_if` 仍需保留，`pass_swap_if` 已安全移除）；
+`_vars_aliased_to` 改为 union-find；`_function_looks_like_cff` 一遍预计算
+值集。选择策略：先排除任何有副作用丢失/orphan 的模式；再按坏指标集合做 Pareto
 支配；都不支配时用 `default_penalty`（块 0.5 / 圈复杂度 1 / 行数 1 /
 goto+jump 3 / 深度 1）取低分。权重全部集中在 `utils/readability.py`，
 可配置、可解释，不藏在 workflow 编排里。

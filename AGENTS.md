@@ -34,7 +34,7 @@ passes/
     inlineIfCondPass.py      # flag 条件内联到 if
     spiltIfPass.py           # if 单独成块
   mid/                       # MLIL 层核心
-    clearPass.py             # 常量 if / goto / merge / swap / SSA const 清理
+    clearPass.py             # 常量 if / goto / merge / SSA const 清理
     movStateDefine.py        # 状态常量赋值移到块尾
     deflatHardPass.py        # 路径 A：前向模拟 + 短路 state SetVar
     synthesizeSwitchPass.py  # 路径 B：生成 jump_to / guard
@@ -141,8 +141,13 @@ python tools/regression_test.py --update-baseline
 
 ### 4.3 注意
 
-- `pass_clear` 目前包含 `pass_swap_if` 和 `pass_clear_SSA_const_if`。历史文档
-  曾建议删除它们，但当前实现对嵌套 CFF 迭代收敛有帮助，**不要仅凭旧结论删除**。
+- `pass_clear` 目前包含 `pass_clear_SSA_const_if`；`pass_swap_if` 已移除。
+  这两个决策都有 39 函数全量 A/B 证据：
+  - 移除 `pass_clear_SSA_const_if` → `sub_4075a0` HLIL 4→19、
+    `sub_407994` 26→39，**必须保留**；
+  - 移除 `pass_swap_if` → auto 与 general 回归输出均与基线一致，
+    无收益，已删除整段 dead pass。
+  不要仅凭旧结论或代码洁癖再次增删这两条规则。
 - 修改 `mikuWorkflow.py` 时注意 `workflow_patch_mlil_auto` 的 B→A fallback
   顺序：B 成功后不要再跑 A，否则可能把 guard block 误当 dispatcher。
 - `workflow_patch_mlil_general` 是实验入口，注册在独立 workflow
@@ -183,8 +188,13 @@ python tools/regression_test.py --update-baseline
   （clear 2.22s→0.55s）、sub_406c0c 0.27s→0.19s，39 函数回归与基线
   一致。
 - 曾尝试给 `_forward_resolve` 加 define 级缓存：带 seed-env 键的版本在
-  39 样本上无重复键（0 命中）且额外开销，正确性收益为负，已废弃，勿
-  再以 `(state_var, value, goto_target)` 类短键缓存解析结果。
+  39 样本上无重复键（0 命中）且额外开销，正确性收益为负，已废弃。现在
+  的缓存是 **dispatcher 段 trace 缓存**：键 `(tail 去向, env)` 与 define
+  块无关，命中后按 define 块是否出现在路径上做一次等价检查；deflate 与
+  synthesize 候选收集都复用（sub_40831c 实测 21 次解析 10 次命中）。
+  缓存只在「MLIL 收集阶段不变」的窗口内创建，勿跨 finalize 复用。
+- `pass_clear` 各子 pass 无改动时不再执行多余的 finalize/generate_ssa_form，
+  减少 pass_clear 链上的重复 SSA 重建；39 函数 auto + general 回归均通过。
 - 不硬编码模式选择规则；`tools/eval_modes.py` 实际试跑 auto/general 后，
   用多维可读性指标 + Pareto/可配置罚分选优；69 样本结果在
   `tools/eval_samples.json`（trial：general 37 / auto 32，0 丢失）。

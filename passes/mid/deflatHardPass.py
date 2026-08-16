@@ -756,11 +756,56 @@ def _walk_dispatcher_block(
     return None
 
 
+def _env_key(env: Dict[Variable, int]) -> Tuple[Tuple[int, int], ...]:
+    """把 env 变成可哈希、与遍历顺序无关的缓存键。"""
+    return tuple(sorted((var.identifier, value) for var, value in env.items()))
+
+
+def _trace_dispatcher_path(
+    mlil: MediumLevelILFunction,
+    start: int,
+    env: Dict[Variable, int],
+    state_vars: Set[Variable],
+    dispatcher_blocks: Set[int],
+) -> Tuple[Optional[int], Tuple[int, ...]]:
+    """不感知「当前 define 在哪个块」地模拟 dispatcher 子图。
+
+    返回 (final_target, path)，path 是途中经过的 dispatcher block start 序列。
+    - final_target 非 None：落到真实块入口
+    - final_target None：无法决断 / 走到块中段 / dispatcher 内成环 / 超步数
+
+    与 _forward_resolve 的老循环逐块等价，只是把「初始 visited 里含 define
+    所在块」这一点剥离出来：这样不同 define 只要 (start, env) 相同就能共享
+    整条模拟路径，再按各自 define 块位置做一次 O(len(path)) 检查即可。
+    """
+    path: List[int] = []
+    visited: Set[int] = set()
+    current = start
+    for _ in range(_MAX_FORWARD_STEPS):
+        bb = mlil.get_basic_block_at(current)
+        if bb is None or current != bb.start:
+            return None, tuple(path)
+        if bb.start in visited:
+            return None, tuple(path)
+        visited.add(bb.start)
+        if bb.start not in dispatcher_blocks:
+            return current, tuple(path)
+        path.append(bb.start)
+        nxt = _walk_dispatcher_block(mlil, bb, env, state_vars)
+        if nxt is None:
+            return None, tuple(path)
+        current = nxt
+    return None, tuple(path)
+
+
 def _forward_resolve(
     mlil: MediumLevelILFunction,
     define_instr: MediumLevelILSetVar,
     state_vars: Set[Variable],
     dispatcher_blocks: Set[int],
+    resolve_memo: Optional[
+        Dict[Tuple[int, Tuple], Tuple[Optional[int], Tuple[int, ...]]]
+    ] = None,
 ) -> Optional[int]:
     """从 state SetVar 出发，先走完 define 所在块的尾巴，进入 dispatcher
     子图后逐 *基本块* 模拟，直到落到一个真实块入口。
@@ -771,6 +816,12 @@ def _forward_resolve(
         新路径而走出错误的目标 (sub_40831c 上观察到 visited_states 用
         (block, env) 时 SE_LOST=11，因为 BN 见到我们错误的 jump_to 后
         把"原本经过 chain 才到的"handler 当不可达清掉)
+
+    resolve_memo：可选的 dispatcher 段模拟缓存。键 (tail 去向, env) 的
+    模拟路径与具体 define 块无关；命中后只需验证当前 define 块不在路径上
+    （老循环的初始 visited 含 define 块，路径若回到它会提前 None），语义
+    与无缓存版本完全一致。MLIL / dispatcher_blocks / state_vars 在缓存
+    存活期间必须保持不变。
     """
     if not isinstance(define_instr.src, MediumLevelILConst):
         return None
@@ -785,6 +836,23 @@ def _forward_resolve(
     )
     if current is None:
         return None
+
+    if resolve_memo is not None:
+        key = (current, _env_key(env))
+        trace = resolve_memo.get(key)
+        if trace is None:
+            trace = _trace_dispatcher_path(
+                mlil, current, env, state_vars, dispatcher_blocks
+            )
+            resolve_memo[key] = trace
+        target, path = trace
+        if target is None:
+            return None
+        # 老循环等价：路径若回到 define 块 (visited 已含它) 会提前 None；
+        # target == define_bb.start 的情形 (tail 直接自环回来) 同理。
+        if target == define_bb.start or define_bb.start in path:
+            return None
+        return target
 
     visited_blocks: Set[int] = {define_bb.start}
     for _ in range(_MAX_FORWARD_STEPS):
@@ -864,6 +932,12 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
             break
 
         # 4. 收集所有 state SetVar (= const)
+        # MLIL 在本轮收集期间保持不变，dispatcher 段模拟可安全按
+        # (tail 去向, env) 共享；重复 state 值 / 多状态 define 不再重复走
+        # cmp-tree 深度。
+        resolve_memo: Dict[
+            Tuple[int, Tuple], Tuple[Optional[int], Tuple[int, ...]]
+        ] = {}
         patches: List[Tuple[MediumLevelILSetVar, int]] = []
         for instr in mlil.instructions:
             if time.time() > deadline:
@@ -874,7 +948,9 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
                 or not isinstance(instr.src, MediumLevelILConst)
             ):
                 continue
-            target = _forward_resolve(mlil, instr, state_vars, dispatcher_blocks)
+            target = _forward_resolve(
+                mlil, instr, state_vars, dispatcher_blocks, resolve_memo
+            )
             if target is None or target == instr.instr_index:
                 continue
             patches.append((instr, target))

@@ -10,7 +10,6 @@ from binaryninja import (
     MediumLevelILConst,
     MediumLevelILSetVar,
     MediumLevelILVar,
-    MediumLevelILOperation,
     ILSourceLocation,
 )
 
@@ -32,6 +31,7 @@ def pass_clear_const_if(analysis_context: AnalysisContext):
         无
     """
     mlil = analysis_context.mlil
+    any_updated = False
     for _ in range(len(mlil.basic_blocks)):
         updated = False
         for bb in mlil.basic_blocks:
@@ -50,12 +50,16 @@ def pass_clear_const_if(analysis_context: AnalysisContext):
             mlil.replace_expr(if_instr.expr_index, goto_instr)
             updated = True
         if updated:
+            any_updated = True
             mlil.finalize()
             mlil.generate_ssa_form()
         else:
             break
-    mlil.finalize()
-    mlil.generate_ssa_form()
+    # 完全没改过就不再 finalize/generate_ssa_form，减少 pass_clear 链上的
+    # 重复 SSA 重建（多个子 pass 常连续无更新）。
+    if any_updated:
+        mlil.finalize()
+        mlil.generate_ssa_form()
 
 
 def pass_clear_SSA_const_if(analysis_context: AnalysisContext):
@@ -77,6 +81,7 @@ def pass_clear_SSA_const_if(analysis_context: AnalysisContext):
     function = analysis_context.function
     # state_vars 在多次外层迭代间不变，提到循环外避免每轮全函数扫描
     state_vars = StateMachine.find_state_var(function)
+    any_updated = False
     for _ in range(len(mlil.basic_blocks)):
         updated = False
         for bb in mlil.basic_blocks:
@@ -117,12 +122,14 @@ def pass_clear_SSA_const_if(analysis_context: AnalysisContext):
             mlil.replace_expr(if_instr.expr_index, goto_instr)
             updated = True
         if updated:
+            any_updated = True
             mlil.finalize()
             mlil.generate_ssa_form()
         else:
             break
-    mlil.finalize()
-    mlil.generate_ssa_form()
+    if any_updated:
+        mlil.finalize()
+        mlil.generate_ssa_form()
 
 
 def pass_clear_goto(analysis_context: AnalysisContext):
@@ -150,6 +157,7 @@ def pass_clear_goto(analysis_context: AnalysisContext):
         final_target = optimize_goto(target_instr)
         return final_target
 
+    any_updated = False
     for _ in range(len(mlil.basic_blocks)):
         updated = False
         # 遍历所有基本块
@@ -168,12 +176,14 @@ def pass_clear_goto(analysis_context: AnalysisContext):
             mlil.replace_expr(goto_instr.expr_index, new_goto)
         if updated:
             # 更新MLIL
+            any_updated = True
             mlil.finalize()
             mlil.generate_ssa_form()
         else:
             break
-    mlil.finalize()
-    mlil.generate_ssa_form()
+    if any_updated:
+        mlil.finalize()
+        mlil.generate_ssa_form()
 
 
 def pass_clear_if(analysis_context: AnalysisContext):
@@ -192,6 +202,7 @@ def pass_clear_if(analysis_context: AnalysisContext):
             return get_final_target(mlil[instr.dest])
         return instr
 
+    any_updated = False
     for _ in range(len(mlil.basic_blocks)):
         updated = False
         for bb in mlil.basic_blocks:
@@ -218,13 +229,15 @@ def pass_clear_if(analysis_context: AnalysisContext):
                 updated = True
                 break
         if updated:
+            any_updated = True
             mlil.finalize()
             mlil.generate_ssa_form()
         else:
             break
 
-    mlil.finalize()
-    mlil.generate_ssa_form()
+    if any_updated:
+        mlil.finalize()
+        mlil.generate_ssa_form()
 
 
 def merge_block(
@@ -298,6 +311,7 @@ def pass_merge_block(analysis_context: AnalysisContext):
     mlil = analysis_context.mlil
     if mlil is None:
         return
+    any_updated = False
     for _ in range(len(mlil.basic_blocks)):
         index = CFGIndex(mlil)
         groups = CFGAnalyzer.find_cfg_groups(index.graph)
@@ -317,70 +331,12 @@ def pass_merge_block(analysis_context: AnalysisContext):
             if merge_block(mlil, instrs, pre_instrs):
                 updated = True
         if updated:
+            any_updated = True
             mlil.finalize()
             mlil.generate_ssa_form()
         else:
             break
-    mlil.finalize()
-    mlil.generate_ssa_form()
-
-
-def pass_swap_if(analysis_context: AnalysisContext):
-    func = analysis_context.function
-    mlil = func.mlil
-    if mlil is None:
-        return
-    reverse_operations = {
-        MediumLevelILOperation.MLIL_CMP_E: MediumLevelILOperation.MLIL_CMP_E,
-        MediumLevelILOperation.MLIL_CMP_NE: MediumLevelILOperation.MLIL_CMP_NE,
-        MediumLevelILOperation.MLIL_CMP_ULT: MediumLevelILOperation.MLIL_CMP_UGT,
-        MediumLevelILOperation.MLIL_CMP_UGT: MediumLevelILOperation.MLIL_CMP_ULT,
-        MediumLevelILOperation.MLIL_CMP_ULE: MediumLevelILOperation.MLIL_CMP_UGE,
-        MediumLevelILOperation.MLIL_CMP_UGE: MediumLevelILOperation.MLIL_CMP_ULE,
-        MediumLevelILOperation.MLIL_CMP_SLT: MediumLevelILOperation.MLIL_CMP_SGT,
-        MediumLevelILOperation.MLIL_CMP_SGT: MediumLevelILOperation.MLIL_CMP_SLT,
-        MediumLevelILOperation.MLIL_CMP_SLE: MediumLevelILOperation.MLIL_CMP_SGE,
-        MediumLevelILOperation.MLIL_CMP_SGE: MediumLevelILOperation.MLIL_CMP_SLE,
-    }
-    if_instrs: List[MediumLevelILIf] = []
-    for block in mlil.basic_blocks:
-        instr = block[-1]
-        if isinstance(instr, MediumLevelILIf) and not isinstance(
-            instr.condition, MediumLevelILVar
-        ):
-            if hasattr(instr.condition, "left") and hasattr(instr.condition, "right"):
-                if isinstance(instr.condition.left, MediumLevelILConst) and isinstance(
-                    instr.condition.right, MediumLevelILVar
-                ):
-                    if_instrs.append(instr)
-    updated = False
-    for if_instr in if_instrs:
-        condition = if_instr.condition
-        new_condition = mlil.expr(
-            reverse_operations[condition.operation],
-            mlil.copy_expr(condition.right),
-            mlil.copy_expr(condition.left),
-            0,
-            0,
-            0,
-            if_instr.size,
-            ILSourceLocation.from_instruction(if_instr),
-        )
-        true_label = MediumLevelILLabel()
-        true_label.operand = if_instr.true
-
-        false_label = MediumLevelILLabel()
-        false_label.operand = if_instr.false
-
-        new_if_instr = mlil.if_expr(
-            new_condition,
-            true_label,
-            false_label,
-            ILSourceLocation.from_instruction(if_instr),
-        )
-        mlil.replace_expr(if_instr.expr_index, new_if_instr)
-        updated = True
-    if updated:
+    if any_updated:
         mlil.finalize()
         mlil.generate_ssa_form()
 
@@ -431,11 +387,13 @@ def handle_pre_last_instr(mlil: MediumLevelILFunction, pre_last_instr, bb, copy_
 def pass_clear(analysis_context: AnalysisContext):
     """当前 clear pipeline：
     - 不使用 pass_copy_common_block_mid（LLIL 已做过同样的事，MLIL 再做易膨胀）
-    - 保留 pass_swap_if + pass_clear_SSA_const_if，对嵌套 CFF 的迭代收敛有帮助
+    - pass_swap_if 已移除：39 函数 A/B 回归输出完全一致，且省一次全函数
+      扫描 + 潜在 swap 重写（见 AGENTS.md）
+    - pass_clear_SSA_const_if 保留：A/B 移除后 sub_4075a0 HLIL 4→19、
+      sub_407994 26→39，对收敛仍必需
     """
     pass_clear_const_if(analysis_context)
     pass_clear_goto(analysis_context)
     pass_clear_if(analysis_context)
-    pass_swap_if(analysis_context)
     pass_merge_block(analysis_context)
     pass_clear_SSA_const_if(analysis_context)

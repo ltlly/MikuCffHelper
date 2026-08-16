@@ -195,6 +195,7 @@ def _collect_transitions_for_var(
     dispatcher_blocks,
     dispatcher_entry_start: int,
     deadline: float,
+    resolve_memo=None,
 ):
     """收集 primary state var 的 (state_value → target instr_index) 映射。
 
@@ -217,7 +218,9 @@ def _collect_transitions_for_var(
             continue
         value = instr.src.constant & _mask(instr.size or 4)
         all_assigned.add(value)
-        target = _forward_resolve(mlil, instr, state_vars, dispatcher_blocks)
+        target = _forward_resolve(
+            mlil, instr, state_vars, dispatcher_blocks, resolve_memo
+        )
         if target is None:
             failed_values.add(value)
             continue
@@ -552,12 +555,15 @@ def _try_synthesize_one_dispatcher(
     case_values: Set[int] = set()
     all_assigned_for_primary: Set[int] = set()
     fully_resolved_for_primary = False
+    # 候选变量收集期间 MLIL / dispatcher / state_vars 都不变，dispatcher 段
+    # 前向模拟可按 (tail 去向, env) 跨候选共享，避免每个候选重走 cmp-tree。
+    resolve_memo: Dict[Tuple, Tuple] = {}
     for candidate in _candidate_state_vars_ranked(mlil, state_vars):
         if time.time() > deadline:
             break
         cand_trans, cand_assigned, cand_full = _collect_transitions_for_var(
             mlil, candidate, state_vars, dispatcher_blocks,
-            dispatcher_entry.start, deadline,
+            dispatcher_entry.start, deadline, resolve_memo,
         )
         if len(cand_trans) < _MIN_TRANSITIONS:
             continue
