@@ -53,6 +53,7 @@ from binaryninja import (
     MediumLevelILSetVar,
     MediumLevelILVar,
     Variable,
+    VariableSourceType,
 )
 
 from ...utils import log_error, log_info  # noqa: E402  (放底部以避免循环依赖)
@@ -586,25 +587,37 @@ def _tarjan_scc(adj: Dict[int, List[int]]) -> List[List[int]]:
     return sccs
 
 
+def _is_compiler_temp(var: Variable) -> bool:
+    """BN 物化比较/中间值产生的临时/寄存器/flag 变量。
+
+    path replay 下这些写入会被复制进 mini-block，因此把含它们的块纳入
+    dispatcher 不再丢语义；只有可回放的写入才允许放宽。
+    """
+    name = getattr(var, "name", "") or ""
+    if name.startswith("temp") or name.startswith("cond"):
+        return True
+    try:
+        st = var.source_type
+        return st in (
+            VariableSourceType.RegisterVariableSourceType,
+            VariableSourceType.FlagVariableSourceType,
+        )
+    except Exception:
+        return False
+
+
 def _block_is_pure_dispatcher(
     mlil: MediumLevelILFunction,
     b: MediumLevelILBasicBlock,
     state_vars: Set[Variable],
+    dead_vars: Optional[Set[int]] = None,
+    allow_compiler_temps: bool = False,
 ) -> bool:
-    """块的副作用是否仅限于状态变量。
+    """块的副作用是否仅限于「可回放」的 SetVar。
 
-    判据 (CFE 形式化)：
-      - 不含任何外部副作用指令 (call / store / ret / intrinsic / trap)
-      - 所有 SetVar 的目标必须是状态变量
-      - if 的条件 *允许读非状态变量*：因为条件求值不产生副作用，
-        且 if 的两个分支都还在 dispatcher SCC 内（由 SCC 约束保证）
-
-    比之前的 _is_state_only_instr 更严格（显式禁止副作用 op）也更宽松（允许
-    if 读非状态变量），更贴近"dispatcher 不引入新可见副作用"的本质。
-
-    注：曾尝试放宽允许 var-rename copy of state_var (`alias = state_var`)
-    让 sub_45985c 这类用 var-rename 的 dispatcher 被识别。但实测让
-    sub_45b450 出现 SE_LOST + HLIL call 丢失。安全性优先，回退原严格判据。
+    dead_vars / allow_compiler_temps 都只在调用方启用 path replay 时传
+    True/集合：这些写入会被 mini-block 原样回放，所以允许放进 dispatcher
+    子图不会改变语义。其它调用方（synthesize 等）不传，保持旧严格行为。
     """
     for idx in range(b.start, b.end):
         instr = mlil[idx]
@@ -612,9 +625,14 @@ def _block_is_pure_dispatcher(
         if op in _SIDE_EFFECT_OPS:
             return False
         if isinstance(instr, MediumLevelILSetVar):
-            if instr.dest not in state_vars:
-                return False
-            continue
+            if instr.dest in state_vars:
+                continue
+            if allow_compiler_temps and (
+                _is_compiler_temp(instr.dest)
+                or (dead_vars is not None and instr.dest.identifier in dead_vars)
+            ):
+                continue
+            return False
         # MLIL_GOTO / MLIL_IF / 等等，没有副作用，OK
     return True
 
@@ -623,6 +641,8 @@ def _identify_dispatcher_subgraph(
     mlil: MediumLevelILFunction,
     dispatcher_entry: MediumLevelILBasicBlock,
     state_vars: Set[Variable],
+    dead_vars: Optional[Set[int]] = None,
+    allow_compiler_temps: bool = False,
 ) -> Set[int]:
     """形式化识别 dispatcher 子图：含 dispatcher_entry 的 SCC ∩ pure-dispatcher 块。
 
@@ -653,7 +673,9 @@ def _identify_dispatcher_subgraph(
         b = bb_by_start.get(start)
         if b is None:
             continue
-        if _block_is_pure_dispatcher(mlil, b, state_vars):
+        if _block_is_pure_dispatcher(
+            mlil, b, state_vars, dead_vars, allow_compiler_temps
+        ):
             result.add(start)
     # 不变量：dispatcher_entry 一定属于 dispatcher (按定义)。即使它的内容
     # 没通过 _block_is_pure_dispatcher (例如包含 BN 拆出来的 var-rename
@@ -720,6 +742,56 @@ def _seed_env_from_block(
     return env
 
 
+def _filter_replay_indices(
+    mlil: MediumLevelILFunction,
+    replay: Tuple[int, ...],
+    state_vars: Set[Variable],
+    skipped: Tuple[int, ...],
+) -> Tuple[int, ...]:
+    """按数据流裁剪 path replay，只保留「跳过路径外仍被读取」的写入。
+
+    等价性论证：patch 后不会再执行的指令集合是 skipped（tail + dispatcher
+    路径上的 SetVar/goto/if）。只有被 skipped 之外指令读取的变量才需要由
+    mini-block 保持其值；从这些变量出发，反向传播 src 依赖，保留 replay
+    中对应写入。状态变量写入一律保留（视为外部可见）。
+    """
+    skipped_set = set(skipped)
+    needed_ids: Set[int] = set()
+    # skipped 之外被读取的变量 → 必须在 mini-block 中保持其值
+    for instr in mlil.instructions:
+        if instr.instr_index in skipped_set:
+            continue
+        for var in getattr(instr, "vars_read", []) or []:
+            needed_ids.add(var.identifier)
+        if isinstance(instr, MediumLevelILSetVar) and instr.dest in state_vars:
+            needed_ids.add(instr.dest.identifier)
+    # 状态变量写入总是保留（外部可观察）
+    for idx in replay:
+        instr = mlil[idx]
+        if isinstance(instr, MediumLevelILSetVar) and instr.dest in state_vars:
+            needed_ids.add(instr.dest.identifier)
+
+    # 反向依赖传播：需要 dest 的指令，其 src 依赖的变量若由 replay 内
+    # 前面的指令定义，也要保留那些定义。
+    changed = True
+    while changed:
+        changed = False
+        for idx in replay:
+            instr = mlil[idx]
+            if not isinstance(instr, MediumLevelILSetVar):
+                continue
+            if instr.dest.identifier not in needed_ids:
+                continue
+            for var in getattr(instr, "vars_read", []) or []:
+                if var.identifier not in needed_ids:
+                    needed_ids.add(var.identifier)
+                    changed = True
+    return tuple(
+        idx
+        for idx in replay
+        if isinstance(mlil[idx], MediumLevelILSetVar)
+        and mlil[idx].dest.identifier in needed_ids
+    )
 def _walk_block_tail(
     mlil: MediumLevelILFunction,
     bb: MediumLevelILBasicBlock,
@@ -727,6 +799,8 @@ def _walk_block_tail(
     env: Dict[Variable, int],
     state_vars: Set[Variable],
     dead_vars: Optional[Set[int]] = None,
+    replay: Optional[List[int]] = None,
+    skipped: Optional[List[int]] = None,
 ) -> Optional[int]:
     """从同一个 block 内的 after_idx+1 开始，往后走到块的终结指令，返回控制
     流去向的下一个 instr_index。
@@ -734,18 +808,19 @@ def _walk_block_tail(
     沿途允许遇到：
       - 状态变量的 SetVar (更新 env)
       - 终结的 goto / if (返回去向)
-      - dead_vars 中的非状态 SetVar（写后无读者，跳过语义等价）
+      - 可回放的非状态 SetVar（编译器临时 / 写后无读者），此时指令序号会
+        追加到 replay，由 mini-block 原样重放，保证语义不丢
     禁止遇到：
-      - 有读者的非状态 SetVar / call / store / 其它有副作用的指令
+      - 有读者且非编译器临时的 SetVar / call / store / 其它副作用指令
 
-    严格策略：哪怕是看似无害的本地 SetVar，只要还有读者就保守拒绝。原本
-    以为可以无条件跳过 var_88=arg2 这种 prologue 让 forward_resolve 解析率
-    上升，但实测 sub_40831c 上引入了 SE_LOST=11（BN 见到 jump_to 后把某些
-    值认为不可达而清掉）。现在只对可证明无读者的死 store 放宽。
+    skipped 收集 patch 后不再执行的所有指令序号（含 goto/if），供 replay
+    数据流裁剪判断哪些变量仍会被路径外代码读取。
     """
     current = after_idx + 1
     while current < bb.end:
         instr = mlil[current]
+        if skipped is not None:
+            skipped.append(instr.instr_index)
         if isinstance(instr, MediumLevelILGoto):
             return instr.dest
         if isinstance(instr, MediumLevelILIf):
@@ -755,10 +830,16 @@ def _walk_block_tail(
             return instr.true if branch else instr.false
         if isinstance(instr, MediumLevelILSetVar):
             if instr.dest not in state_vars:
-                if dead_vars is not None and instr.dest.identifier in dead_vars:
+                if replay is not None and (
+                    _is_compiler_temp(instr.dest)
+                    or (dead_vars is not None and instr.dest.identifier in dead_vars)
+                ):
+                    replay.append(instr.instr_index)
                     current += 1
                     continue
-                return None  # 有读者的真实赋值，不能跳过
+                return None  # 有读者且不能回放的赋值，不能跳过
+            if replay is not None:
+                replay.append(instr.instr_index)
             v = _eval(instr.src, env)
             if v is None:
                 env.pop(instr.dest, None)
@@ -775,14 +856,20 @@ def _walk_dispatcher_block(
     bb: MediumLevelILBasicBlock,
     env: Dict[Variable, int],
     state_vars: Set[Variable],
+    replay: Optional[List[int]] = None,
+    skipped: Optional[List[int]] = None,
 ) -> Optional[int]:
     """走完一个 dispatcher 块，返回它的下一个 instr_index 去向。
-    dispatcher 块内只可能有 goto / 状态相关 if / 状态 SetVar (由 SCC 副作用
-    筛选保证)。
+    dispatcher 块内只可能有 goto / 状态相关 if / SetVar（由纯块过滤保证）。
+
+    replay 非 None 时，块内每个 SetVar 的 instr_index 都会被记录；
+    skipped 非 None 时记录所有经过的指令序号（含 goto/if）。
     """
     current = bb.start
     while current < bb.end:
         instr = mlil[current]
+        if skipped is not None:
+            skipped.append(instr.instr_index)
         if isinstance(instr, MediumLevelILGoto):
             return instr.dest
         if isinstance(instr, MediumLevelILIf):
@@ -791,6 +878,8 @@ def _walk_dispatcher_block(
                 return None
             return instr.true if branch else instr.false
         if isinstance(instr, MediumLevelILSetVar):
+            if replay is not None:
+                replay.append(instr.instr_index)
             v = _eval(instr.src, env)
             if v is None:
                 env.pop(instr.dest, None)
@@ -813,35 +902,110 @@ def _trace_dispatcher_path(
     env: Dict[Variable, int],
     state_vars: Set[Variable],
     dispatcher_blocks: Set[int],
-) -> Tuple[Optional[int], Tuple[int, ...]]:
+    replay: Optional[List[int]] = None,
+    skipped: Optional[List[int]] = None,
+) -> Tuple[Optional[int], Tuple[int, ...], Tuple[int, ...], Tuple[int, ...]]:
     """不感知「当前 define 在哪个块」地模拟 dispatcher 子图。
 
-    返回 (final_target, path)，path 是途中经过的 dispatcher block start 序列。
+    返回 (final_target, path, replayed_path, skipped_path)：
     - final_target 非 None：落到真实块入口
     - final_target None：无法决断 / 走到块中段 / dispatcher 内成环 / 超步数
-
-    与 _forward_resolve 的老循环逐块等价，只是把「初始 visited 里含 define
-    所在块」这一点剥离出来：这样不同 define 只要 (start, env) 相同就能共享
-    整条模拟路径，再按各自 define 块位置做一次 O(len(path)) 检查即可。
+    - path 是途中经过的 dispatcher block start 序列
+    - replayed_path 是途中所有 SetVar instr_index 序列
+    - skipped_path 是途中所有执行过的指令序号（SetVar/goto/if）
     """
     path: List[int] = []
+    replay_local: List[int] = [] if replay is None else replay
+    skipped_local: List[int] = [] if skipped is None else skipped
     visited: Set[int] = set()
     current = start
     for _ in range(_MAX_FORWARD_STEPS):
         bb = mlil.get_basic_block_at(current)
         if bb is None or current != bb.start:
-            return None, tuple(path)
+            return None, tuple(path), tuple(replay_local), tuple(skipped_local)
         if bb.start in visited:
-            return None, tuple(path)
+            return None, tuple(path), tuple(replay_local), tuple(skipped_local)
         visited.add(bb.start)
         if bb.start not in dispatcher_blocks:
-            return current, tuple(path)
+            return current, tuple(path), tuple(replay_local), tuple(skipped_local)
         path.append(bb.start)
-        nxt = _walk_dispatcher_block(mlil, bb, env, state_vars)
+        nxt = _walk_dispatcher_block(
+            mlil, bb, env, state_vars, replay_local, skipped_local
+        )
         if nxt is None:
-            return None, tuple(path)
+            return None, tuple(path), tuple(replay_local), tuple(skipped_local)
         current = nxt
-    return None, tuple(path)
+    return None, tuple(path), tuple(replay_local), tuple(skipped_local)
+
+
+def _forward_resolve_with_replay(
+    mlil: MediumLevelILFunction,
+    define_instr: MediumLevelILSetVar,
+    state_vars: Set[Variable],
+    dispatcher_blocks: Set[int],
+    resolve_memo: Optional[
+        Dict[
+            Tuple[int, Tuple],
+            Tuple[
+                Optional[int],
+                Tuple[int, ...],
+                Tuple[int, ...],
+                Tuple[int, ...],
+            ],
+        ]
+    ] = None,
+    dead_vars: Optional[Set[int]] = None,
+) -> Tuple[Optional[int], Tuple[int, ...]]:
+    """_forward_resolve 的 path-replay 版本：额外返回 (target, replay)。
+
+    replay 是「原 define 之后、目标真实块之前」沿途 SetVar 的 instr_index
+    按数据流裁剪后的集合；mini-block 按此顺序复制这些写入后再 goto target，
+    因此放宽 pure 过滤跳过它们不影响语义。target 为 None 时 replay 为空。
+    """
+    if not isinstance(define_instr.src, MediumLevelILConst):
+        return None, ()
+    env = _seed_env_from_block(mlil, define_instr, state_vars, dispatcher_blocks)
+
+    define_bb = mlil.get_basic_block_at(define_instr.instr_index)
+    if define_bb is None:
+        return None, ()
+
+    tail_replay: List[int] = []
+    tail_skipped: List[int] = []
+    current = _walk_block_tail(
+        mlil, define_bb, define_instr.instr_index, env, state_vars,
+        dead_vars, tail_replay, tail_skipped,
+    )
+    if current is None:
+        return None, ()
+
+    if resolve_memo is not None:
+        key = (current, _env_key(env))
+        trace = resolve_memo.get(key)
+        if trace is None:
+            trace = _trace_dispatcher_path(
+                mlil, current, env, state_vars, dispatcher_blocks,
+                skipped=tail_skipped,
+            )
+            resolve_memo[key] = trace
+    else:
+        trace = _trace_dispatcher_path(
+            mlil, current, env, state_vars, dispatcher_blocks,
+            skipped=tail_skipped,
+        )
+
+    target, path, dispatcher_replay, skipped_path = trace
+    if target is None:
+        return None, ()
+    # 老循环等价：路径若回到 define 块 (visited 已含它) 会提前 None；
+    # target == define_bb.start 的情形 (tail 直接自环回来) 同理。
+    if target == define_bb.start or define_bb.start in path:
+        return None, ()
+    replay = _filter_replay_indices(
+        mlil, tuple(tail_replay) + dispatcher_replay, state_vars,
+        skipped_path,
+    )
+    return target, replay
 
 
 def _forward_resolve(
@@ -850,7 +1014,15 @@ def _forward_resolve(
     state_vars: Set[Variable],
     dispatcher_blocks: Set[int],
     resolve_memo: Optional[
-        Dict[Tuple[int, Tuple], Tuple[Optional[int], Tuple[int, ...]]]
+        Dict[
+            Tuple[int, Tuple],
+            Tuple[
+                Optional[int],
+                Tuple[int, ...],
+                Tuple[int, ...],
+                Tuple[int, ...],
+            ],
+        ]
     ] = None,
     dead_vars: Optional[Set[int]] = None,
 ) -> Optional[int]:
@@ -865,62 +1037,14 @@ def _forward_resolve(
         把"原本经过 chain 才到的"handler 当不可达清掉)
 
     resolve_memo：可选的 dispatcher 段模拟缓存。键 (tail 去向, env) 的
-    模拟路径与具体 define 块无关；命中后只需验证当前 define 块不在路径上
-    （老循环的初始 visited 含 define 块，路径若回到它会提前 None），语义
-    与无缓存版本完全一致。MLIL / dispatcher_blocks / state_vars 在缓存
+    模拟路径与具体 define 块无关；命中后只需验证当前 define 块不在路径上，
+    语义与无缓存版本完全一致。MLIL / dispatcher_blocks / state_vars 在缓存
     存活期间必须保持不变。
     """
-    if not isinstance(define_instr.src, MediumLevelILConst):
-        return None
-    env = _seed_env_from_block(mlil, define_instr, state_vars, dispatcher_blocks)
-
-    define_bb = mlil.get_basic_block_at(define_instr.instr_index)
-    if define_bb is None:
-        return None
-
-    current = _walk_block_tail(
-        mlil, define_bb, define_instr.instr_index, env, state_vars, dead_vars
-    )
-    if current is None:
-        return None
-
-    if resolve_memo is not None:
-        key = (current, _env_key(env))
-        trace = resolve_memo.get(key)
-        if trace is None:
-            trace = _trace_dispatcher_path(
-                mlil, current, env, state_vars, dispatcher_blocks
-            )
-            resolve_memo[key] = trace
-        target, path = trace
-        if target is None:
-            return None
-        # 老循环等价：路径若回到 define 块 (visited 已含它) 会提前 None；
-        # target == define_bb.start 的情形 (tail 直接自环回来) 同理。
-        if target == define_bb.start or define_bb.start in path:
-            return None
-        return target
-
-    visited_blocks: Set[int] = {define_bb.start}
-    for _ in range(_MAX_FORWARD_STEPS):
-        bb = mlil.get_basic_block_at(current)
-        if bb is None:
-            return None
-        if current != bb.start:
-            return None
-        if bb.start in visited_blocks:
-            return None
-        visited_blocks.add(bb.start)
-
-        if bb.start not in dispatcher_blocks:
-            return current
-
-        nxt = _walk_dispatcher_block(mlil, bb, env, state_vars)
-        if nxt is None:
-            return None
-        current = nxt
-
-    return None
+    return _forward_resolve_with_replay(
+        mlil, define_instr, state_vars, dispatcher_blocks,
+        resolve_memo, dead_vars,
+    )[0]
 
 
 # --------------------------------------------------------------------------
@@ -976,8 +1100,11 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
             break
 
         # 3. 形式化 dispatcher 子图：含 dispatcher_entry 的 SCC ∩ pure-dispatcher 块
+        # deflate 开启 path replay：temp/寄存器/死栈写允许进入子图，它们的
+        # 写入会在 mini-block 中原样回放（见第 4 步），语义不丢。
+        dead_vars = _collect_dead_var_ids(mlil)
         dispatcher_blocks = _identify_dispatcher_subgraph(
-            mlil, dispatcher_entry, state_vars
+            mlil, dispatcher_entry, state_vars, dead_vars, True
         )
         if not dispatcher_blocks:
             if iter_idx == 1:
@@ -989,10 +1116,15 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
         # (tail 去向, env) 共享；重复 state 值 / 多状态 define 不再重复走
         # cmp-tree 深度。
         resolve_memo: Dict[
-            Tuple[int, Tuple], Tuple[Optional[int], Tuple[int, ...]]
+            Tuple[int, Tuple],
+            Tuple[
+                Optional[int],
+                Tuple[int, ...],
+                Tuple[int, ...],
+                Tuple[int, ...],
+            ],
         ] = {}
-        dead_vars = _collect_dead_var_ids(mlil)
-        patches: List[Tuple[MediumLevelILSetVar, int]] = []
+        patches: List[Tuple[MediumLevelILSetVar, int, Tuple[int, ...]]] = []
         for instr in mlil.instructions:
             if time.time() > deadline:
                 break
@@ -1002,13 +1134,13 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
                 or not isinstance(instr.src, MediumLevelILConst)
             ):
                 continue
-            target = _forward_resolve(
+            target, replay = _forward_resolve_with_replay(
                 mlil, instr, state_vars, dispatcher_blocks, resolve_memo,
                 dead_vars,
             )
             if target is None or target == instr.instr_index:
                 continue
-            patches.append((instr, target))
+            patches.append((instr, target, replay))
 
         if not patches:
             if iter_idx == 1:
@@ -1019,18 +1151,17 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
             break
         total_patched += len(patches)
 
-        # 4. 修补：相同 (state_var, value, target) 的 patch 共享同一个 mini-block
-        #    避免每个 define 都生成独立的 [copy + goto] 块，缓解 mini-block
-        #    膨胀（task #15 在 sub_412bec 76→118 上观察到的问题）
-        mini_block_cache: Dict[Tuple[int, int, int], "MediumLevelILLabel"] = {}
-        for define, target_idx in patches:
+        # 4. 修补：相同 (state_var, value, target, replay 序列) 的 patch 共享
+        #    同一个 mini-block，避免每个 define 都生成独立块。replay 不同时
+        #    必须用不同 mini-block，否则回放的写入序列不一样。
+        mini_block_cache: Dict[Tuple[int, int, int, Tuple[int, ...]], "MediumLevelILLabel"] = {}
+        for define, target_idx, replay in patches:
             try:
-                # 缓存键：(state_var.identifier, const_value, target_idx)
-                # 同 key 共享一个 mini-block 入口标签
                 key = (
                     define.dest.identifier,
                     define.src.constant & _mask(define.size or 4),
                     target_idx,
+                    replay,
                 )
                 cached_label = mini_block_cache.get(key)
                 if cached_label is None:
@@ -1042,6 +1173,16 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
                         mlil.copy_expr(define),
                         ILSourceLocation.from_instruction(define),
                     )
+                    # path replay：按执行顺序重放 define 之后、目标真实块
+                    # 之前的所有 SetVar 写入。原 trace 会执行这些写入，
+                    # 去混淆后的短跳路径也必须执行，保证局部变量/寄存器
+                    # 可见值与原语义一致。
+                    for idx in replay:
+                        src_instr = mlil[idx]
+                        mlil.append(
+                            mlil.copy_expr(src_instr),
+                            ILSourceLocation.from_instruction(src_instr),
+                        )
                     mlil.append(
                         mlil.goto(
                             target_label,

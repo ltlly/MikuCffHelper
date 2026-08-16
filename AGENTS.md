@@ -226,9 +226,18 @@ python tools/regression_test.py --update-baseline
   temp/寄存器/死栈写入，linux64 dispatcher 子图 36→74 块、transition 从
   全 None 变为部分可解析，但 **39 回归 12 个函数 HLIL 显著变差**
   （sub_459ed8 17→45、sub_45aa54 18→43 等）→ 已回退严格过滤。根因是
-  直接跳真实块会丢掉 dispatcher 沿途对栈/寄存器的写入；下一步正确做法是
-  **path replay**：把模拟路径上的非状态写入复制进 mini-block，而不是
-  把它们排除出 pure 过滤后直接丢弃。
+  直接跳真实块会丢掉 dispatcher 沿途对栈/寄存器的写入。
+- **path replay 已实现**（仅 deflate 路径）：前向模拟记录沿途 SetVar 与
+  所有经过指令（tail + dispatcher），按「跳过路径外仍被读取」做数据流
+  裁剪后在 mini-block 原样回放，再 goto target；状态变量写入一律回放。
+  合成路径 synthesize 保持严格 pure 过滤不变。验证：
+  - cdong linux64 部分 transition 可解析（如 0x6a3075b1→328、
+    0x77004896→461），replay 裁剪后每个 patch 14-20 条写入；
+  - auto 39 回归 `[ok]`：37/39 变换、0 丢失、0 orphan，并且
+    sub_409488 HLIL 20→8（-60%）；
+  - general 39 回归 `[ok]`（31/39）。
+  - cdong win32/win64/linux64 的 auto 均 0 丢失，但 HLIL 仍略升
+    （63→65 / 56→62 / 194→219），这些样本 general 仍然更好。
 - obpo ground truth 对齐结论：`.config.json` 的 func/dispatcher 地址多数
   不在 BN 自动函数内；`create_user_function` 后 MLIL 在 `undefined`
   指令处截断（7/5 blocks），BN 边界与 OLLVM 平坦化函数边界不一致。

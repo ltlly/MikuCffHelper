@@ -98,10 +98,16 @@ APK 解包目录中另外 45 个 fast 检测无候选的 arm64 libs 只保留在
    （sub_459ed8 17→45、sub_45aa54 18→43、sub_407994 26→60 等），说明
    直接跳真实块会丢掉 dispatcher 沿途对栈/寄存器的写入。已回退严格
    `_block_is_pure_dispatcher`。
-3. **正确方向 = path replay**：前向模拟时记录沿途跳过的非状态 SetVar，
-   在 deflate 的 mini-block 里按序回放这些写入再 `goto target`。这样既
-   能让纯过滤放宽（识别更多 dispatcher 块），又不丢语义；需要按
-   `(write, readers)` 数据流去重并做 39 + cdong 全量 A/B。
+3. **path replay 已实现（deflate 路径）**：模拟时记录沿途所有指令与
+   SetVar 写入，按「跳过路径外仍被读取」做数据流裁剪后，在 mini-block
+   按序回放再 `goto target`；状态变量写入一律回放。裁剪后 linux64 每个
+   patch 仅 14-20 条写入（原始全量 56-123 条）。验证：
+   - auto 39 回归 `[ok]`（37/39、0 丢失、0 orphan），且 sub_409488
+     HLIL 20→8；
+   - cdong linux64 transition 部分可解析（0x6a3075b1→328、
+     0x77004896→461），auto 0 丢失，但 HLIL 194→219，general 仍是
+     65 blocks / HLIL 194 更优——下一步优化方向是 replay 后的
+     copy-propagation/死代码清理。
 
 ### obpo ground truth 对齐结论
 

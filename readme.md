@@ -542,14 +542,14 @@ UI 中 Log 面板按这些 prefix 过滤可快速定位 pass 行为。
 - **极大函数 (>800 块)**：dispatcher 检测开销 + 多次外层迭代可能超过 BN
   默认 60 秒单函数分析时间限制；可调高 `analysis.limits.maxFunctionAnalysisTime`
 - **经 temp 比较的 x86 dispatcher**：cdong OLLVM 官方小样本把
-  `state` 先拷到 temp 再比较（如 `temp2 = state`），已支持：fast 状态
+  `state` 先拷到 temp 再比较（如 `temp2 = state`）。已支持：fast 状态
   变量为空时用 `StateMachine.find_state_var` 兜底，`_eval` 支持全部比较
-  运算与 `cond:N = a == b` 物化条件，`_walk_block_tail` 跳过写后无读者的
-  死 store。`CFF_win.exe` target_function auto 现在能生成 switch(3 cases)、
-  0 副作用丢失（HLIL 63→65）。linux64 类样本仍受 dispatcher 内对活栈
-  变量的写入限制；实验证明直接放宽 pure 过滤会引入 39 回归中 12 个函数
-  HLIL 变差，正确的下一步是 path replay（把被跳过的写入复制进
-  mini-block），详见 `samples/README.md`。
+  运算与 `cond:N = a == b` 物化条件；deflate 的 mini-block 会按数据流
+  裁剪后 **path replay** 被跳过的 SetVar 写入（仅保留「路径外仍被读取」
+  的写入），状态变量写入一律回放，保证跳 dispatcher 不丢局部/寄存器
+  语义。效果：`CFF_win.exe` 生成 switch(3 cases)、0 丢失；39 回归
+  sub_409488 HLIL 20→8；cdong 64 位样本仍以 general 更优（详见
+  `samples/README.md`）。
 - **obpo ground truth 对齐**：obpo `.config.json` 的平坦化函数地址多数不在
   BN 自动识别函数边界内，召回统计需先重建函数边界，当前以 fast 检测器候选
   为样本口径。
