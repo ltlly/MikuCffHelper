@@ -1036,6 +1036,7 @@ def _resolve_conditional_path(
     define_bb_start: int,
     initial_replay: Tuple[int, ...] = (),
     initial_skipped: Tuple[int, ...] = (),
+    memo: Optional[Dict[Tuple[int, Tuple, int], Optional[Tuple]]] = None,
 ) -> Optional[Tuple]:
     """条件多目标解析器：返回解析树或 None。
 
@@ -1194,7 +1195,13 @@ def _resolve_conditional_path(
                 return None
         return None
 
-    return resolve(
+    memo_key: Optional[Tuple[int, Tuple, int]] = None
+    if memo is not None:
+        memo_key = (start, _env_key(env), primary_var.identifier)
+        if memo_key in memo:
+            return memo[memo_key]
+
+    result = resolve(
         start,
         dict(env),
         frozenset({define_bb_start}),
@@ -1205,6 +1212,9 @@ def _resolve_conditional_path(
         frozenset({initial_state}) if initial_state is not None else frozenset(),
         0,
     )
+    if memo is not None and memo_key is not None:
+        memo[memo_key] = result
+    return result
 
 
 def _build_conditional_patch(
@@ -1390,6 +1400,7 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
                 Tuple[int, ...],
             ],
         ] = {}
+        cond_memo: Dict[Tuple[int, Tuple, int], Optional[Tuple]] = {}
         patches: List[
             Tuple[
                 MediumLevelILSetVar,
@@ -1436,6 +1447,7 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
                                 dispatcher_blocks, dead_vars,
                                 dispatcher_entry.start, define_bb.start,
                                 tuple(tail_replay), tuple(tail_skipped),
+                                cond_memo,
                             )
                             if node is not None and node[0] == "cond":
                                 cond_node = node
