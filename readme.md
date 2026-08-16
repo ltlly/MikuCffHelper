@@ -541,6 +541,14 @@ UI 中 Log 面板按这些 prefix 过滤可快速定位 pass 行为。
 - **跨函数 CFF**：state 经全局 / 参数跨函数传递的样本不处理
 - **极大函数 (>800 块)**：dispatcher 检测开销 + 多次外层迭代可能超过 BN
   默认 60 秒单函数分析时间限制；可调高 `analysis.limits.maxFunctionAnalysisTime`
+- **经 temp 比较的 x86 dispatcher**：cdong OLLVM 官方小样本把
+  `state` 先拷到 temp 再比较（如 `temp2 = state`），fast 状态变量识别漏掉
+  真实 state；即使用 `StateMachine.find_state_var` 兜底，define 块内 prologue
+  局部 store 仍会被 `_walk_block_tail` 严格策略拒绝（历史上放宽会在
+  sub_40831c 造成 SE_LOST）。详见 `samples/README.md` 首轮调研结论。
+- **obpo ground truth 对齐**：obpo `.config.json` 的平坦化函数地址多数不在
+  BN 自动识别函数边界内，召回统计需先重建函数边界，当前以 fast 检测器候选
+  为样本口径。
 
 ## 11. 设计参考的前沿工作
 

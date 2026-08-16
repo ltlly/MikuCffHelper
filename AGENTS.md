@@ -212,6 +212,12 @@ python tools/regression_test.py --update-baseline
     无头 `bn.load` 场景更推荐 `get_system_cache_directory()` 下的自定义
     JSON。当前 trace 缓存仍只做 pass 内窗口，持久层等新样本集命中率评估
     后再接。
+- 新样本首轮调研（12 个跨架构函数，见 `samples/README.md`）：trace 缓存
+  总命中率 26%（x86 85%/70% 最高，arm64 3-29%），但解析总耗时仅 ~2.3s，
+  远小于 BN 加载/重分析；auto 在新 x86/x64 样本上 0 丢失且优于 general。
+  **决策：暂不接 `.bndb` 持久缓存**（ROI 低）；下一步高价值工作是把
+  cdong 型 temp 比较 + prologue store 安全跳过，但需先解决历史上
+  sub_40831c SE_LOST=11 的严格策略冲突。
 - 不硬编码模式选择规则；`tools/eval_modes.py` 实际试跑 auto/general 后，
   用多维可读性指标 + Pareto/可配置罚分选优；69 样本结果在
   `tools/eval_samples.json`（trial：general 37 / auto 32，0 丢失）。
