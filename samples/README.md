@@ -15,15 +15,18 @@ samples/
     cdong-ollvm-unflattener/      # 已知 OLLVM 编译的 x86/x64 Linux/Windows 样本
     pshocker-de-ollvm-arm/        # PDD libpdd_secure.so (ARM32 真实样本)
     mips-android/                 # MIPS32/MIPS64 真实 Android 库 (平台覆盖)
+    apk-125-arm64/                # 从 example/125_*.apk 复制出的 11 个 CFF 阳性 libs
 ```
 
 `example/` 里的历史回归样本（arm64-v8a.so、libSeQing.so、libkste.so、
-x86-64 Windows 内核样本、从 125_*.apk 解出的 56 个 arm64 libs）也已纳入
-manifest.json，便于统一查询。
+x86-64 Windows 内核样本）也已纳入 manifest.json，便于统一查询。
+APK 解包目录中另外 45 个 fast 检测无候选的 arm64 libs 只保留在本地
+`example/125_*`（被 .gitignore 忽略），不进仓库清单。
 
 ## 快速统计
 
-- 清单条目：91 个二进制（不含 manifest 备注中跳过的一个 libavcodec.so）
+- 清单条目：47 个二进制（另有一个 libavcodec.so 因 BN 无头加载超 2 分钟
+  未完成，跳过）
 - 检测到 CFF 候选的二进制：28 个，共 1629 个候选函数（fast 检测器）
 - obpo 子集带 `.config.json` ground truth：14 个文件标注了被平坦化的函数
   与 dispatcher

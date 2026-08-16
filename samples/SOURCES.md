@@ -66,7 +66,8 @@
 - `source.out`：x86-64 Linux ELF（无 CFF 候选，对照用）
 - `125_6feb19…apk` 及其解包目录：真实 Android APK，`lib/arm64-v8a/` 下 56 个
   .so（Baidu、MNN、msaoaidsec、ffmpeg、Rust qrust、Lua 等），其中 11 个被
-  fast 检测器报出候选。
+  fast 检测器报出候选并复制到 `samples/raw/apk-125-arm64/`；其余 45 个仅
+  保留在本地 example 目录（.gitignore），不进仓库。
 
 ## 其他曾评估但未纳入的数据集
 

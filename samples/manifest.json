@@ -3,16 +3,7 @@
   "generated_from": "tools/collect_cff_samples.py scan logs",
   "entries": [
     {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libBaiduMapSDK_base_v7_6_4.so",
-      "sha256": "736915db75bdbca4bcd388f240715df66a1a5b8c1ca1c29da99a7e574d2c27b9",
-      "size": 516368,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libBaiduMapSDK_map_v7_6_4.so",
+      "path": "samples/raw/apk-125-arm64/libBaiduMapSDK_map_v7_6_4.so",
       "sha256": "0ad590244edba480a87dc4ec5f5857d4f13efbcb6e80cc825148c1d203f3a5ba",
       "size": 11956880,
       "arch": "aarch64",
@@ -47,16 +38,7 @@
       "candidate_count": 5
     },
     {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libMNN.so",
-      "sha256": "3daa41707f7594d2fb4eb9984b11d3e2a9c3c433fed55d1dc33d69f73948b965",
-      "size": 1947528,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libavfilter.so",
+      "path": "samples/raw/apk-125-arm64/libavfilter.so",
       "sha256": "6dd57d81ca4ba9f3b36f1ff29a430b96586b7c0aa02f810dfa3892282e71086a",
       "size": 2856528,
       "arch": "aarch64",
@@ -101,7 +83,7 @@
       "candidate_count": 7
     },
     {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libavformat.so",
+      "path": "samples/raw/apk-125-arm64/libavformat.so",
       "sha256": "523bb200c3a6da2ed51a9012deca6c0cb7467cb1939a08683a47079848ed2e5c",
       "size": 693688,
       "arch": "aarch64",
@@ -151,7 +133,7 @@
       "candidate_count": 8
     },
     {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libavutil.so",
+      "path": "samples/raw/apk-125-arm64/libavutil.so",
       "sha256": "23db9dc2f5b2974ec41c154a6c8e48b01af3bcfa7b04106ccde0b08a1805e02a",
       "size": 489144,
       "arch": "aarch64",
@@ -166,70 +148,7 @@
       "candidate_count": 1
     },
     {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libbnfacesdk.so",
-      "sha256": "ffe7e0c87c752fabc24293eca6686898d6991709ac8f21bf149056e1fcab6ea4",
-      "size": 4440056,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libc++_shared.so",
-      "sha256": "3e852764502d06e0cf1080d532ae7c608b7649d946a3a9d7e84e3d4b7d683214",
-      "size": 1292904,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libcnn.so",
-      "sha256": "8fa03d2bd21cb0550a917475b4ea80ab3e6aa76ef9e046c241c0c933bba8adaf",
-      "size": 149632,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libcsgface.so",
-      "sha256": "4ecb1f1abeac7ea3e75804d7cc1f8e905fa1350e1765c1d638eb93f0910f1f5b",
-      "size": 995624,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libdiffpatch.so",
-      "sha256": "876b4d344b8e3f1012a6643acdd29560ebf47dca4ab18b84b0ab3c1de7d167ac",
-      "size": 82792,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libentryexpro.so",
-      "sha256": "7ab56ff638bc5a3e74706ed72825b51289734c20cf9bff8f21e89268d692fae3",
-      "size": 181720,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libfbjni.so",
-      "sha256": "a9e35ba55d3f956920281f519385f8a72475ee24819799cb08375fdd4cce2b22",
-      "size": 177000,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libffavc.so",
+      "path": "samples/raw/apk-125-arm64/libffavc.so",
       "sha256": "40ea21619762959aa3abbb1eea951e5f750323c8d0526a57aeae07daf9a7c492",
       "size": 1134272,
       "arch": "aarch64",
@@ -249,142 +168,7 @@
       "candidate_count": 2
     },
     {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libffmpeg.so",
-      "sha256": "ec8dc1783bb8e4e7901cf7ac7db8ed80130439d5d5b7b6da0405ddc3057209b6",
-      "size": 5688,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libffmpegjni.so",
-      "sha256": "a758245a3a32ffa7dee27cbc5983bb6a7e46b71487f96760d0fe0d32a14d0f2c",
-      "size": 459952,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libfinauthlivenessv5Ex.so",
-      "sha256": "a59a45defdf9119c59c2564ade8330f86598b6c6446c5b396a2973ab0832b877",
-      "size": 1510816,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libgifimage.so",
-      "sha256": "5a1e2b7a684445dc7d96b6393a79431615ae716d93c77d30991328f38886e106",
-      "size": 318992,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libgoblin_6_1_1.so",
-      "sha256": "71f8679732a362e9516bf3745d74af2f2cb2a2049c6243c3b1df589d26599292",
-      "size": 2156224,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libimage.so",
-      "sha256": "e0cbdafa0ef9d6a892d15ac6cb9e80eb5c017b03c727f0f5f208ecb71139d86b",
-      "size": 38888,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libimagepipeline.so",
-      "sha256": "83de7c907dabad4d322d000a6fa3d4697acc1507ec5d668bf83cf84f16aba59f",
-      "size": 8760,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libimgpre.so",
-      "sha256": "bfc912f2623c2179e2be3b4f70ab3c4c6c5abd4684de689cd691d213aa1622cb",
-      "size": 137136,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libimgpro.so",
-      "sha256": "6b8c68584970c98653f1ee053024c414067284e7cceaa02cf62e3315138a87e7",
-      "size": 14112,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libjs-bridge.so",
-      "sha256": "27654bd2f31a3b6478b56a3e97d0daaf6d2df9e35b1651fae979b067429485da",
-      "size": 55416,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libjsc.so",
-      "sha256": "4c8077382fb2e48e062db382dd185b329017ce692de8e40d8a7ea3f0da0dfed7",
-      "size": 5823656,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libjsctooling.so",
-      "sha256": "eff428f320e1db327b541e8db3435e9a7007a1f943951e565e40c03284952443",
-      "size": 133840,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libjsi.so",
-      "sha256": "ad7368f034f402808454bd591954e540fafca9d9ea6841f100c600f0e2349fb4",
-      "size": 419368,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/liblocSDK8b.so",
-      "sha256": "a3094efa78f8732bae19f7f5cf55403426f12fc3ba4ce4cf3e5c163bcd82cdaa",
-      "size": 368568,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/liblottie.so",
-      "sha256": "b7342873416246128a444b3aa954cf958cf2a506149428ecc53c903f62ee1e70",
-      "size": 1520040,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/liblua_v1_0_4.so",
+      "path": "samples/raw/apk-125-arm64/liblua_v1_0_4.so",
       "sha256": "f0438c0e54b9d8036ca0a3b99db1cc35ad05670677d9e6266e1d660f7c1ca572",
       "size": 810832,
       "arch": "aarch64",
@@ -399,25 +183,7 @@
       "candidate_count": 1
     },
     {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libmmkv.so",
-      "sha256": "ecc8f059f41860a5cb25dd11812943f6555be13fe3d0240c9c7ad8ce5a65c302",
-      "size": 587984,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libmnncore.so",
-      "sha256": "d1bf8291511ba351281f76f5daad9ec01d0c0e1d973e9cf0ec5d9dac86093667",
-      "size": 26376,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libmsaoaidauth.so",
+      "path": "samples/raw/apk-125-arm64/libmsaoaidauth.so",
       "sha256": "878ce89c1feaabec6e9eb92d4fac1943d2dcd46375a07e9445216eec2d082ebb",
       "size": 421888,
       "arch": "aarch64",
@@ -512,7 +278,7 @@
       "candidate_count": 17
     },
     {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libmsaoaidsec.so",
+      "path": "samples/raw/apk-125-arm64/libmsaoaidsec.so",
       "sha256": "8ec845a07e763640221b183d4a72e534e54c496d4ccad8c085ad598cac59a92e",
       "size": 688128,
       "arch": "aarch64",
@@ -607,88 +373,7 @@
       "candidate_count": 17
     },
     {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libnameTrans.so",
-      "sha256": "7c352217c2396d2080d2cff7f141a728cfb0bb285be3f250e80fee0f6d25b0cb",
-      "size": 1321072,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libnative-filters.so",
-      "sha256": "e75668c981edb83bf48964c11bb0778e1a04d805c0f73fad26c07c4b8f3850b3",
-      "size": 23712,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libnative-imagetranscoder.so",
-      "sha256": "bfe97242a2176df8e87dd9592d5b17877302f16d8ecb46a6a26190b3ec52ed0e",
-      "size": 585376,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libnative_monitor.so",
-      "sha256": "42433af6033d863599f269169fb42f1285f59784ec5aac542a05d47104156b3d",
-      "size": 434928,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libndkCameraEx.so",
-      "sha256": "cf43832e8f50e174d145491e09f3de72eabc6b669298065ee153136bef1fa538",
-      "size": 329920,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libpag.so",
-      "sha256": "7586058672782be9e4a73d6b933beda2e189a28147b11d78eaeec339ec24b1fd",
-      "size": 3320976,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libpayenc.so",
-      "sha256": "f68284400ad60f26413b3b3cbb574ef359c30f19a693f63b0e7476eda8eb1031",
-      "size": 9848,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libpostproc.so",
-      "sha256": "9931c2622761ab5c1084fd37471cad41007ad9d636fed47c3b8c03ea471b6dba",
-      "size": 37440,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libqlynx_v++.so",
-      "sha256": "c66e5cce6925ba23e92e804e24dbf52a7258a40d7b30b45d5b2c2008ec8a127d",
-      "size": 2177824,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libqp_sdk.so",
+      "path": "samples/raw/apk-125-arm64/libqp_sdk.so",
       "sha256": "b6957683b21b75c4a73c35400905a028fce25085aa47c03ce898cf3644f857e1",
       "size": 2399912,
       "arch": "aarch64",
@@ -703,7 +388,7 @@
       "candidate_count": 1
     },
     {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libqrust.so",
+      "path": "samples/raw/apk-125-arm64/libqrust.so",
       "sha256": "d457546ae458d4d18c95e89f36b869ff2f3a7e8fa3198cd942177962edbbf472",
       "size": 4835472,
       "arch": "aarch64",
@@ -733,52 +418,7 @@
       "candidate_count": 4
     },
     {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libreactnative.so",
-      "sha256": "d627ed61a2c81813d43035289ff3991d0c572bfa1e56f1a4d05b9ad10b1ca2a8",
-      "size": 6417288,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libsafexEx.so",
-      "sha256": "9ea1cb4854f23f21e4cf58b87103343fad7af6d029df74f43e0224edbb1afbfe",
-      "size": 854216,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libstatic-webp.so",
-      "sha256": "2d63fa6262a714c70cd610aab0eba6895478f5fcc8be54a5d4b725f16b066360",
-      "size": 501856,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libswresample.so",
-      "sha256": "b73c8c310f2faa78d9bf48be9c1fe10ac64eb537723e636313708f14210ac414",
-      "size": 71024,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libswscale.so",
-      "sha256": "637180892620fa981bb2615f71f9004c7185b9d7bc407f3e5cc207e5d7458ea1",
-      "size": 279992,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libtiny_magic.so",
+      "path": "samples/raw/apk-125-arm64/libtiny_magic.so",
       "sha256": "57e2615ae45e4e26d849c3e7800d96d3ef60a31901aadf596b72b2e7986be0bd",
       "size": 84168,
       "arch": "aarch64",
@@ -791,42 +431,6 @@
         }
       ],
       "candidate_count": 1
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libuptsmaddon.so",
-      "sha256": "caa453e6d0b830b12690ce9c3a0b2e43eeda932a366f9c2be806e792d22a73bd",
-      "size": 781280,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libverify.so",
-      "sha256": "6fd9abfb23923624f3432edad50cfb1bd6eb57ba538968d7981719e7d82f9f69",
-      "size": 5824,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libyrn_appmodules.so",
-      "sha256": "349e208907109f147318a6faf4afa6baf9fc19f823c34f7ac96bccaae1dd1de8",
-      "size": 531600,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
-    },
-    {
-      "path": "example/125_6feb19ac0a2bafc40ad82eee239d8637/lib/arm64-v8a/libyuv_util.so",
-      "sha256": "3266792c08ffa987602f0432b9e368bfb4315b6512709a9964911750c0053c6a",
-      "size": 655464,
-      "arch": "aarch64",
-      "platform": "linux-aarch64",
-      "candidates": [],
-      "candidate_count": 0
     },
     {
       "path": "example/6fe4c921d95d0fd139d07e5de03ceee28dcabc8db93bf3b6ebb0f0207bc09648",
@@ -9051,5 +8655,5 @@
       "candidate_count": 1
     }
   ],
-  "notes": "libavcodec.so 因 BN 无头加载超过 2 分钟未完成，未纳入本清单"
+  "notes": "APK 中 fast 检测无候选的其余 45 个 arm64 libs 仅保留在本地 example/125_*（gitignore），不纳入清单"
 }

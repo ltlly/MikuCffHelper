@@ -26,3 +26,9 @@ Thumbs.db
 example/125_*.apk
 example/125_*/
 
+# 样本库二进制是有意纳入仓库的（去混淆研究用）
+!samples/raw/
+!samples/raw/**/*.so
+!samples/raw/**/*.elf
+!samples/raw/**/*.out
+
