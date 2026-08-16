@@ -242,8 +242,14 @@ python tools/regression_test.py --update-baseline
   删 52 条写入但 HLIL 仍 219；对照官方 deob 参考件（23 blocks / HLIL
   134 / calls 28）确认差距来自「依赖输入的条件状态转移未完整短路」
   （如 `if (arg1 != 0) state=A else state=B`），BN HLIL restructure 对
-  残留 dispatcher 的直连边重复展开。下一步方向是条件多目标解析/与
-  general 条件分支改写融合，**不是** replay 后的死代码清理。
+  残留 dispatcher 的直连边重复展开。
+- **条件多目标解析已实现**（仅 deflate + slow-state 兜底形态）：
+  `_resolve_conditional_path` 生成 target/cond 树，支持 state-chain
+  dispatcher re-entry、按 state 值判环、深度 128 / 4 次重入；
+  `_build_conditional_patch` 先建子块再建父块，用 liveness 过滤 replay。
+  验证：cdong linux64 5 个 define 生成 cond 树、0 丢失（HLIL 194→219）；
+  auto 39 回归 `[ok]`、general 39 回归 `[ok]`。离 deob 参考件仍有差距，
+  下一步是条件树与不可达 dispatcher 移除融合。
 - obpo ground truth 对齐结论：`.config.json` 的 func/dispatcher 地址多数
   不在 BN 自动函数内；`create_user_function` 后 MLIL 在 `undefined`
   指令处截断（7/5 blocks），BN 边界与 OLLVM 平坦化函数边界不一致。

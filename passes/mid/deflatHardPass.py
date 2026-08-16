@@ -67,6 +67,8 @@ _MAX_FORWARD_STEPS = 512
 _TIME_BUDGET_SECONDS = 15.0
 _FLATTENING_SCORE_THRESHOLD = 0.3
 _MIN_BLOCKS_FOR_CFF = 5
+# 特殊返回值：遇到未知条件时停在当前 dispatcher 块，把该块当真实目标。
+_STOP_AT_BLOCK = -1
 
 _WIDTH_TO_MASK = {1: 0xFF, 2: 0xFFFF, 4: 0xFFFFFFFF, 8: 0xFFFFFFFFFFFFFFFF}
 
@@ -858,12 +860,15 @@ def _walk_dispatcher_block(
     state_vars: Set[Variable],
     replay: Optional[List[int]] = None,
     skipped: Optional[List[int]] = None,
+    stop_on_unknown_if: bool = False,
 ) -> Optional[int]:
     """走完一个 dispatcher 块，返回它的下一个 instr_index 去向。
     dispatcher 块内只可能有 goto / 状态相关 if / SetVar（由纯块过滤保证）。
 
     replay 非 None 时，块内每个 SetVar 的 instr_index 都会被记录；
     skipped 非 None 时记录所有经过的指令序号（含 goto/if）。
+    stop_on_unknown_if=True 且 if 条件无法求值时返回 _STOP_AT_BLOCK：
+    调用方会把当前块当真实目标，让 patch 跳到该块起点，保留条件语义。
     """
     current = bb.start
     while current < bb.end:
@@ -875,7 +880,7 @@ def _walk_dispatcher_block(
         if isinstance(instr, MediumLevelILIf):
             branch = _eval_if(instr, env)
             if branch is None:
-                return None
+                return _STOP_AT_BLOCK if stop_on_unknown_if else None
             return instr.true if branch else instr.false
         if isinstance(instr, MediumLevelILSetVar):
             if replay is not None:
@@ -904,6 +909,7 @@ def _trace_dispatcher_path(
     dispatcher_blocks: Set[int],
     replay: Optional[List[int]] = None,
     skipped: Optional[List[int]] = None,
+    stop_on_unknown_if: bool = False,
 ) -> Tuple[Optional[int], Tuple[int, ...], Tuple[int, ...], Tuple[int, ...]]:
     """不感知「当前 define 在哪个块」地模拟 dispatcher 子图。
 
@@ -929,9 +935,18 @@ def _trace_dispatcher_path(
         if bb.start not in dispatcher_blocks:
             return current, tuple(path), tuple(replay_local), tuple(skipped_local)
         path.append(bb.start)
+        replay_before = len(replay_local)
+        skipped_before = len(skipped_local)
         nxt = _walk_dispatcher_block(
-            mlil, bb, env, state_vars, replay_local, skipped_local
+            mlil, bb, env, state_vars, replay_local, skipped_local,
+            stop_on_unknown_if,
         )
+        if nxt == _STOP_AT_BLOCK:
+            # 把当前块当真实目标：patch 会跳到块起点，因此本块内已记录的
+            # replay/skipped 都要撤销 —— 块本身会正常执行。
+            del replay_local[replay_before:]
+            del skipped_local[skipped_before:]
+            return bb.start, tuple(path), tuple(replay_local), tuple(skipped_local)
         if nxt is None:
             return None, tuple(path), tuple(replay_local), tuple(skipped_local)
         current = nxt
@@ -955,6 +970,7 @@ def _forward_resolve_with_replay(
         ]
     ] = None,
     dead_vars: Optional[Set[int]] = None,
+    stop_on_unknown_if: bool = False,
 ) -> Tuple[Optional[int], Tuple[int, ...]]:
     """_forward_resolve 的 path-replay 版本：额外返回 (target, replay)。
 
@@ -985,13 +1001,13 @@ def _forward_resolve_with_replay(
         if trace is None:
             trace = _trace_dispatcher_path(
                 mlil, current, env, state_vars, dispatcher_blocks,
-                skipped=tail_skipped,
+                skipped=tail_skipped, stop_on_unknown_if=stop_on_unknown_if,
             )
             resolve_memo[key] = trace
     else:
         trace = _trace_dispatcher_path(
             mlil, current, env, state_vars, dispatcher_blocks,
-            skipped=tail_skipped,
+            skipped=tail_skipped, stop_on_unknown_if=stop_on_unknown_if,
         )
 
     target, path, dispatcher_replay, skipped_path = trace
@@ -1006,6 +1022,252 @@ def _forward_resolve_with_replay(
         skipped_path,
     )
     return target, replay
+
+
+def _resolve_conditional_path(
+    mlil: MediumLevelILFunction,
+    start: int,
+    env: Dict[Variable, int],
+    primary_var: Variable,
+    state_vars: Set[Variable],
+    dispatcher_blocks: Set[int],
+    dead_vars: Set[int],
+    dispatcher_entry_start: int,
+    define_bb_start: int,
+    initial_replay: Tuple[int, ...] = (),
+    initial_skipped: Tuple[int, ...] = (),
+) -> Optional[Tuple]:
+    """条件多目标解析器：返回解析树或 None。
+
+    解析树节点：
+      ("target", target_idx, replay, skipped)
+      ("cond",   cond_idx, true_node, false_node, replay, skipped)
+
+    replay/skipped 都是从 define 块尾到该节点边界（含前缀）的 instr_index
+    元组。dispatcher 内遇到无法求值的 if 时，对 true/false 两个分支分别
+    克隆 env 递归；当分支链把 primary 状态变量改成新常量并回到 dispatcher
+    入口时，允许用新 state 重新进入一次（state-chain 转移）。
+
+    终止/安全：
+      - dispatcher 内部用 block-start 判环，不因 env 差异重复走；
+      - 同一 state 值第二次出现在 dispatcher 入口即停止（真实环）；
+      - 分支一侧解析失败时，回退到「当前块起点」作为 target（等价：patch
+        只跳到该块，块内条件仍正常执行）；
+      - 步数/深度/重进次数都有上限。
+    """
+    steps = [0]
+    max_restarts = 4
+    initial_state = env.get(primary_var)
+
+    def resolve(
+        current: int,
+        cur_env: Dict[Variable, int],
+        visited: frozenset,
+        replay: Tuple[int, ...],
+        skipped: Tuple[int, ...],
+        depth: int,
+        entry_state: Optional[int],
+        seen_entry_states: frozenset,
+        restarts: int,
+    ) -> Optional[Tuple]:
+        steps[0] += 1
+        if steps[0] > 400000 or depth > 128 or restarts > max_restarts:
+            return None
+        if current in visited:
+            # 状态链结块（例如 `bb37: goto dispatcher_entry`）与 dispatcher
+            # 入口等价：带着新 state 重新进入是合法执行，不算环。
+            trampoline = False
+            if current != dispatcher_entry_start:
+                probe = mlil.get_basic_block_at(current)
+                if probe is not None and probe.length == 1:
+                    only = mlil[probe.end - 1]
+                    if (
+                        isinstance(only, MediumLevelILGoto)
+                        and only.dest == dispatcher_entry_start
+                    ):
+                        trampoline = True
+            if current == dispatcher_entry_start or trampoline:
+                new_state = cur_env.get(primary_var)
+                if (
+                    new_state is not None
+                    and new_state != entry_state
+                    and new_state not in seen_entry_states
+                ):
+                    return resolve(
+                        dispatcher_entry_start,
+                        cur_env,
+                        frozenset(),
+                        replay,
+                        skipped,
+                        depth + 1,
+                        new_state,
+                        seen_entry_states | {new_state},
+                        restarts + 1,
+                    )
+            return None
+
+        bb = mlil.get_basic_block_at(current)
+        if bb is None or current != bb.start:
+            return None
+        visited = visited | {bb.start}
+
+        if bb.start not in dispatcher_blocks:
+            return ("target", bb.start, replay, skipped)
+
+        block_replay = list(replay)
+        block_skipped = list(skipped)
+        local_env = dict(cur_env)
+        for j in range(bb.start, bb.end):
+            instr = mlil[j]
+            block_skipped.append(j)
+            if isinstance(instr, MediumLevelILGoto):
+                return resolve(
+                    instr.dest,
+                    local_env,
+                    visited,
+                    tuple(block_replay),
+                    tuple(block_skipped),
+                    depth + 1,
+                    entry_state,
+                    seen_entry_states,
+                    restarts,
+                )
+            if isinstance(instr, MediumLevelILIf):
+                branch = _eval_if(instr, local_env)
+                if branch is not None:
+                    nxt = instr.true if branch else instr.false
+                    return resolve(
+                        nxt,
+                        local_env,
+                        visited,
+                        tuple(block_replay),
+                        tuple(block_skipped),
+                        depth + 1,
+                        entry_state,
+                        seen_entry_states,
+                        restarts,
+                    )
+                # 未知条件：两侧克隆 env 分别解析。父节点 replay/skipped
+                # 截止到本 if 之前（block_replay 已包含块内此前的 SetVar）。
+                true_res = resolve(
+                    instr.true,
+                    dict(local_env),
+                    visited,
+                    tuple(block_replay),
+                    tuple(block_skipped),
+                    depth + 1,
+                    entry_state,
+                    seen_entry_states,
+                    restarts,
+                )
+                false_res = resolve(
+                    instr.false,
+                    dict(local_env),
+                    visited,
+                    tuple(block_replay),
+                    tuple(block_skipped),
+                    depth + 1,
+                    entry_state,
+                    seen_entry_states,
+                    restarts,
+                )
+                if true_res is not None and false_res is not None:
+                    return (
+                        "cond",
+                        j,
+                        true_res,
+                        false_res,
+                        tuple(block_replay),
+                        tuple(block_skipped),
+                    )
+                # 保守回退：把当前块起点当真实目标，撤销本块内 replay/
+                # skipped，块会原样执行，等价性保持。
+                return ("target", bb.start, replay, skipped)
+            if isinstance(instr, MediumLevelILSetVar):
+                block_replay.append(j)
+                v = _eval(instr.src, local_env)
+                if v is None:
+                    local_env.pop(instr.dest, None)
+                else:
+                    local_env[instr.dest] = v & _mask(instr.size or 4)
+            else:
+                return None
+        return None
+
+    return resolve(
+        start,
+        dict(env),
+        frozenset({define_bb_start}),
+        initial_replay,
+        initial_skipped,
+        0,
+        initial_state,
+        frozenset({initial_state}) if initial_state is not None else frozenset(),
+        0,
+    )
+
+
+def _build_conditional_patch(
+    mlil: MediumLevelILFunction,
+    define_instr: MediumLevelILSetVar,
+    node: Tuple,
+) -> int:
+    """把条件解析树落成 MLIL mini-block，返回根 block 的 label operand。
+
+    为避免 label operand 在 append 之后才确定，子块先于父块构建：
+    - target 子块：label + 回放 + goto target；
+    - cond 父块：先构建两个子块拿到它们的起始 instr_index，再 append
+      `label + 回放 + if(cond) true/false`，父块最后出现，根 define 直接
+      goto 到父块。
+    """
+    loc = ILSourceLocation.from_instruction(define_instr)
+
+    def build(cur: Tuple, already_ids: frozenset) -> int:
+        kind = cur[0]
+        if kind == "target":
+            _, target_idx, replay, skipped = cur
+            replay = _filter_replay_indices(mlil, replay, state_vars, skipped)
+            label = MediumLevelILLabel()
+            mlil.mark_label(label)
+            for idx in replay:
+                if idx in already_ids:
+                    continue
+                src = mlil[idx]
+                mlil.append(mlil.copy_expr(src), ILSourceLocation.from_instruction(src))
+            target_label = MediumLevelILLabel()
+            target_label.operand = target_idx
+            mlil.append(mlil.goto(target_label, loc))
+            return label.operand
+
+        # cond 节点：先建子块，再建父块。
+        _, cond_idx, true_node, false_node, replay, skipped = cur
+        replay = _filter_replay_indices(mlil, replay, state_vars, skipped)
+        child_already = already_ids | set(replay)
+        true_start = build(true_node, child_already)
+        false_start = build(false_node, child_already)
+        label = MediumLevelILLabel()
+        mlil.mark_label(label)
+        for idx in replay:
+            if idx in already_ids:
+                continue
+            src = mlil[idx]
+            mlil.append(mlil.copy_expr(src), ILSourceLocation.from_instruction(src))
+        cond_instr = mlil[cond_idx]
+        true_label = MediumLevelILLabel()
+        true_label.operand = true_start
+        false_label = MediumLevelILLabel()
+        false_label.operand = false_start
+        mlil.append(
+            mlil.if_expr(
+                mlil.copy_expr(cond_instr.condition),
+                true_label,
+                false_label,
+                ILSourceLocation.from_instruction(cond_instr),
+            )
+        )
+        return label.operand
+
+    return build(node, frozenset())
 
 
 def _forward_resolve(
@@ -1081,12 +1343,16 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
 
         # 2. 状态变量识别
         state_vars = _collect_state_vars(mlil, dispatcher_entry)
+        used_slow_state = False
         if not state_vars:
             # 兜底：dispatcher 用 temp 比较真实 state（cdong x86 样本是
             # `temp = state; cmp temp, const`），fast 收集会漏。慢路径
             # find_state_var 能抓回被赋多个大常量的 var；它更宽松，因此
-            # 后续仍要过 _function_looks_like_cff 门控。
+            # 后续仍要过 _function_looks_like_cff 门控。used_slow_state
+            # 同时作为「条件多目标解析」的开关：只有这类 temp 比较形态才
+            # 启用 stop-on-unknown-if / 条件树，避免影响 arm64 基线。
             state_vars = set(StateMachine.find_state_var(function))
+            used_slow_state = True
         if not state_vars:
             if iter_idx == 1:
                 log_info(f"[deflate] {function_name}: no state vars at 0x{dispatcher_entry.start:x}")
@@ -1124,7 +1390,14 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
                 Tuple[int, ...],
             ],
         ] = {}
-        patches: List[Tuple[MediumLevelILSetVar, int, Tuple[int, ...]]] = []
+        patches: List[
+            Tuple[
+                MediumLevelILSetVar,
+                Optional[int],
+                Tuple[int, ...],
+                Optional[Tuple],
+            ]
+        ] = []
         for instr in mlil.instructions:
             if time.time() > deadline:
                 break
@@ -1136,11 +1409,42 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
                 continue
             target, replay = _forward_resolve_with_replay(
                 mlil, instr, state_vars, dispatcher_blocks, resolve_memo,
-                dead_vars,
+                dead_vars, stop_on_unknown_if=used_slow_state,
             )
-            if target is None or target == instr.instr_index:
+            if target == instr.instr_index:
                 continue
-            patches.append((instr, target, replay))
+
+            # 只有 temp 比较形态（used_slow_state），且简单解析失败或停在
+            # dispatcher 内未知条件块时，才尝试条件多目标解析。
+            cond_node = None
+            if used_slow_state and (target is None or target in dispatcher_blocks):
+                try:
+                    env = _seed_env_from_block(
+                        mlil, instr, state_vars, dispatcher_blocks
+                    )
+                    define_bb = mlil.get_basic_block_at(instr.instr_index)
+                    if define_bb is not None:
+                        tail_replay: List[int] = []
+                        tail_skipped: List[int] = []
+                        cur = _walk_block_tail(
+                            mlil, define_bb, instr.instr_index, env,
+                            state_vars, dead_vars, tail_replay, tail_skipped,
+                        )
+                        if cur is not None:
+                            node = _resolve_conditional_path(
+                                mlil, cur, env, instr.dest, state_vars,
+                                dispatcher_blocks, dead_vars,
+                                dispatcher_entry.start, define_bb.start,
+                                tuple(tail_replay), tuple(tail_skipped),
+                            )
+                            if node is not None and node[0] == "cond":
+                                cond_node = node
+                except Exception:
+                    cond_node = None
+            if target is None and cond_node is None:
+                continue
+
+            patches.append((instr, target, replay, cond_node))
 
         if not patches:
             if iter_idx == 1:
@@ -1155,8 +1459,21 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
         #    同一个 mini-block，避免每个 define 都生成独立块。replay 不同时
         #    必须用不同 mini-block，否则回放的写入序列不一样。
         mini_block_cache: Dict[Tuple[int, int, int, Tuple[int, ...]], "MediumLevelILLabel"] = {}
-        for define, target_idx, replay in patches:
+        for define, target_idx, replay, cond_node in patches:
             try:
+                if cond_node is not None:
+                    # 条件解析树：生成 if(cond) 分支 mini-block 链。
+                    root_label = _build_conditional_patch(mlil, define, cond_node)
+                    root_lbl = MediumLevelILLabel()
+                    root_lbl.operand = root_label
+                    mlil.replace_expr(
+                        define.expr_index,
+                        mlil.goto(
+                            root_lbl,
+                            ILSourceLocation.from_instruction(define),
+                        ),
+                    )
+                    continue
                 key = (
                     define.dest.identifier,
                     define.src.constant & _mask(define.size or 4),
