@@ -38,9 +38,18 @@ class CFGIndex:
             raise TypeError("il must be MediumLevelILFunction or LowLevelILFunction")
         self.graph = nx.DiGraph()
         self.incoming = {}
+        # instr_index -> 包含该指令的基本块。按 range(start, end) 展开，
+        # 对函数内所有指令索引与 il.get_basic_block_at() 返回完全一致
+        # （注意：不能用 start 精确匹配 map——边目标可能落在块中段，曾因
+        # 此造成 LLIL copy 前驱错配、HLIL 膨胀）。非法索引 dict.get 返回
+        # None。这样避免每条边调一次 get_basic_block_at，构建 O(总指令数)、
+        # 查询 O(1)。
+        self.block_at = {}
         for block in il.basic_blocks:
             self.graph.add_node(block.start)
             self.incoming.setdefault(block.start, [])
+            for idx in range(block.start, block.end):
+                self.block_at[idx] = block
         for block in il.basic_blocks:
             targets = []
             if block.length == 0:
@@ -56,20 +65,27 @@ class CFGIndex:
                 if target not in self.graph:
                     continue
                 self.graph.add_edge(block.start, target)
-                tbb = il.get_basic_block_at(target)
+                tbb = self.block_at.get(target)
                 if tbb is not None:
                     self.incoming.setdefault(target, []).append(block)
         # 保持与旧 MLIL/LLIL_get_incoming_blocks 相同的行为：不去重，
         # if 两分支同目标时允许同一前驱出现两次。
-        self.scc_membership = {}
-        for scc in nx.strongly_connected_components(self.graph):
-            for node in scc:
-                self.scc_membership[node] = scc
+        # SCC 懒计算：只有 is_node_in_loop 被调用时才算，避免只为构图而
+        # 全图跑 Tarjan。
+        self.scc_membership = None
+
+    def _ensure_scc(self):
+        if self.scc_membership is None:
+            self.scc_membership = {}
+            for scc in nx.strongly_connected_components(self.graph):
+                for node in scc:
+                    self.scc_membership[node] = scc
 
     def incoming_blocks(self, bb_index: int):
         return sorted(self.incoming.get(bb_index, []), key=lambda b: b.start)
 
     def is_node_in_loop(self, node) -> bool:
+        self._ensure_scc()
         scc = self.scc_membership.get(node, {node})
         return len(scc) > 1 or self.graph.has_edge(node, node)
 

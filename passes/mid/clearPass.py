@@ -75,9 +75,10 @@ def pass_clear_SSA_const_if(analysis_context: AnalysisContext):
     """
     mlil = analysis_context.mlil
     function = analysis_context.function
+    # state_vars 在多次外层迭代间不变，提到循环外避免每轮全函数扫描
+    state_vars = StateMachine.find_state_var(function)
     for _ in range(len(mlil.basic_blocks)):
         updated = False
-        state_vars = StateMachine.find_state_var(function)
         for bb in mlil.basic_blocks:
             if_instr = bb[-1]
             if not isinstance(if_instr, MediumLevelILIf):
