@@ -30,9 +30,12 @@
   - `CFF_win.exe` @ `0x401600`（Win32）
   - `CFF_win_full.exe` @ `0x401F10`（Win32，含调用链）
   - `CFF_win64*.exe` 对应 64 位版本
+- 另存三个 `deob_*` 参考件（官方 unflattener 输出）：`deob_CFF.bin`、
+  `deob_CFF_full.bin`、`deob_CFF_full_linux64.bin`，用于对照 blocks/HLIL/
+  圈复杂度。
 - 注意：MikuCffHelper 的 fast 检测器（`_collect_state_vars`）当前对这些样本
-  报 0 候选；`StateMachine.find_state_var` 可识别状态变量（如 `var_1c`）。
-  这是后续检测器改进的对照样本，不是回归基线的一部分。
+  报 0 候选；`StateMachine.find_state_var` 可识别状态变量（如 `var_1c`），
+  运行时会自动兜底。这是检测器改进的对照样本，不是回归基线的一部分。
 
 ## 3. pshocker-de-ollvm-arm
 

@@ -238,6 +238,12 @@ python tools/regression_test.py --update-baseline
   - general 39 回归 `[ok]`（31/39）。
   - cdong win32/win64/linux64 的 auto 均 0 丢失，但 HLIL 仍略升
     （63→65 / 56→62 / 194→219），这些样本 general 仍然更好。
+- **cdong full 系列 HLIL 膨胀根因已复核**：对 auto 输出做全局死写消除可
+  删 52 条写入但 HLIL 仍 219；对照官方 deob 参考件（23 blocks / HLIL
+  134 / calls 28）确认差距来自「依赖输入的条件状态转移未完整短路」
+  （如 `if (arg1 != 0) state=A else state=B`），BN HLIL restructure 对
+  残留 dispatcher 的直连边重复展开。下一步方向是条件多目标解析/与
+  general 条件分支改写融合，**不是** replay 后的死代码清理。
 - obpo ground truth 对齐结论：`.config.json` 的 func/dispatcher 地址多数
   不在 BN 自动函数内；`create_user_function` 后 MLIL 在 `undefined`
   指令处截断（7/5 blocks），BN 边界与 OLLVM 平坦化函数边界不一致。

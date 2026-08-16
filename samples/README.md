@@ -80,7 +80,7 @@ APK 解包目录中另外 45 个 fast 检测无候选的 arm64 libs 只保留在
 - 6fe4（x86_64 kernel）@0x14001e6e1：auto 163→161、HLIL 395→349、
   switch 2、0 丢失；general 163→176 → **auto 更优**。
 
-### cdong x86 深入研究（已落地 + 已回退的实验）
+### cdong x86 深入研究（路径已逐步落地）
 
 1. **已落地（39 回归通过）**：
    - fast `_collect_state_vars` 为空时，deflate/switch 都改用
@@ -91,13 +91,11 @@ APK 解包目录中另外 45 个 fast 检测无候选的 arm64 libs 只保留在
      有读者的局部 store 仍严格拒绝。
    - 效果：`CFF_win.exe` @0x401600 auto 从无 switch → switch(3 cases)、
      0 丢失（HLIL 63→65）；39 函数 auto + general 回归 `[ok]`。
-2. **更深一层（实验后回退）**：放宽 `_block_is_pure_dispatcher`，允许
-   temp/寄存器/死栈写入后，`CFF_full_linux64.bin` 的 dispatcher 子图从
-   36 → 74 块，transition 从全 None 变为部分可解析（如 0x6a3075b1→328、
-   0x77004896→461）。但 auto 39 回归出现 **12 个函数 HLIL 变差**
-   （sub_459ed8 17→45、sub_45aa54 18→43、sub_407994 26→60 等），说明
-   直接跳真实块会丢掉 dispatcher 沿途对栈/寄存器的写入。已回退严格
-   `_block_is_pure_dispatcher`。
+2. **放宽 pure 过滤的教训**：直接放宽 `_block_is_pure_dispatcher`（允许
+   temp/寄存器/死栈写入，但不回放）后，linux64 dispatcher 子图 36→74、
+   transition 部分可解析，但 auto 39 回归 12 个函数 HLIL 变差，根因是
+   直接跳真实块丢掉了 dispatcher 沿途写入。该实验已回退，之后用
+   path replay（第 3 点）重新启用等价放宽。
 3. **path replay 已实现（deflate 路径）**：模拟时记录沿途所有指令与
    SetVar 写入，按「跳过路径外仍被读取」做数据流裁剪后，在 mini-block
    按序回放再 `goto target`；状态变量写入一律回放。裁剪后 linux64 每个
@@ -106,8 +104,18 @@ APK 解包目录中另外 45 个 fast 检测无候选的 arm64 libs 只保留在
      HLIL 20→8；
    - cdong linux64 transition 部分可解析（0x6a3075b1→328、
      0x77004896→461），auto 0 丢失，但 HLIL 194→219，general 仍是
-     65 blocks / HLIL 194 更优——下一步优化方向是 replay 后的
-     copy-propagation/死代码清理。
+     65 blocks / HLIL 194 更优。
+4. **HLIL 膨胀根因复核（对照 deob 参考件）**：
+   - `deob_CFF_full_linux64.bin` 参考：23 blocks、HLIL 134、calls 28；
+   - 混淆前：91 blocks、HLIL 194；path replay 后 auto：99 blocks、
+     HLIL 219；general：65 blocks、HLIL 194。
+   - 对 auto 输出再做全局死写消除：可删 52 条写入，但 HLIL 仍 219——
+     说明膨胀来自 BN HLIL restructure 对「部分 state 仍走原 dispatcher」
+     的直连边重复展开，不是死代码。
+   - 根因是 cdong full 系列存在**依赖输入的条件状态转移**
+     （如 `if (arg1 != 0) state=A else state=B`），deflate 一个 state 值
+     只对应一个目标，条件转移无法完整短路；下一步应做条件多目标解析/
+     与 general 条件分支改写融合，而不是清理 pass。
 
 ### obpo ground truth 对齐结论
 
