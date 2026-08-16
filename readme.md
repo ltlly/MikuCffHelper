@@ -39,8 +39,11 @@ OLLVM `-fla` 把函数变成「dispatcher + 真实块」状态机。插件提供
 
 - **不删除**原版 `deflate_hard` / `synthesize_switch`；
 - 原版大函数复杂度高的问题，通过独立 workflow + trial/时间预估规避，
-  并在本分支完成了 CFGIndex 缓存、union-find 别名链、线性 detector 等
-  性能优化；
+  并在本分支完成了 CFGIndex 线性建图 + 懒 SCC、union-find 别名链、线性
+  detector、clear 状态变量扫描提升等性能优化。pass 级实测（不含 BN 重分析）：
+  sub_45ba24 auto 2.42s→0.74s（其中 pass_clear 2.22s→0.55s），
+  sub_406c0c 0.27s→0.19s；39 函数回归输出与基线一致（37/39 变换、
+  0 副作用丢失、0 orphan）；
 - 若未来更大样本证明 模式3 在标准 CFF 上全面不劣于 auto，再讨论替换。
 
 ## 2. 安装
@@ -435,10 +438,13 @@ workflow `MikuCffHelper_general_workflow` 中，不经过主 workflow 的 LLIL
 - 表达式最大嵌套深度；
 - 语义副作用丢失与 orphan jump。
 
-实现层面，`utils.cfg_analyzer.CFGIndex` 一次构建前驱/度/SCC 索引，
-`pass_merge_block` 与 LLIL `pass_copy_common_block` 不再逐查询全图扫描；
-`_vars_aliased_to` 改为 union-find；`_function_looks_like_cff` 一遍预计算
-值集。选择策略：先排除任何有副作用丢失/orphan 的模式；再按坏指标集合做 Pareto
+实现层面，`utils.cfg_analyzer.CFGIndex` 一次构建前驱/度索引，并用
+per-instruction 块映射（O(总指令数) 建表、O(1) 查询，等价于
+`get_basic_block_at` 的含块中段语义）替代逐边查询；SCC 只在需要判环时
+懒计算。`pass_merge_block` 与 LLIL `pass_copy_common_block` 不再逐查询
+全图扫描；`pass_clear_SSA_const_if` 把 `find_state_var` 提到外层循环外，
+避免每轮全函数重扫；`_vars_aliased_to` 改为 union-find；
+`_function_looks_like_cff` 一遍预计算值集。选择策略：先排除任何有副作用丢失/orphan 的模式；再按坏指标集合做 Pareto
 支配；都不支配时用 `default_penalty`（块 0.5 / 圈复杂度 1 / 行数 1 /
 goto+jump 3 / 深度 1）取低分。权重全部集中在 `utils/readability.py`，
 可配置、可解释，不藏在 workflow 编排里。
@@ -457,7 +463,7 @@ python tools/eval_modes.py --baseline-targets --out /tmp/eval_baseline.json
 python tools/eval_modes.py example/arm64-v8a.so --scan --max-funcs 20
 ```
 
-## 7. 路径 auto (B 优先 / A 兜底)## 7. 路径 auto (B 优先 / A 兜底)
+## 7. 路径 auto (B 优先 / A 兜底)
 
 ```
 clear → mov_state_define

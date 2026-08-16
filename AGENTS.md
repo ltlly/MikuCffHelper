@@ -174,8 +174,17 @@ python tools/regression_test.py --update-baseline
   - 总变换率 37/39，0 副作用丢失，0 orphan jump。
 - general 回归基线 `tools/baseline_general.json`：39 函数，31/39 变换，
   0 orphan、0 语义副作用丢失；总体弱于 auto，但 B/A 失败的函数上有收益。
-- `CFGIndex` 缓存前驱/度/SCC；LLIL copy 与 MLIL merge 已复用；别名链改
-  union-find；已删除未接入的 `reverseIfPass.py` 与 MLIL `pass_copy_common_block_mid`。
+- `CFGIndex` 一次建前驱/度索引：per-instruction 块映射 O(1) 查询（保持
+  `get_basic_block_at` 含块中段语义，不能用 start 精确匹配 map），SCC
+  懒计算；LLIL copy 与 MLIL merge 已复用；`pass_clear_SSA_const_if`
+  的 `find_state_var` 提升到外层循环外；别名链改 union-find；已删除
+  未接入的 `reverseIfPass.py` 与 MLIL `pass_copy_common_block_mid`。
+  pass 级基准（不含 BN 重分析）：sub_45ba24 auto 2.42s→0.74s
+  （clear 2.22s→0.55s）、sub_406c0c 0.27s→0.19s，39 函数回归与基线
+  一致。
+- 曾尝试给 `_forward_resolve` 加 define 级缓存：带 seed-env 键的版本在
+  39 样本上无重复键（0 命中）且额外开销，正确性收益为负，已废弃，勿
+  再以 `(state_var, value, goto_target)` 类短键缓存解析结果。
 - 不硬编码模式选择规则；`tools/eval_modes.py` 实际试跑 auto/general 后，
   用多维可读性指标 + Pareto/可配置罚分选优；69 样本结果在
   `tools/eval_samples.json`（trial：general 37 / auto 32，0 丢失）。
