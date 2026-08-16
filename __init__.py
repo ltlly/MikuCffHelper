@@ -24,7 +24,7 @@ def register_workflow():
     configuration_llil = json.dumps(
         {
             "name": "analysis.plugins.workflow_patch_llil",
-            "description": "A activity to patch llil",
+            "description": "内部 LLIL 预处理：公共块复制 / flag 条件内联 / if 分块（勿手动关闭）",
             "eligibility": {"auto": {"default": True}},
         }
     )
@@ -37,7 +37,7 @@ def register_workflow():
     configuration_mlil_auto = json.dumps(
         {
             "name": "analysis.plugins.workflow_patch_mlil_auto",
-            "description": "Auto CFF: 先 synthesize_switch，失败 fallback deflate_hard",
+            "description": "自动模式（推荐）：先 模式2 Switch合成，失败自动 模式1 Deflate硬解；<50块通常<10s，>300块可能30-60s+",
             "eligibility": {"auto": {"default": False}},
         }
     )
@@ -49,7 +49,7 @@ def register_workflow():
     configuration_mlil = json.dumps(
         {
             "name": "analysis.plugins.workflow_patch_mlil",
-            "description": "Deflate CFF: 把 dispatcher 绕过，输出最少块数的 goto 形态",
+            "description": "模式1 Deflate硬解：SCC+副作用筛选识别dispatcher → 前向整型模拟 → state=const 直连真实块；输出 goto/if/while，块数最少，大函数最慢",
             "eligibility": {"auto": {"default": False}},
         }
     )
@@ -61,7 +61,7 @@ def register_workflow():
     configuration_mlil_switch = json.dumps(
         {
             "name": "analysis.plugins.workflow_patch_mlil_switch",
-            "description": "Synthesize switch: 把 dispatcher 重构为 MLIL JUMP_TO，HLIL 显示 switch-case",
+            "description": "模式2 Switch合成：支配树检测 → 状态变量识别 → 前向模拟 → MLIL_JUMP_TO；HLIL 显示 switch-case，适合标准 OLLVM",
             "eligibility": {"auto": {"default": False}},
         }
     )
@@ -86,7 +86,7 @@ def register_workflow():
     configuration_mlil_general = json.dumps(
         {
             "name": "analysis.plugins.workflow_patch_mlil_general",
-            "description": "General CFF: linear detect + alias-aware state + preamble-preserving switch",
+            "description": "模式3 通用框架（独立workflow）：线性检测 + alias/flag/元组 + P3 guard；适合 alias-only/无CMP_E/多状态变种；不跑LLIL复制",
             "eligibility": {"auto": {"default": True}},
         }
     )
@@ -133,11 +133,22 @@ def register_commands():
     """
     register commands
     """
-    from .utils.mikuPlugin import set_stateVar, suggest_stateVar, isV
+    from .utils.mikuPlugin import (
+        estimate_cff_time,
+        set_stateVar,
+        suggest_stateVar,
+        isV,
+    )
 
     PluginCommand.register_for_function("miku\\set_state_var", "", set_stateVar, isV)
     PluginCommand.register_for_function(
         "miku\\suggest_stateVar ", "", suggest_stateVar, isV
+    )
+    PluginCommand.register_for_function(
+        "miku\\estimate_cff_time",
+        "按函数大小预估 模式1/模式2/Auto/模式3 耗时",
+        estimate_cff_time,
+        isV,
     )
 
 

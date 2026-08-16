@@ -75,6 +75,34 @@ def suggest_stateVar(bv: BinaryView, func: Function):
     func_dict[func.start] = {}
 
 
+def estimate_cff_time(bv: BinaryView, func: Function):
+    """根据函数 MLIL 块数，预估各模式耗时并提示。"""
+    from .time_estimator import estimate_text
+
+    if func.mlil is None:
+        msg = "当前函数没有 MLIL，无法预估。"
+    else:
+        blocks = len(list(func.mlil.basic_blocks))
+        lines = [
+            f"函数 {func.name} @ 0x{func.start:x}，MLIL 块数：{blocks}",
+            "",
+            f"模式1 Deflate硬解：{estimate_text(blocks, 'deflate')}",
+            f"模式2 Switch合成：{estimate_text(blocks, 'switch')}",
+            f"自动模式 Auto：{estimate_text(blocks, 'auto')}",
+            f"模式3 通用框架：{estimate_text(blocks, 'general')}",
+            "",
+            "说明：这是粗略预估，实际还受 Binary Ninja 重分析、机器负载影响。",
+        ]
+        msg = "\n".join(lines)
+    log_info(msg)
+    try:
+        from binaryninjaui import show_message_box
+
+        show_message_box("MikuCffHelper 耗时预估", msg)
+    except Exception:
+        pass
+
+
 def isV(bv: BinaryView, inst):
     """验证指令是否有效
     Args:

@@ -45,7 +45,8 @@ utils/                       # 公共工具
   state_machine.py           # 状态变量收集 / 启发式
   cfg_analyzer.py            # CFG 图分析
   instruction_analyzer.py    # 指令/表达式分析
-  mikuPlugin.py              # UI 命令、日志
+  mikuPlugin.py              # UI 命令（含耗时预估）、日志
+  time_estimator.py          # 按 MLIL 块数预估各模式耗时
   instr_vistor.py            # 简易 visitor
 fix_binaryninja_api/         # BN API 兼容层
 tools/
@@ -163,6 +164,8 @@ python tools/regression_test.py --update-baseline
 
 ## 6. 当前状态摘要
 
+- UI activity 已标注 模式1 Deflate / 模式2 Switch / 模式3 General / Auto，
+  并带耗时量级提示；右键 `miku\\estimate_cff_time` 可查详细预估。
 - 默认入口：`workflow_patch_mlil_auto`。
 - 回归基线（`tools/baseline.json`）当前覆盖 39 个函数：
   - 30 个输出含 `switch`；

@@ -10,6 +10,7 @@ from .instruction_analyzer import (
 )
 from .instr_vistor import SimpleVisitor
 from .mikuPlugin import suggest_stateVar, log_info, log_warn, log_error
+from .time_estimator import estimate_seconds, estimate_text
 
 __all__ = [
     "CFGAnalyzer",
@@ -22,4 +23,6 @@ __all__ = [
     "log_info",
     "log_warn",
     "log_error",
+    "estimate_seconds",
+    "estimate_text",
 ]

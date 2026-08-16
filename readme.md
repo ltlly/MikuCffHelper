@@ -5,26 +5,43 @@ Ninja 去混淆插件。
 
 ## 1. 简介
 
-OLLVM `-fla` 把函数变成「dispatcher + 真实块」状态机。本插件用静态分析
-识别 dispatcher 子图、前向模拟状态变量，把 CFF 还原成两种可读形态：
+OLLVM `-fla` 把函数变成「dispatcher + 真实块」状态机。插件提供三种去
+平坦化模式和一个自动入口：
 
-- **路径 B (synthesize_switch，推荐)**：保留 dispatcher，把它的 if-tree
-  替换为 `MLIL_JUMP_TO`，BN 4.1+ 的 HLIL Restructurer 自动渲染为
-  `switch-case`，最贴近源码原貌
-- **路径 A (deflate_hard)**：把 dispatcher 整体绕掉，每个 `state = const`
-  直接接到对应真实块，输出 goto 链；块数最少
-- **路径 auto (推荐入口)**：先尝试 B，B 拒绝时自动 fallback 到 A，用户
-  无需手动判断函数类型
-- **路径 general (实验性，新框架)**：线性 dispatcher 检测 + alias-aware
-  状态类识别 + P3 preamble-preserving `jump_to`，目标是把
-  alias-only 状态变量 / 布尔 flag 条件等变种也还原为 switch 形态；
-  当前默认不接入 auto
+- **模式1 Deflate 硬解（原路径 A / deflate_hard）**
+  原理：支配树门控 → Tarjan SCC + 副作用筛选识别 dispatcher → 前向整型
+  解释 `state = const` → 直接短路到真实块。输出 goto/if/while，块数最少；
+  大函数最慢。
+- **模式2 Switch 合成（原路径 B / synthesize_switch）**
+  原理：识别状态变量与 case 值 → 把 dispatcher 的 cmp-tree 重写为
+  `MLIL_JUMP_TO`，让 BN HLIL 渲染成 switch-case。适合标准 OLLVM。
+- **模式3 通用框架（新路径 general）**
+  原理：线性 DominatorInfo 检测 → alias/flag 状态类 → equality-hash /
+  interval-bisect 批量解析 → 条件状态分支改写 / 两状态元组 → P3
+  preamble-preserving guard。适合 alias-only、无 CMP_E、多状态等变种；
+  运行在独立 workflow，不跑 LLIL 公共块复制。
+- **自动模式 Auto（推荐入口）**
+  原理：先 模式2，失败 fallback 模式1；用户无需判断函数类型。
+  另提供 CLI `--mode trial`：实际试跑 模式2/模式3 并按多维可读性指标
+  （块数、圈复杂度、HLIL 行、goto 等）选优，不硬编码路径。
 
 实测 39 个 OLLVM CFF 函数 (arm64-v8a / libkste / libSeQing)：
 
 - **半数以上函数 HLIL 行数下降 20-59%** (短路真实块到 handler 后 BN
   HLIL Restructurer 能识别 if/while)
 - 0 副作用丢失，0 孤立跳转
+
+### 为什么保留原版 模式1/模式2，不删除
+
+数据上原版 auto 在 39 基线仍是最稳定的标准 OLLVM 路径：auto 37/39
+变换 vs 纯 general 31/39；69 样本 trial 也是 general 37 / auto 32，
+两者互补而非替代。因此：
+
+- **不删除**原版 `deflate_hard` / `synthesize_switch`；
+- 原版大函数复杂度高的问题，通过独立 workflow + trial/时间预估规避，
+  并在本分支完成了 CFGIndex 缓存、union-find 别名链、线性 detector 等
+  性能优化；
+- 若未来更大样本证明 模式3 在标准 CFF 上全面不劣于 auto，再讨论替换。
 
 ## 2. 安装
 
@@ -44,17 +61,19 @@ OLLVM `-fla` 把函数变成「dispatcher + 真实块」状态机。本插件用
 打开二进制后，右键想去混淆的函数 → `Function Analysis`，选其中一个 activity
 启用 (互斥)：
 
-| activity | 行为 | 推荐场景 |
-|----------|------|----------|
-| `workflow_patch_mlil_auto` | **首选**：先 B，B 不动则 A 兜底 | 不确定函数特征时直接选这个 |
-| `workflow_patch_mlil_switch` | 只跑 B (synthesize_switch) | 只想要 switch 形态、能接受部分函数无变换 |
-| `workflow_patch_mlil` | 只跑 A (deflate_hard) | 函数已知不适合 switch、要最大压缩块数 |
-| `workflow_patch_mlil_general` | 实验性 general：新框架 (见 §6.4)，位于独立 workflow `MikuCffHelper_general_workflow` | alias-only 状态变量 / flag 条件等 B/A 无法识别的变种；建议 CLI `--mode general` |
+| activity | UI 含义 | 原理 / 提示 |
+|----------|---------|-------------|
+| `workflow_patch_mlil_auto` | **自动模式 Auto（推荐）** | 先 模式2 Switch合成，失败 fallback 模式1 Deflate；不确定时直接选 |
+| `workflow_patch_mlil_switch` | **模式2 Switch合成** | 支配树检测 → 状态变量识别 → MLIL_JUMP_TO → switch-case；标准 OLLVM 首选 |
+| `workflow_patch_mlil` | **模式1 Deflate硬解** | SCC+副作用筛选 → 前向模拟 → state=const 直连真实块；块数最少，大函数最慢 |
+| `workflow_patch_mlil_general` | **模式3 通用框架** | 独立 workflow；线性检测+alias/flag/元组+P3 guard；变种 CFF 推荐 |
 
 启用后 BN 会自动重分析。HLIL 视图刷新后能看到 switch 或 goto 链形态。
-general 模式因不经过 LLIL 公共块复制预处理，使用独立 workflow；推荐用
-`deflate_cli.py --mode general` 或嵌入式脚本指定
-`MikuCffHelper_general_workflow`。
+模式3 不经过 LLIL 公共块复制预处理，使用独立 workflow
+`MikuCffHelper_general_workflow`；推荐 CLI `--mode general`。
+
+耗时预估：每个 activity 描述中带粗略量级；也可右键函数 →
+`miku\estimate_cff_time`，会同时输出 模式1/模式2/Auto/模式3 的预估耗时。
 
 ### 3.2 命令行 (推荐用于批量 / 脚本化)
 

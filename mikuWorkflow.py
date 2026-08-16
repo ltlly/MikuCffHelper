@@ -9,7 +9,7 @@ from .passes.mid.movStateDefine import pass_mov_state_define
 from .passes.mid.synthesizeSwitchPass import pass_synthesize_switch
 from .passes.mid.generalCffPass import pass_general_cff
 from .passes.mid.orderJumpToPass import pass_order_jump_tables
-from .utils import log_info
+from .utils import log_info, estimate_text
 
 
 def workflow_patch_llil(analysis_context: AnalysisContext):
@@ -25,6 +25,11 @@ def workflow_patch_llil(analysis_context: AnalysisContext):
 def workflow_patch_mlil(analysis_context: AnalysisContext):
     if analysis_context.function.mlil is None:
         return
+    _blocks = len(list(analysis_context.function.mlil.basic_blocks))
+    log_info(
+        f"[eta] {analysis_context.function.name} mode=deflate blocks={_blocks} "
+        f"{estimate_text(_blocks, 'deflate')}"
+    )
     # 1) clear: 折叠常量 if、连续 goto，规整图结构
     # 2) mov_state_define: 把状态常量赋值移到块尾，方便前向模拟
     # 3) deflate_hard: 前向符号执行，把状态机分发短路成直接 goto
@@ -49,6 +54,11 @@ def workflow_patch_mlil_switch(analysis_context: AnalysisContext):
     """
     if analysis_context.function.mlil is None:
         return
+    _blocks = len(list(analysis_context.function.mlil.basic_blocks))
+    log_info(
+        f"[eta] {analysis_context.function.name} mode=switch blocks={_blocks} "
+        f"{estimate_text(_blocks, 'switch')}"
+    )
     pass_clear(analysis_context)
     pass_mov_state_define(analysis_context)
     pass_synthesize_switch(analysis_context)
@@ -72,6 +82,11 @@ def workflow_patch_mlil_auto(analysis_context: AnalysisContext):
     if analysis_context.function.mlil is None:
         return
 
+    _blocks = len(list(analysis_context.function.mlil.basic_blocks))
+    log_info(
+        f"[eta] {analysis_context.function.name} mode=auto blocks={_blocks} "
+        f"{estimate_text(_blocks, 'auto')}"
+    )
     fname = analysis_context.function.name
     # 共用 prelude
     pass_clear(analysis_context)
@@ -104,6 +119,11 @@ def workflow_patch_mlil_general(analysis_context: AnalysisContext):
     """
     if analysis_context.function.mlil is None:
         return
+    _blocks = len(list(analysis_context.function.mlil.basic_blocks))
+    log_info(
+        f"[eta] {analysis_context.function.name} mode=general blocks={_blocks} "
+        f"{estimate_text(_blocks, 'general')}"
+    )
     pass_clear(analysis_context)
     pass_general_cff(analysis_context)
     pass_order_jump_tables(analysis_context)
