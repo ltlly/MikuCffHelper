@@ -215,9 +215,24 @@ python tools/regression_test.py --update-baseline
 - 新样本首轮调研（12 个跨架构函数，见 `samples/README.md`）：trace 缓存
   总命中率 26%（x86 85%/70% 最高，arm64 3-29%），但解析总耗时仅 ~2.3s，
   远小于 BN 加载/重分析；auto 在新 x86/x64 样本上 0 丢失且优于 general。
-  **决策：暂不接 `.bndb` 持久缓存**（ROI 低）；下一步高价值工作是把
-  cdong 型 temp 比较 + prologue store 安全跳过，但需先解决历史上
-  sub_40831c SE_LOST=11 的严格策略冲突。
+  **决策：暂不接 `.bndb` 持久缓存**（ROI 低）。
+- cdong x86 深入研究（已落地）：`_eval` 支持 CMP_E/NE/U/ULT/… 全部比较，
+  `_eval_if` 支持 `cond:N = a == b` 物化条件；fast 状态变量为空时用
+  `StateMachine.find_state_var` 兜底；`_walk_block_tail` 只跳过
+  「写后无读者」的死 store。效果：`CFF_win.exe` target_function auto 从
+  无 switch 变为 switch(3 cases)、0 丢失（HLIL 63→65）；39 函数 auto +
+  general 回归均 `[ok]`。
+- cdong x86 更深一层的实验结论：放宽 `_block_is_pure_dispatcher` 允许
+  temp/寄存器/死栈写入，linux64 dispatcher 子图 36→74 块、transition 从
+  全 None 变为部分可解析，但 **39 回归 12 个函数 HLIL 显著变差**
+  （sub_459ed8 17→45、sub_45aa54 18→43 等）→ 已回退严格过滤。根因是
+  直接跳真实块会丢掉 dispatcher 沿途对栈/寄存器的写入；下一步正确做法是
+  **path replay**：把模拟路径上的非状态写入复制进 mini-block，而不是
+  把它们排除出 pure 过滤后直接丢弃。
+- obpo ground truth 对齐结论：`.config.json` 的 func/dispatcher 地址多数
+  不在 BN 自动函数内；`create_user_function` 后 MLIL 在 `undefined`
+  指令处截断（7/5 blocks），BN 边界与 OLLVM 平坦化函数边界不一致。
+  召回测量需按 dispatcher 地址逐个建函数后再跑检测，留在样本工具层做。
 - 不硬编码模式选择规则；`tools/eval_modes.py` 实际试跑 auto/general 后，
   用多维可读性指标 + Pareto/可配置罚分选优；69 样本结果在
   `tools/eval_samples.json`（trial：general 37 / auto 32，0 丢失）。

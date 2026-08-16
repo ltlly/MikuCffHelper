@@ -49,6 +49,7 @@ from binaryninja import (
 )
 
 from .deflatHardPass import (
+    _collect_dead_var_ids,
     _collect_side_effect_signatures,
     _collect_state_vars,
     _detect_dispatcher_entry,
@@ -59,6 +60,7 @@ from .deflatHardPass import (
     _verify_no_side_effect_loss,
 )
 from ...utils import log_info, log_warn  # noqa: E402
+from ...utils.state_machine import StateMachine  # noqa: E402
 
 _TIME_BUDGET_SECONDS = 15.0
 _MIN_TRANSITIONS = 2
@@ -196,6 +198,7 @@ def _collect_transitions_for_var(
     dispatcher_entry_start: int,
     deadline: float,
     resolve_memo=None,
+    dead_vars=None,
 ):
     """收集 primary state var 的 (state_value → target instr_index) 映射。
 
@@ -219,7 +222,8 @@ def _collect_transitions_for_var(
         value = instr.src.constant & _mask(instr.size or 4)
         all_assigned.add(value)
         target = _forward_resolve(
-            mlil, instr, state_vars, dispatcher_blocks, resolve_memo
+            mlil, instr, state_vars, dispatcher_blocks, resolve_memo,
+            dead_vars,
         )
         if target is None:
             failed_values.add(value)
@@ -522,6 +526,10 @@ def _try_synthesize_one_dispatcher(
         return None
     state_vars = _collect_state_vars(mlil, dispatcher_entry)
     if not state_vars:
+        # cdong x86 型：dispatcher 经 temp 比较真实 state，fast 收集会漏。
+        # 用慢路径兜底，仍由 _function_looks_like_cff 做函数级门控。
+        state_vars = set(StateMachine.find_state_var(mlil.source_function))
+    if not state_vars:
         log_info(f"[synth] {fname}: no state vars found at dispatcher 0x{dispatcher_entry.start:x}")
         return None
     # _function_looks_like_cff 是函数级 CFF 判定，用来排除 Rust match /
@@ -558,12 +566,13 @@ def _try_synthesize_one_dispatcher(
     # 候选变量收集期间 MLIL / dispatcher / state_vars 都不变，dispatcher 段
     # 前向模拟可按 (tail 去向, env) 跨候选共享，避免每个候选重走 cmp-tree。
     resolve_memo: Dict[Tuple, Tuple] = {}
+    dead_vars = _collect_dead_var_ids(mlil)
     for candidate in _candidate_state_vars_ranked(mlil, state_vars):
         if time.time() > deadline:
             break
         cand_trans, cand_assigned, cand_full = _collect_transitions_for_var(
             mlil, candidate, state_vars, dispatcher_blocks,
-            dispatcher_entry.start, deadline, resolve_memo,
+            dispatcher_entry.start, deadline, resolve_memo, dead_vars,
         )
         if len(cand_trans) < _MIN_TRANSITIONS:
             continue

@@ -59,6 +59,7 @@ from ...utils import log_error, log_info  # noqa: E402  (放底部以避免循�
 from ...utils.cff_core import (  # noqa: E402
     detect_flattening_candidate as _detect_cff_candidate_linear,
 )
+from ...utils.state_machine import StateMachine  # noqa: E402
 
 _MAX_OUTER_ITERS = 6
 _MAX_FORWARD_STEPS = 512
@@ -79,6 +80,20 @@ def _to_signed(value: int, width: int) -> int:
     if value & (1 << (bits - 1)):
         return value - (1 << bits)
     return value
+
+
+_CMP_OPS = {
+    MediumLevelILOperation.MLIL_CMP_E,
+    MediumLevelILOperation.MLIL_CMP_NE,
+    MediumLevelILOperation.MLIL_CMP_ULT,
+    MediumLevelILOperation.MLIL_CMP_ULE,
+    MediumLevelILOperation.MLIL_CMP_UGT,
+    MediumLevelILOperation.MLIL_CMP_UGE,
+    MediumLevelILOperation.MLIL_CMP_SLT,
+    MediumLevelILOperation.MLIL_CMP_SLE,
+    MediumLevelILOperation.MLIL_CMP_SGT,
+    MediumLevelILOperation.MLIL_CMP_SGE,
+}
 
 
 # --------------------------------------------------------------------------
@@ -144,45 +159,56 @@ def _eval(expr: MediumLevelILInstruction, env: Dict[Variable, int]) -> Optional[
     if op == MediumLevelILOperation.MLIL_ASR:
         signed = _to_signed(lv, width)
         return (signed >> (rv & 0x3F)) & m
+    if op in _CMP_OPS:
+        cmp_val = _eval_cmp(op, lv, rv, width)
+        return None if cmp_val is None else cmp_val & m
+    return None
+
+
+def _eval_cmp(op: MediumLevelILOperation, lv: int, rv: int, width: int) -> Optional[int]:
+    """比较运算：返回 0/1（掩码到 width）。_eval 与 _eval_if 共用。"""
+    m = _mask(width)
+    lu = lv & m
+    ru = rv & m
+    if op == MediumLevelILOperation.MLIL_CMP_E:
+        return int(lu == ru)
+    if op == MediumLevelILOperation.MLIL_CMP_NE:
+        return int(lu != ru)
+    if op == MediumLevelILOperation.MLIL_CMP_ULT:
+        return int(lu < ru)
+    if op == MediumLevelILOperation.MLIL_CMP_ULE:
+        return int(lu <= ru)
+    if op == MediumLevelILOperation.MLIL_CMP_UGT:
+        return int(lu > ru)
+    if op == MediumLevelILOperation.MLIL_CMP_UGE:
+        return int(lu >= ru)
+    ls = _to_signed(lu, width)
+    rs = _to_signed(ru, width)
+    if op == MediumLevelILOperation.MLIL_CMP_SLT:
+        return int(ls < rs)
+    if op == MediumLevelILOperation.MLIL_CMP_SLE:
+        return int(ls <= rs)
+    if op == MediumLevelILOperation.MLIL_CMP_SGT:
+        return int(ls > rs)
+    if op == MediumLevelILOperation.MLIL_CMP_SGE:
+        return int(ls >= rs)
     return None
 
 
 def _eval_if(if_instr: MediumLevelILIf, env: Dict[Variable, int]) -> Optional[bool]:
     cond = if_instr.condition
     if not (hasattr(cond, "left") and hasattr(cond, "right")):
-        return None
+        # x86/64 BN 常把比较物化成 `cond:N = a == b`，if 的条件是
+        # MLIL_VAR(cond:N) 而不是 cmp 表达式本身。此时直接求 cond 值。
+        v = _eval(cond, env)
+        return None if v is None else bool(v & _mask(cond.size or 4))
     lv = _eval(cond.left, env)
     rv = _eval(cond.right, env)
     if lv is None or rv is None:
         return None
     width = cond.left.size or 4
-    m = _mask(width)
-    lu = lv & m
-    ru = rv & m
-    op = cond.operation
-    if op == MediumLevelILOperation.MLIL_CMP_E:
-        return lu == ru
-    if op == MediumLevelILOperation.MLIL_CMP_NE:
-        return lu != ru
-    if op == MediumLevelILOperation.MLIL_CMP_ULT:
-        return lu < ru
-    if op == MediumLevelILOperation.MLIL_CMP_ULE:
-        return lu <= ru
-    if op == MediumLevelILOperation.MLIL_CMP_UGT:
-        return lu > ru
-    if op == MediumLevelILOperation.MLIL_CMP_UGE:
-        return lu >= ru
-    ls = _to_signed(lu, width)
-    rs = _to_signed(ru, width)
-    if op == MediumLevelILOperation.MLIL_CMP_SLT:
-        return ls < rs
-    if op == MediumLevelILOperation.MLIL_CMP_SLE:
-        return ls <= rs
-    if op == MediumLevelILOperation.MLIL_CMP_SGT:
-        return ls > rs
-    if op == MediumLevelILOperation.MLIL_CMP_SGE:
-        return ls >= rs
-    return None
+    val = _eval_cmp(cond.operation, lv, rv, width)
+    return None if val is None else bool(val)
 
 
 # --------------------------------------------------------------------------
@@ -578,9 +604,7 @@ def _block_is_pure_dispatcher(
 
     注：曾尝试放宽允许 var-rename copy of state_var (`alias = state_var`)
     让 sub_45985c 这类用 var-rename 的 dispatcher 被识别。但实测让
-    sub_45b450 出现 SE_LOST + HLIL call 丢失 (一个本应是 handler 的块
-    被错误纳入 dispatcher_blocks，跳转目标判为非真实块被拒绝转移，
-    后续 BN 把对应 call 视为不可达清除)。安全性优先，回退原严格判据。
+    sub_45b450 出现 SE_LOST + HLIL call 丢失。安全性优先，回退原严格判据。
     """
     for idx in range(b.start, b.end):
         instr = mlil[idx]
@@ -640,6 +664,24 @@ def _identify_dispatcher_subgraph(
     return result
 
 
+def _collect_dead_var_ids(mlil: MediumLevelILFunction) -> Set[int]:
+    """收集「写后从不读」的变量 id。
+
+    define 块尾的非状态 SetVar 若属于该集合，跳过它在语义上完全等价
+    （值没有任何读者），因此 _walk_block_tail 可以安全跨过它。注意只允许
+    跳过 *死* store，有读者的局部 store 仍严格拒绝 —— 历史上无条件放宽
+    曾在 sub_40831c 造成 SE_LOST=11。
+    """
+    read_ids: Set[int] = set()
+    written_ids: Set[int] = set()
+    for instr in mlil.instructions:
+        for var in getattr(instr, "vars_read", []) or []:
+            read_ids.add(var.identifier)
+        if isinstance(instr, MediumLevelILSetVar):
+            written_ids.add(instr.dest.identifier)
+    return written_ids - read_ids
+
+
 def _seed_env_from_block(
     mlil: MediumLevelILFunction,
     define_instr: MediumLevelILSetVar,
@@ -684,6 +726,7 @@ def _walk_block_tail(
     after_idx: int,
     env: Dict[Variable, int],
     state_vars: Set[Variable],
+    dead_vars: Optional[Set[int]] = None,
 ) -> Optional[int]:
     """从同一个 block 内的 after_idx+1 开始，往后走到块的终结指令，返回控制
     流去向的下一个 instr_index。
@@ -691,14 +734,14 @@ def _walk_block_tail(
     沿途允许遇到：
       - 状态变量的 SetVar (更新 env)
       - 终结的 goto / if (返回去向)
+      - dead_vars 中的非状态 SetVar（写后无读者，跳过语义等价）
     禁止遇到：
-      - 非状态 SetVar / call / store / 其它有副作用的指令
+      - 有读者的非状态 SetVar / call / store / 其它有副作用的指令
 
-    严格策略：哪怕是看似无害的本地 SetVar，也保守拒绝。原本以为可以跳
-    过 var_88=arg2 这种 prologue 让 forward_resolve 解析率上升，但实测
-    sub_40831c 上反而引入了 SE_LOST=11 大破坏（推测 BN 见到 jump_to 后
-    把某些值认为不可达而清掉，让原始未列入 case 的副作用消失）。回到
-    严格语义保证等价。
+    严格策略：哪怕是看似无害的本地 SetVar，只要还有读者就保守拒绝。原本
+    以为可以无条件跳过 var_88=arg2 这种 prologue 让 forward_resolve 解析率
+    上升，但实测 sub_40831c 上引入了 SE_LOST=11（BN 见到 jump_to 后把某些
+    值认为不可达而清掉）。现在只对可证明无读者的死 store 放宽。
     """
     current = after_idx + 1
     while current < bb.end:
@@ -712,7 +755,10 @@ def _walk_block_tail(
             return instr.true if branch else instr.false
         if isinstance(instr, MediumLevelILSetVar):
             if instr.dest not in state_vars:
-                return None  # 真实赋值，不能跳过
+                if dead_vars is not None and instr.dest.identifier in dead_vars:
+                    current += 1
+                    continue
+                return None  # 有读者的真实赋值，不能跳过
             v = _eval(instr.src, env)
             if v is None:
                 env.pop(instr.dest, None)
@@ -806,6 +852,7 @@ def _forward_resolve(
     resolve_memo: Optional[
         Dict[Tuple[int, Tuple], Tuple[Optional[int], Tuple[int, ...]]]
     ] = None,
+    dead_vars: Optional[Set[int]] = None,
 ) -> Optional[int]:
     """从 state SetVar 出发，先走完 define 所在块的尾巴，进入 dispatcher
     子图后逐 *基本块* 模拟，直到落到一个真实块入口。
@@ -832,7 +879,7 @@ def _forward_resolve(
         return None
 
     current = _walk_block_tail(
-        mlil, define_bb, define_instr.instr_index, env, state_vars
+        mlil, define_bb, define_instr.instr_index, env, state_vars, dead_vars
     )
     if current is None:
         return None
@@ -911,6 +958,12 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
         # 2. 状态变量识别
         state_vars = _collect_state_vars(mlil, dispatcher_entry)
         if not state_vars:
+            # 兜底：dispatcher 用 temp 比较真实 state（cdong x86 样本是
+            # `temp = state; cmp temp, const`），fast 收集会漏。慢路径
+            # find_state_var 能抓回被赋多个大常量的 var；它更宽松，因此
+            # 后续仍要过 _function_looks_like_cff 门控。
+            state_vars = set(StateMachine.find_state_var(function))
+        if not state_vars:
             if iter_idx == 1:
                 log_info(f"[deflate] {function_name}: no state vars at 0x{dispatcher_entry.start:x}")
             break
@@ -938,6 +991,7 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
         resolve_memo: Dict[
             Tuple[int, Tuple], Tuple[Optional[int], Tuple[int, ...]]
         ] = {}
+        dead_vars = _collect_dead_var_ids(mlil)
         patches: List[Tuple[MediumLevelILSetVar, int]] = []
         for instr in mlil.instructions:
             if time.time() > deadline:
@@ -949,7 +1003,8 @@ def pass_deflate_hard(analysis_context: AnalysisContext) -> None:
             ):
                 continue
             target = _forward_resolve(
-                mlil, instr, state_vars, dispatcher_blocks, resolve_memo
+                mlil, instr, state_vars, dispatcher_blocks, resolve_memo,
+                dead_vars,
             )
             if target is None or target == instr.instr_index:
                 continue

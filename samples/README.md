@@ -80,17 +80,36 @@ APK 解包目录中另外 45 个 fast 检测无候选的 arm64 libs 只保留在
 - 6fe4（x86_64 kernel）@0x14001e6e1：auto 163→161、HLIL 395→349、
   switch 2、0 丢失；general 163→176 → **auto 更优**。
 
-### 两个明确缺口（暂不修）
+### cdong x86 深入研究（已落地 + 已回退的实验）
 
-1. **cdong x86 官方样本**：fast `_collect_state_vars` 漏掉经 temp 比较的
-   `var_1c`；改用 `StateMachine.find_state_var` 后 dispatcher 子图可识别，
-   但 `_walk_block_tail` 严格策略拒绝 define 块内的 prologue 局部 store，
-   仍 0 解析。修复需要安全区分「prologue 无害 store」与「真实副作用」，
-   历史上在 sub_40831c 上出过 SE_LOST=11，留待专项 A/B。
-2. **obpo ground truth 对齐**：`.config.json` 的 `func`/`dispatcher` 地址
-   多数不在 BN 自动识别的函数内（`get_function_at` 为 None）；用
-   `create_user_function` 后也只有 1-7 blocks。要拿 ground truth 做召回
-   统计，得先按 dispatcher 区域重建函数边界，暂以 fast 检测候选为口径。
+1. **已落地（39 回归通过）**：
+   - fast `_collect_state_vars` 为空时，deflate/switch 都改用
+     `StateMachine.find_state_var` 兜底，找到 `var_1c`/`var_38`；
+   - `_eval` 支持全部 CMP 运算；`_eval_if` 支持 `cond:N = a == b` 这种
+     x86/64 物化比较条件；
+   - `_walk_block_tail` 只跳过「写后无读者」的死 store（数据流证明等价），
+     有读者的局部 store 仍严格拒绝。
+   - 效果：`CFF_win.exe` @0x401600 auto 从无 switch → switch(3 cases)、
+     0 丢失（HLIL 63→65）；39 函数 auto + general 回归 `[ok]`。
+2. **更深一层（实验后回退）**：放宽 `_block_is_pure_dispatcher`，允许
+   temp/寄存器/死栈写入后，`CFF_full_linux64.bin` 的 dispatcher 子图从
+   36 → 74 块，transition 从全 None 变为部分可解析（如 0x6a3075b1→328、
+   0x77004896→461）。但 auto 39 回归出现 **12 个函数 HLIL 变差**
+   （sub_459ed8 17→45、sub_45aa54 18→43、sub_407994 26→60 等），说明
+   直接跳真实块会丢掉 dispatcher 沿途对栈/寄存器的写入。已回退严格
+   `_block_is_pure_dispatcher`。
+3. **正确方向 = path replay**：前向模拟时记录沿途跳过的非状态 SetVar，
+   在 deflate 的 mini-block 里按序回放这些写入再 `goto target`。这样既
+   能让纯过滤放宽（识别更多 dispatcher 块），又不丢语义；需要按
+   `(write, readers)` 数据流去重并做 39 + cdong 全量 A/B。
+
+### obpo ground truth 对齐结论
+
+`.config.json` 的 `func`/`dispatcher` 地址多数不在 BN 自动识别的函数内；
+`create_user_function` 后 MLIL 在 `undefined` 指令处截断（实测 libmetasec
+两个函数只有 7/5 blocks），BN 函数边界与 OLLVM 平坦化函数边界不一致。
+召回测量需要「按 dispatcher 地址逐个建函数 → 跑检测 → 统计 transition 是否
+命中 config 的 `t` 地址」的专用工具；暂以 fast 检测候选为样本口径。
 
 ## 更新清单
 
