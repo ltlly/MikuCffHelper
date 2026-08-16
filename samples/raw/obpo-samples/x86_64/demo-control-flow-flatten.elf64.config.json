@@ -1,0 +1,14 @@
+[
+    {
+        "func": 4195536, 
+        "filename": "demo-control-flow-flatten.elf64", 
+        "maturity": 5, 
+        "arch": "metapc", 
+        "bit": 64, 
+        "is_be": false, 
+        "t": [], 
+        "dispatchers": [
+            4195584
+        ]
+    }
+]

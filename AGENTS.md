@@ -52,7 +52,9 @@ fix_binaryninja_api/         # BN API 兼容层
 tools/
   deflate_cli.py             # 无头命令行去混淆
   regression_test.py         # 回归测试 + baseline 对比
+  collect_cff_samples.py     # 样本扫描 → samples/manifest.json
   README.md                  # 工具说明
+samples/                     # 多平台 CFF 样本库 (见 samples/README.md)
 tests/                       # 历史/脚本类测试，非 pytest 套件
 readme.md                    # 用户手册（对外）
 AGENTS.md                    # 本文档（开发/AI 指南）
@@ -195,6 +197,21 @@ python tools/regression_test.py --update-baseline
   缓存只在「MLIL 收集阶段不变」的窗口内创建，勿跨 finalize 复用。
 - `pass_clear` 各子 pass 无改动时不再执行多余的 finalize/generate_ssa_form，
   减少 pass_clear 链上的重复 SSA 重建；39 函数 auto + general 回归均通过。
+- BN 持久化缓存调研（BN 5.4.9704-dev，实测）：
+  - `bv.create_database("x.bndb")` + `bv.store_metadata/get_metadata/
+    query_metadata`：当前快照 metadata 随 `.bndb` 重开恢复（int/str/list/dict
+    可存，复杂对象先 json 序列化）；`bv.save_auto_snapshot()` 追加新快照。
+  - `bv.file.database.write_global/read_global`、`write_global_data/
+    read_global_data` 可持久化字符串/二进制全局值。
+  - `Database.analysis_cache` 是 BN 自有的 KVS：自定义 `set_value` 后
+    `save_auto_snapshot` 不保留（实测），**不要往里写插件缓存**。
+  - `bn.get_system_cache_directory()` 返回 `~/.binaryninja/cache`，但目录
+    可能尚未创建，插件需自行 `os.makedirs(exist_ok=True)`。
+  - 结论：deflate trace 缓存要跨会话复用，必须带「二进制 sha256 + 函数地址
+    + dispatcher 块指纹/MLIL 指纹」防陈旧；UI 场景可用 `.bndb` metadata，
+    无头 `bn.load` 场景更推荐 `get_system_cache_directory()` 下的自定义
+    JSON。当前 trace 缓存仍只做 pass 内窗口，持久层等新样本集命中率评估
+    后再接。
 - 不硬编码模式选择规则；`tools/eval_modes.py` 实际试跑 auto/general 后，
   用多维可读性指标 + Pareto/可配置罚分选优；69 样本结果在
   `tools/eval_samples.json`（trial：general 37 / auto 32，0 丢失）。

@@ -1,0 +1,58 @@
+[
+    {
+        "func": 129084, 
+        "filename": "libSecShell.so", 
+        "maturity": 5, 
+        "arch": "ARM", 
+        "bit": 32, 
+        "is_be": false, 
+        "t": [
+            129084
+        ], 
+        "dispatchers": [
+            129152
+        ]
+    }, 
+    {
+        "func": 260586, 
+        "filename": "libSecShell.so", 
+        "maturity": 5, 
+        "arch": "ARM", 
+        "bit": 32, 
+        "is_be": false, 
+        "t": [
+            260586
+        ], 
+        "dispatchers": [
+            260626
+        ]
+    }, 
+    {
+        "func": 57432, 
+        "filename": "libSecShell.so", 
+        "maturity": 5, 
+        "arch": "ARM", 
+        "bit": 32, 
+        "is_be": false, 
+        "t": [
+            57432
+        ], 
+        "dispatchers": [
+            57458
+        ]
+    }, 
+    {
+        "func": 60064, 
+        "filename": "libSecShell.so", 
+        "maturity": 5, 
+        "arch": "ARM", 
+        "bit": 32, 
+        "is_be": false, 
+        "t": [
+            60064
+        ], 
+        "dispatchers": [
+            60098
+        ]
+    }
+]

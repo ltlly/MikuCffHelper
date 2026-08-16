@@ -1,0 +1,14 @@
+[
+    {
+        "func": 1688, 
+        "filename": "cff-arm64-v8a.elf", 
+        "maturity": 5, 
+        "arch": "ARM", 
+        "bit": 64, 
+        "is_be": false, 
+        "t": [], 
+        "dispatchers": [
+            1896
+        ]
+    }
+]

@@ -1,0 +1,31 @@
+[
+    {
+        "func": 138800, 
+        "filename": "libdu.so", 
+        "maturity": 5, 
+        "arch": "ARM", 
+        "bit": 32, 
+        "is_be": false, 
+        "t": [
+            138800
+        ], 
+        "dispatchers": [
+            139250, 
+            139134
+        ]
+    }, 
+    {
+        "func": 131452, 
+        "filename": "libdu.so", 
+        "maturity": 5, 
+        "arch": "ARM", 
+        "bit": 32, 
+        "is_be": false, 
+        "t": [
+            131452
+        ], 
+        "dispatchers": [
+            132222
+        ]
+    }
+]

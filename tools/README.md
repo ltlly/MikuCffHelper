@@ -49,6 +49,20 @@ python tools/eval_modes.py --baseline-targets --out /tmp/eval_baseline.json
 python tools/eval_modes.py example/arm64-v8a.so --scan --max-funcs 20
 ```
 
+## collect_cff_samples.py — 样本扫描与清单生成
+
+对一批二进制/目录跑 CFF 检测器，生成 `samples/manifest.json`
+（sha256 / arch / platform / 候选函数列表）。
+
+```bash
+# 扫描 samples/raw（fast 检测器）
+python tools/collect_cff_samples.py samples/raw -o samples/manifest.json
+
+# 目录 + 单文件混合；--slow-state 对 dispatcher 命中但 _collect_state_vars
+# 漏掉状态变量的函数改用 StateMachine.find_state_var（慢，但能覆盖 cdong x86 样本）
+python tools/collect_cff_samples.py samples/raw example/arm64-v8a.so --slow-state
+```
+
 ### baseline.json 维护
 
 - 改 heuristic / pass 后跑 `regression_test.py` (默认对比模式)

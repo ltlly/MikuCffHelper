@@ -30,6 +30,10 @@ OLLVM `-fla` 把函数变成「dispatcher + 真实块」状态机。插件提供
 - **半数以上函数 HLIL 行数下降 20-59%** (短路真实块到 handler 后 BN
   HLIL Restructurer 能识别 if/while)
 - 0 副作用丢失，0 孤立跳转
+- 样本库：`samples/` 现收录 91 个二进制（obpo 真实商业 so + ground truth、
+  cdong OLLVM 官方 x86/x64 样本、PDD ARM32、MIPS32/64 平台库、以及
+  example/ APK 解出的 56 个 arm64 so），来源见 `samples/SOURCES.md`，
+  机器可读清单见 `samples/manifest.json`。
 
 ### 为什么保留原版 模式1/模式2，不删除
 

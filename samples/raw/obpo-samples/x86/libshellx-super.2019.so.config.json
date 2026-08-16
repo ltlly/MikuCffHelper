@@ -1,0 +1,63 @@
+[
+    {
+        "func": 9680, 
+        "filename": "libshellx-super.2019.so", 
+        "maturity": 5, 
+        "arch": "metapc", 
+        "bit": 32, 
+        "is_be": false, 
+        "t": [], 
+        "dispatchers": [
+            10112
+        ]
+    }, 
+    {
+        "func": 133616, 
+        "filename": "libshellx-super.2019.so", 
+        "maturity": 5, 
+        "arch": "metapc", 
+        "bit": 32, 
+        "is_be": false, 
+        "t": [], 
+        "dispatchers": [
+            133808
+        ]
+    }, 
+    {
+        "func": 191424, 
+        "filename": "libshellx-super.2019.so", 
+        "maturity": 5, 
+        "arch": "metapc", 
+        "bit": 32, 
+        "is_be": false, 
+        "t": [], 
+        "dispatchers": [
+            193168
+        ]
+    }, 
+    {
+        "func": 208080, 
+        "filename": "libshellx-super.2019.so", 
+        "maturity": 5, 
+        "arch": "metapc", 
+        "bit": 32, 
+        "is_be": false, 
+        "t": [], 
+        "dispatchers": [
+            208192, 
+            212544
+        ]
+    }, 
+    {
+        "func": 229632, 
+        "filename": "libshellx-super.2019.so", 
+        "maturity": 5, 
+        "arch": "metapc", 
+        "bit": 32, 
+        "is_be": false, 
+        "t": [], 
+        "dispatchers": [
+            229776
+        ]
+    }
+]

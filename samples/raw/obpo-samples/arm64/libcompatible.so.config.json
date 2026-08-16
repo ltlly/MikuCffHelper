@@ -1,0 +1,14 @@
+[
+    {
+        "func": 1512580, 
+        "filename": "libcompatible.so", 
+        "maturity": 5, 
+        "arch": "ARM", 
+        "bit": 64, 
+        "is_be": false, 
+        "t": [], 
+        "dispatchers": [
+            1513484
+        ]
+    }
+]

@@ -1,0 +1,79 @@
+[
+    {
+        "func": 205340, 
+        "filename": "libmetasec_ml.so", 
+        "maturity": 5, 
+        "arch": "ARM", 
+        "bit": 32, 
+        "is_be": false, 
+        "t": [
+            205340
+        ], 
+        "dispatchers": [
+            205994
+        ]
+    }, 
+    {
+        "func": 307568, 
+        "filename": "libmetasec_ml.so", 
+        "maturity": 5, 
+        "arch": "ARM", 
+        "bit": 32, 
+        "is_be": false, 
+        "t": [
+            307568, 
+            308358, 
+            308656, 
+            308708, 
+            308794, 
+            308834, 
+            309058, 
+            309172, 
+            309230, 
+            309614, 
+            309714, 
+            309812, 
+            310188, 
+            310434
+        ], 
+        "dispatchers": [
+            307740
+        ]
+    }, 
+    {
+        "func": 371920, 
+        "filename": "libmetasec_ml.so", 
+        "maturity": 5, 
+        "arch": "ARM", 
+        "bit": 32, 
+        "is_be": false, 
+        "t": [
+            371920, 
+            373288, 
+            373426, 
+            373530, 
+            373672, 
+            374176, 
+            374302, 
+            374566, 
+            375388
+        ], 
+        "dispatchers": [
+            376118
+        ]
+    }, 
+    {
+        "func": 378596, 
+        "filename": "libmetasec_ml.so", 
+        "maturity": 5, 
+        "arch": "ARM", 
+        "bit": 32, 
+        "is_be": false, 
+        "t": [
+            378596
+        ], 
+        "dispatchers": [
+            380778
+        ]
+    }
+]

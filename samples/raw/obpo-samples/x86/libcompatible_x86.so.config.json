@@ -1,0 +1,28 @@
+[
+    {
+        "func": 1514176, 
+        "filename": "libcompatible_x86.so", 
+        "maturity": 5, 
+        "arch": "metapc", 
+        "bit": 32, 
+        "is_be": false, 
+        "t": [], 
+        "dispatchers": [
+            1515824, 
+            1514668
+        ]
+    }, 
+    {
+        "func": 856512, 
+        "filename": "libcompatible_x86.so", 
+        "maturity": 5, 
+        "arch": "metapc", 
+        "bit": 32, 
+        "is_be": false, 
+        "t": [], 
+        "dispatchers": [
+            857936, 
+            859712
+        ]
+    }
+]
