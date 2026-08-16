@@ -24,6 +24,7 @@
     deflate - workflow_patch_mlil：只跑 A
     general - workflow_patch_mlil_general：新框架原型
               (linear detect + alias-aware state + P3 guarded jump_to)
+    trial   - 实际试跑 auto/general，按多维可读性指标选优（慢，实验）
 
 环境变量:
     BN_PYTHON   Binary Ninja python 包目录 (默认 /home/ltlly/tools/binaryninja/python)
@@ -94,6 +95,22 @@ def hlil_text(func):
 def run_workflow(bv, func, mode_key):
     """对函数启用指定 activity，触发重分析并等待"""
     import binaryninja as bn
+    if mode_key == "trial":
+        from eval_modes import trial_select
+
+        path = getattr(bv.file, "filename", None) or getattr(
+            bv.file, "original_filename", None
+        )
+        chosen, reason, _results = trial_select(path, func.start)
+        print(
+            f"[trial] {func.name}: 实际试跑 auto/general 后选择 "
+            f"{chosen} ({reason})",
+            file=sys.stderr,
+            flush=True,
+        )
+        if chosen is None:
+            chosen = "auto"
+        mode_key = chosen
     workflow_name, activity = MODES[mode_key]
     settings = bn.Settings()
     settings.set_string(
@@ -145,7 +162,7 @@ def main():
         help="处理所有 CFF 候选函数 (按 Blazytko 启发式自动找)",
     )
     ap.add_argument(
-        "--mode", choices=list(MODES.keys()), default="auto",
+        "--mode", choices=list(MODES.keys()) + ["trial"], default="auto",
         help="工作流模式 (默认 auto)",
     )
     ap.add_argument(

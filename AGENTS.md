@@ -109,6 +109,9 @@ python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --mode deflate
 # 实验路径 C（alias-only 状态变量 / flag 条件变种）
 python tools/deflate_cli.py example/cff-arm64-v8a.elf --addr 0x400698 --mode general
 
+# trial：实际试跑两种模式后按可读性选优
+python tools/deflate_cli.py example/cff-arm64-v8a.elf --addr 0x400698 --mode trial
+
 # 扫描所有 CFF 候选
 python tools/deflate_cli.py example/arm64-v8a.so --all-cff
 
@@ -171,8 +174,8 @@ python tools/regression_test.py --update-baseline
 - general 回归基线 `tools/baseline_general.json`：39 函数，31/39 变换，
   0 orphan、0 语义副作用丢失；总体弱于 auto，但 B/A 失败的函数上有收益。
 - 不硬编码模式选择规则；`tools/eval_modes.py` 实际试跑 auto/general 后，
-  用多维可读性指标 + Pareto/可配置罚分选优；33 样本结果在
-  `tools/eval_samples.json`（trial：general 18 / auto 15，0 丢失）。
+  用多维可读性指标 + Pareto/可配置罚分选优；69 样本结果在
+  `tools/eval_samples.json`（trial：general 37 / auto 32，0 丢失）。
 - 实验入口 `workflow_patch_mlil_general`（路径 C，独立 workflow）默认关闭；
   当前已支持
   alias-only 状态变量 + flag 条件变种、equality-hash / interval-bisect

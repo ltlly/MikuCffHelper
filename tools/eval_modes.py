@@ -133,6 +133,51 @@ def scan_targets(path: str, max_funcs: int):
     return targets
 
 
+def choose_best(results: dict):
+    """从已运行的模式结果中选择最佳模式。
+
+    返回 (mode, reason)。先排除 error/副作用丢失/orphan；再 Pareto；
+    都不支配时 default_penalty 取低分。
+    """
+    valid = {}
+    for mode, r in results.items():
+        if not r or "error" in r:
+            continue
+        if (
+            r.get("se_lost")
+            or r.get("calls_lost")
+            or r.get("stores_lost")
+            or r.get("rets_lost")
+            or r.get("orphan")
+        ):
+            continue
+        valid[mode] = ReadabilityMetrics(**r["after"])
+    if not valid:
+        return None, "no_valid"
+    for mode, metric in valid.items():
+        other = next((m for m in valid if m != mode), None)
+        if other is not None and dominates(metric, valid[other]):
+            return mode, "pareto"
+    if len(valid) == 1:
+        mode = next(iter(valid))
+        return mode, "only_valid"
+    mode = min(valid, key=lambda m: default_penalty(valid[m]))
+    return mode, "penalty"
+
+
+def trial_select(path: str, addr: int, modes=None):
+    """实际试跑多个模式，返回可读性最优且语义安全的模式名。"""
+    modes = modes or list(MODES.keys())
+    results = {}
+    for mode in modes:
+        try:
+            results[mode] = run_one_mode(path, addr, mode)
+        except Exception as e:
+            results[mode] = {"error": repr(e)}
+    mode, reason = choose_best(results)
+    return mode, reason, results
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("binary", nargs="?")

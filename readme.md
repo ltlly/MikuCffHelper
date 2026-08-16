@@ -73,6 +73,9 @@ python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --mode switch
 # 实验性 general 模式（新框架）
 python tools/deflate_cli.py example/cff-arm64-v8a.elf --addr 0x400698 --mode general
 
+# trial：实际试跑 auto/general 后按多维可读性指标选优（慢）
+python tools/deflate_cli.py example/cff-arm64-v8a.elf --addr 0x400698 --mode trial
+
 
 # 输出到文件
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --out /tmp/out.c
@@ -417,13 +420,14 @@ workflow `MikuCffHelper_general_workflow` 中，不经过主 workflow 的 LLIL
 goto+jump 3 / 深度 1）取低分。权重全部集中在 `utils/readability.py`，
 可配置、可解释，不藏在 workflow 编排里。
 
-当前已用 33 个函数（39 基线之外补充 libkste / libmsaoaidsec / libSeQing
+当前已用 69 个去重函数（39 基线 + libkste / libmsaoaidsec / libSeQing
 额外候选）试跑 auto 与 general，数据存于 `tools/eval_samples.json`：
 
-- trial 选择：general 18 个、auto 15 个；Pareto 支配 22 个、罚分 11 个；
-- 相对全 auto：总块数 -406、总圈复杂度 -213、总 HLIL 行数 -737、
-  总 goto -92；
-- 33 个函数中 0 orphan、0 语义副作用丢失（排除不合法模式后）。
+- trial 选择：general 37 个、auto 32 个；Pareto 支配 45 个、罚分 23 个、
+  仅一个合法模式 1 个；
+- 相对全 auto：总块数 -545、总圈复杂度 -319、总 HLIL 行数 -1053、
+  总 goto -180；
+- 69 个函数中 0 orphan、0 语义副作用丢失（排除不合法模式后）。
 
 ```bash
 python tools/eval_modes.py --baseline-targets --out /tmp/eval_baseline.json
