@@ -1,0 +1,893 @@
+{
+  "tools/corpus/artifacts/conditional-state--i386-gcc-o0-object.o": {
+    "expected_functions": [
+      "corpus_conditional_state"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-m32",
+        "-std=c11",
+        "-O0",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-c",
+        "tools/corpus/src/conditional_state.c",
+        "-o",
+        "tools/corpus/artifacts/conditional-state--i386-gcc-o0-object.o"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "i386-gcc-o0-object"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "positive-adversarial",
+    "source": "tools/corpus/src/conditional_state.c",
+    "source_id": "conditional-state",
+    "source_role": "positive-adversarial",
+    "validation": {
+      "self_test": "not-applicable"
+    },
+    "variant": "conditional state assignments; Freestanding i386 ELF relocatable object, unoptimized"
+  },
+  "tools/corpus/artifacts/conditional-state--x86_64-gcc-o0-exe.bin": {
+    "expected_functions": [
+      "corpus_conditional_state"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-std=c11",
+        "-O0",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "-Wl,--build-id=none",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "tools/corpus/src/conditional_state.c",
+        "-o",
+        "tools/corpus/artifacts/conditional-state--x86_64-gcc-o0-exe.bin"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "x86_64-gcc-o0-exe"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "positive-adversarial",
+    "source": "tools/corpus/src/conditional_state.c",
+    "source_id": "conditional-state",
+    "source_role": "positive-adversarial",
+    "validation": {
+      "self_test": "passed"
+    },
+    "variant": "conditional state assignments; Native x86-64 ELF executable, unoptimized"
+  },
+  "tools/corpus/artifacts/conditional-state--x86_64-gcc-o2-exe.bin": {
+    "expected_functions": [
+      "corpus_conditional_state"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-std=c11",
+        "-O2",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "-Wl,--build-id=none",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "tools/corpus/src/conditional_state.c",
+        "-o",
+        "tools/corpus/artifacts/conditional-state--x86_64-gcc-o2-exe.bin"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "x86_64-gcc-o2-exe"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "optimizer-control",
+    "source": "tools/corpus/src/conditional_state.c",
+    "source_id": "conditional-state",
+    "source_role": "positive-adversarial",
+    "validation": {
+      "self_test": "passed"
+    },
+    "variant": "conditional state assignments; Native x86-64 ELF executable after compiler optimization"
+  },
+  "tools/corpus/artifacts/encoded-alias--i386-gcc-o0-object.o": {
+    "expected_functions": [
+      "corpus_encoded_alias"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-m32",
+        "-std=c11",
+        "-O0",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-c",
+        "tools/corpus/src/encoded_alias.c",
+        "-o",
+        "tools/corpus/artifacts/encoded-alias--i386-gcc-o0-object.o"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "i386-gcc-o0-object"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "positive-adversarial",
+    "source": "tools/corpus/src/encoded_alias.c",
+    "source_id": "encoded-alias",
+    "source_role": "positive-adversarial",
+    "validation": {
+      "self_test": "not-applicable"
+    },
+    "variant": "dispatcher compares an XOR-encoded state alias; Freestanding i386 ELF relocatable object, unoptimized"
+  },
+  "tools/corpus/artifacts/encoded-alias--x86_64-gcc-o0-exe.bin": {
+    "expected_functions": [
+      "corpus_encoded_alias"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-std=c11",
+        "-O0",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "-Wl,--build-id=none",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "tools/corpus/src/encoded_alias.c",
+        "-o",
+        "tools/corpus/artifacts/encoded-alias--x86_64-gcc-o0-exe.bin"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "x86_64-gcc-o0-exe"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "positive-adversarial",
+    "source": "tools/corpus/src/encoded_alias.c",
+    "source_id": "encoded-alias",
+    "source_role": "positive-adversarial",
+    "validation": {
+      "self_test": "passed"
+    },
+    "variant": "dispatcher compares an XOR-encoded state alias; Native x86-64 ELF executable, unoptimized"
+  },
+  "tools/corpus/artifacts/encoded-alias--x86_64-gcc-o2-exe.bin": {
+    "expected_functions": [
+      "corpus_encoded_alias"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-std=c11",
+        "-O2",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "-Wl,--build-id=none",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "tools/corpus/src/encoded_alias.c",
+        "-o",
+        "tools/corpus/artifacts/encoded-alias--x86_64-gcc-o2-exe.bin"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "x86_64-gcc-o2-exe"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "optimizer-control",
+    "source": "tools/corpus/src/encoded_alias.c",
+    "source_id": "encoded-alias",
+    "source_role": "positive-adversarial",
+    "validation": {
+      "self_test": "passed"
+    },
+    "variant": "dispatcher compares an XOR-encoded state alias; Native x86-64 ELF executable after compiler optimization"
+  },
+  "tools/corpus/artifacts/if-chain--i386-gcc-o0-object.o": {
+    "expected_functions": [
+      "corpus_if_chain"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-m32",
+        "-std=c11",
+        "-O0",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-c",
+        "tools/corpus/src/if_chain.c",
+        "-o",
+        "tools/corpus/artifacts/if-chain--i386-gcc-o0-object.o"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "i386-gcc-o0-object"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "positive",
+    "source": "tools/corpus/src/if_chain.c",
+    "source_id": "if-chain",
+    "source_role": "positive",
+    "validation": {
+      "self_test": "not-applicable"
+    },
+    "variant": "single-state comparison-chain dispatcher; Freestanding i386 ELF relocatable object, unoptimized"
+  },
+  "tools/corpus/artifacts/if-chain--x86_64-gcc-o0-exe.bin": {
+    "expected_functions": [
+      "corpus_if_chain"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-std=c11",
+        "-O0",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "-Wl,--build-id=none",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "tools/corpus/src/if_chain.c",
+        "-o",
+        "tools/corpus/artifacts/if-chain--x86_64-gcc-o0-exe.bin"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "x86_64-gcc-o0-exe"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "positive",
+    "source": "tools/corpus/src/if_chain.c",
+    "source_id": "if-chain",
+    "source_role": "positive",
+    "validation": {
+      "self_test": "passed"
+    },
+    "variant": "single-state comparison-chain dispatcher; Native x86-64 ELF executable, unoptimized"
+  },
+  "tools/corpus/artifacts/if-chain--x86_64-gcc-o2-exe.bin": {
+    "expected_functions": [
+      "corpus_if_chain"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-std=c11",
+        "-O2",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "-Wl,--build-id=none",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "tools/corpus/src/if_chain.c",
+        "-o",
+        "tools/corpus/artifacts/if-chain--x86_64-gcc-o2-exe.bin"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "x86_64-gcc-o2-exe"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "optimizer-control",
+    "source": "tools/corpus/src/if_chain.c",
+    "source_id": "if-chain",
+    "source_role": "positive",
+    "validation": {
+      "self_test": "passed"
+    },
+    "variant": "single-state comparison-chain dispatcher; Native x86-64 ELF executable after compiler optimization"
+  },
+  "tools/corpus/artifacts/multi-state--i386-gcc-o0-object.o": {
+    "expected_functions": [
+      "corpus_multi_state"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-m32",
+        "-std=c11",
+        "-O0",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-c",
+        "tools/corpus/src/multi_state.c",
+        "-o",
+        "tools/corpus/artifacts/multi-state--i386-gcc-o0-object.o"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "i386-gcc-o0-object"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "positive-adversarial",
+    "source": "tools/corpus/src/multi_state.c",
+    "source_id": "multi-state",
+    "source_role": "positive-adversarial",
+    "validation": {
+      "self_test": "not-applicable"
+    },
+    "variant": "joint two-state dispatch with consecutive state writes; Freestanding i386 ELF relocatable object, unoptimized"
+  },
+  "tools/corpus/artifacts/multi-state--x86_64-gcc-o0-exe.bin": {
+    "expected_functions": [
+      "corpus_multi_state"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-std=c11",
+        "-O0",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "-Wl,--build-id=none",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "tools/corpus/src/multi_state.c",
+        "-o",
+        "tools/corpus/artifacts/multi-state--x86_64-gcc-o0-exe.bin"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "x86_64-gcc-o0-exe"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "positive-adversarial",
+    "source": "tools/corpus/src/multi_state.c",
+    "source_id": "multi-state",
+    "source_role": "positive-adversarial",
+    "validation": {
+      "self_test": "passed"
+    },
+    "variant": "joint two-state dispatch with consecutive state writes; Native x86-64 ELF executable, unoptimized"
+  },
+  "tools/corpus/artifacts/multi-state--x86_64-gcc-o2-exe.bin": {
+    "expected_functions": [
+      "corpus_multi_state"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-std=c11",
+        "-O2",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "-Wl,--build-id=none",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "tools/corpus/src/multi_state.c",
+        "-o",
+        "tools/corpus/artifacts/multi-state--x86_64-gcc-o2-exe.bin"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "x86_64-gcc-o2-exe"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "optimizer-control",
+    "source": "tools/corpus/src/multi_state.c",
+    "source_id": "multi-state",
+    "source_role": "positive-adversarial",
+    "validation": {
+      "self_test": "passed"
+    },
+    "variant": "joint two-state dispatch with consecutive state writes; Native x86-64 ELF executable after compiler optimization"
+  },
+  "tools/corpus/artifacts/natural-control--i386-gcc-o0-object.o": {
+    "expected_functions": [
+      "corpus_natural_control"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-m32",
+        "-std=c11",
+        "-O0",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-c",
+        "tools/corpus/src/natural_control.c",
+        "-o",
+        "tools/corpus/artifacts/natural-control--i386-gcc-o0-object.o"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "i386-gcc-o0-object"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "negative",
+    "source": "tools/corpus/src/natural_control.c",
+    "source_id": "natural-control",
+    "source_role": "negative",
+    "validation": {
+      "self_test": "not-applicable"
+    },
+    "variant": "structured loop and natural switch without a dispatcher; Freestanding i386 ELF relocatable object, unoptimized"
+  },
+  "tools/corpus/artifacts/natural-control--x86_64-gcc-o0-exe.bin": {
+    "expected_functions": [
+      "corpus_natural_control"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-std=c11",
+        "-O0",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "-Wl,--build-id=none",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "tools/corpus/src/natural_control.c",
+        "-o",
+        "tools/corpus/artifacts/natural-control--x86_64-gcc-o0-exe.bin"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "x86_64-gcc-o0-exe"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "negative",
+    "source": "tools/corpus/src/natural_control.c",
+    "source_id": "natural-control",
+    "source_role": "negative",
+    "validation": {
+      "self_test": "passed"
+    },
+    "variant": "structured loop and natural switch without a dispatcher; Native x86-64 ELF executable, unoptimized"
+  },
+  "tools/corpus/artifacts/natural-control--x86_64-gcc-o2-exe.bin": {
+    "expected_functions": [
+      "corpus_natural_control"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-std=c11",
+        "-O2",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "-Wl,--build-id=none",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "tools/corpus/src/natural_control.c",
+        "-o",
+        "tools/corpus/artifacts/natural-control--x86_64-gcc-o2-exe.bin"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "x86_64-gcc-o2-exe"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "optimizer-control",
+    "source": "tools/corpus/src/natural_control.c",
+    "source_id": "natural-control",
+    "source_role": "negative",
+    "validation": {
+      "self_test": "passed"
+    },
+    "variant": "structured loop and natural switch without a dispatcher; Native x86-64 ELF executable after compiler optimization"
+  },
+  "tools/corpus/artifacts/nested--i386-gcc-o0-object.o": {
+    "expected_functions": [
+      "corpus_nested"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-m32",
+        "-std=c11",
+        "-O0",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-c",
+        "tools/corpus/src/nested.c",
+        "-o",
+        "tools/corpus/artifacts/nested--i386-gcc-o0-object.o"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "i386-gcc-o0-object"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "positive",
+    "source": "tools/corpus/src/nested.c",
+    "source_id": "nested",
+    "source_role": "positive",
+    "validation": {
+      "self_test": "not-applicable"
+    },
+    "variant": "nested outer switch and inner if-chain dispatchers; Freestanding i386 ELF relocatable object, unoptimized"
+  },
+  "tools/corpus/artifacts/nested--x86_64-gcc-o0-exe.bin": {
+    "expected_functions": [
+      "corpus_nested"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-std=c11",
+        "-O0",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "-Wl,--build-id=none",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "tools/corpus/src/nested.c",
+        "-o",
+        "tools/corpus/artifacts/nested--x86_64-gcc-o0-exe.bin"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "x86_64-gcc-o0-exe"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "positive",
+    "source": "tools/corpus/src/nested.c",
+    "source_id": "nested",
+    "source_role": "positive",
+    "validation": {
+      "self_test": "passed"
+    },
+    "variant": "nested outer switch and inner if-chain dispatchers; Native x86-64 ELF executable, unoptimized"
+  },
+  "tools/corpus/artifacts/nested--x86_64-gcc-o2-exe.bin": {
+    "expected_functions": [
+      "corpus_nested"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-std=c11",
+        "-O2",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "-Wl,--build-id=none",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "tools/corpus/src/nested.c",
+        "-o",
+        "tools/corpus/artifacts/nested--x86_64-gcc-o2-exe.bin"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "x86_64-gcc-o2-exe"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "optimizer-control",
+    "source": "tools/corpus/src/nested.c",
+    "source_id": "nested",
+    "source_role": "positive",
+    "validation": {
+      "self_test": "passed"
+    },
+    "variant": "nested outer switch and inner if-chain dispatchers; Native x86-64 ELF executable after compiler optimization"
+  },
+  "tools/corpus/artifacts/side-effects--i386-gcc-o0-object.o": {
+    "expected_functions": [
+      "corpus_side_effects",
+      "corpus_side_effect_helper"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-m32",
+        "-std=c11",
+        "-O0",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-c",
+        "tools/corpus/src/side_effects.c",
+        "-o",
+        "tools/corpus/artifacts/side-effects--i386-gcc-o0-object.o"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "i386-gcc-o0-object"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "positive-safety",
+    "source": "tools/corpus/src/side_effects.c",
+    "source_id": "side-effects",
+    "source_role": "positive-safety",
+    "validation": {
+      "self_test": "not-applicable"
+    },
+    "variant": "flattened handlers containing call and volatile stores; Freestanding i386 ELF relocatable object, unoptimized"
+  },
+  "tools/corpus/artifacts/side-effects--x86_64-gcc-o0-exe.bin": {
+    "expected_functions": [
+      "corpus_side_effects",
+      "corpus_side_effect_helper"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-std=c11",
+        "-O0",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "-Wl,--build-id=none",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "tools/corpus/src/side_effects.c",
+        "-o",
+        "tools/corpus/artifacts/side-effects--x86_64-gcc-o0-exe.bin"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "x86_64-gcc-o0-exe"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "positive-safety",
+    "source": "tools/corpus/src/side_effects.c",
+    "source_id": "side-effects",
+    "source_role": "positive-safety",
+    "validation": {
+      "self_test": "passed"
+    },
+    "variant": "flattened handlers containing call and volatile stores; Native x86-64 ELF executable, unoptimized"
+  },
+  "tools/corpus/artifacts/side-effects--x86_64-gcc-o2-exe.bin": {
+    "expected_functions": [
+      "corpus_side_effects",
+      "corpus_side_effect_helper"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-std=c11",
+        "-O2",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "-Wl,--build-id=none",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "tools/corpus/src/side_effects.c",
+        "-o",
+        "tools/corpus/artifacts/side-effects--x86_64-gcc-o2-exe.bin"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "x86_64-gcc-o2-exe"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "optimizer-control",
+    "source": "tools/corpus/src/side_effects.c",
+    "source_id": "side-effects",
+    "source_role": "positive-safety",
+    "validation": {
+      "self_test": "passed"
+    },
+    "variant": "flattened handlers containing call and volatile stores; Native x86-64 ELF executable after compiler optimization"
+  },
+  "tools/corpus/artifacts/single-switch--i386-gcc-o0-object.o": {
+    "expected_functions": [
+      "corpus_single_switch"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-m32",
+        "-std=c11",
+        "-O0",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-c",
+        "tools/corpus/src/single_switch.c",
+        "-o",
+        "tools/corpus/artifacts/single-switch--i386-gcc-o0-object.o"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "i386-gcc-o0-object"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "positive",
+    "source": "tools/corpus/src/single_switch.c",
+    "source_id": "single-switch",
+    "source_role": "positive",
+    "validation": {
+      "self_test": "not-applicable"
+    },
+    "variant": "single-state switch dispatcher with sparse 32-bit states; Freestanding i386 ELF relocatable object, unoptimized"
+  },
+  "tools/corpus/artifacts/single-switch--x86_64-gcc-o0-exe.bin": {
+    "expected_functions": [
+      "corpus_single_switch"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-std=c11",
+        "-O0",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "-Wl,--build-id=none",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "tools/corpus/src/single_switch.c",
+        "-o",
+        "tools/corpus/artifacts/single-switch--x86_64-gcc-o0-exe.bin"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "x86_64-gcc-o0-exe"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "positive",
+    "source": "tools/corpus/src/single_switch.c",
+    "source_id": "single-switch",
+    "source_role": "positive",
+    "validation": {
+      "self_test": "passed"
+    },
+    "variant": "single-state switch dispatcher with sparse 32-bit states; Native x86-64 ELF executable, unoptimized"
+  },
+  "tools/corpus/artifacts/single-switch--x86_64-gcc-o2-exe.bin": {
+    "expected_functions": [
+      "corpus_single_switch"
+    ],
+    "generator": {
+      "command": [
+        "/usr/bin/cc",
+        "-std=c11",
+        "-O2",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "-Wl,--build-id=none",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "tools/corpus/src/single_switch.c",
+        "-o",
+        "tools/corpus/artifacts/single-switch--x86_64-gcc-o2-exe.bin"
+      ],
+      "compiler": "/usr/bin/cc",
+      "compiler_version": "cc (GCC) 16.2.1 20260810",
+      "profile": "x86_64-gcc-o2-exe"
+    },
+    "license": "0BSD",
+    "provenance": "Repository-authored deterministic synthetic fixture",
+    "redistributable": true,
+    "role": "optimizer-control",
+    "source": "tools/corpus/src/single_switch.c",
+    "source_id": "single-switch",
+    "source_role": "positive",
+    "validation": {
+      "self_test": "passed"
+    },
+    "variant": "single-state switch dispatcher with sparse 32-bit states; Native x86-64 ELF executable after compiler optimization"
+  }
+}

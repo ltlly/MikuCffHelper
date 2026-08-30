@@ -5,7 +5,7 @@
     # 单函数 (auto 模式，B 优先 / A 兜底)
     python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4
 
-    # 二进制内所有 CFF 候选函数 (按启发式自动找)
+    # 二进制内所有“存在可证边”的函数（不使用样本阈值）
     python tools/deflate_cli.py example/arm64-v8a.so --all-cff
 
     # 指定路径模式
@@ -27,6 +27,7 @@
     BN_PYTHON   Binary Ninja python 包目录 (默认 /home/ltlly/tools/binaryninja/python)
 """
 import argparse
+import importlib
 import os
 import sys
 import time
@@ -42,38 +43,55 @@ MODES = {
 
 
 def setup_path():
-    """让 import binaryninja 与 import plugins.MikuCffHelper 都能找到包"""
+    """优先加载当前工作区和指定的 Binary Ninja Python 包。"""
+    os.environ.setdefault("BN_DISABLE_USER_PLUGINS", "1")
     bn_path = os.environ.get("BN_PYTHON", "/home/ltlly/tools/binaryninja/python")
-    if bn_path not in sys.path:
-        sys.path.insert(0, bn_path)
-    bninja_root = REPO_ROOT.parent.parent  # = .binaryninja
-    if str(bninja_root) not in sys.path:
-        sys.path.insert(0, str(bninja_root))
+    workspace_parent = str(REPO_ROOT.parent)
+    for path in (bn_path, workspace_parent):
+        if path in sys.path:
+            sys.path.remove(path)
+    sys.path.insert(0, bn_path)
+    sys.path.insert(0, workspace_parent)
 
 
-def find_cff_funcs(bv, max_blocks=200):
-    """返回二进制中所有疑似 CFF 函数列表 [(addr, name, blocks), ...]"""
-    from plugins.MikuCffHelper.passes.mid.deflatHardPass import (
-        _detect_dispatcher_entry,
-        _collect_state_vars,
-        _function_looks_like_cff,
-    )
+def load_workspace_plugin():
+    """显式加载当前 checkout，防止误测用户目录里的旧版插件。"""
+
+    plugin = importlib.import_module("MikuCffHelper")
+    actual = Path(plugin.__file__).resolve().parent
+    expected = REPO_ROOT.resolve()
+    if actual != expected:
+        raise RuntimeError(
+            f"加载的不是当前工作区插件: expected={expected}, actual={actual}"
+        )
+    return plugin
+
+
+def find_cff_funcs(bv, max_blocks=None):
+    """返回至少有一条局部可证边的函数。
+
+    发现和改写使用同一份证书规则，不再用块数、状态常量数或
+    常量值域阈值筛样本。``max_blocks`` 仅是用户显式设置的资源上限，
+    不参与改写正确性判定。
+    """
+    from MikuCffHelper.passes.mid.deflatHardPass import _collect_all_certificates
+
     out = []
     for f in bv.functions:
-        if f.mlil is None or len(list(f.mlil.basic_blocks)) < 15:
+        if f.mlil is None:
             continue
-        if len(list(f.mlil.basic_blocks)) > max_blocks:
+        block_count = len(list(f.mlil.basic_blocks))
+        if max_blocks is not None and block_count > max_blocks:
             continue
         try:
-            de = _detect_dispatcher_entry(f.mlil)
-            if de is None:
-                continue
-            sv = _collect_state_vars(f.mlil, de)
-            if not sv or not _function_looks_like_cff(f.mlil, sv):
-                continue
-            out.append((f.start, f.name, len(list(f.mlil.basic_blocks))))
-        except Exception:
-            pass
+            if _collect_all_certificates(f.mlil):
+                out.append((f.start, f.name, block_count))
+        except Exception as error:
+            print(
+                f"[scan-error] {f.name} @ 0x{f.start:x}: {error}",
+                file=sys.stderr,
+                flush=True,
+            )
     return out
 
 
@@ -96,6 +114,8 @@ def run_workflow(bv, func, mode_key):
         "analysis.workflows.functionWorkflow", "MikuCffHelper_workflow", func
     )
     wf = bn.Workflow("MikuCffHelper_workflow", object_handle=func.handle)
+    for candidate in MODES.values():
+        wf._machine.override_set(candidate, False)
     wf._machine.override_set(activity, True)
     bv.reanalyze()
     bv.update_analysis_and_wait()
@@ -112,9 +132,9 @@ def emit_one(bv, func, mode, before_only):
             "blocks_after": blocks_before,
             "time": 0.0,
         }
-    t0 = time.time()
+    t0 = time.perf_counter()
     run_workflow(bv, func, mode)
-    elapsed = time.time() - t0
+    elapsed = time.perf_counter() - t0
     blocks_after = len(list(func.mlil.basic_blocks)) if func.mlil else 0
     return {
         "header": (
@@ -137,7 +157,7 @@ def main():
     grp.add_argument("--addr", help="单函数地址 (hex 或 dec)")
     grp.add_argument(
         "--all-cff", action="store_true",
-        help="处理所有 CFF 候选函数 (按 Blazytko 启发式自动找)",
+        help="处理所有存在局部可证边的函数（无样本阈值）",
     )
     ap.add_argument(
         "--mode", choices=list(MODES.keys()), default="auto",
@@ -152,16 +172,19 @@ def main():
         help="只输出去混淆前 HLIL (调试 / 对照用，不跑工作流)",
     )
     ap.add_argument(
-        "--max-blocks", type=int, default=200,
-        help="--all-cff 模式：跳过块数超过此值的函数 (默认 200)",
+        "--max-blocks", type=int,
+        help="可选资源上限；--all-cff 时跳过更大函数（默认不限制）",
     )
     args = ap.parse_args()
 
     if not args.addr and not args.all_cff:
         ap.error("必须指定 --addr 或 --all-cff")
+    if args.max_blocks is not None and args.max_blocks <= 0:
+        ap.error("--max-blocks 必须是正整数")
 
     setup_path()
     import binaryninja as bn
+    load_workspace_plugin()
 
     bin_path = Path(args.binary)
     if not bin_path.exists():
@@ -176,7 +199,12 @@ def main():
         print(f"[scan] 找到 {len(targets)} 个 CFF 候选", file=sys.stderr, flush=True)
         funcs = [bv.get_function_at(addr) for addr, _, _ in targets]
     else:
-        addr = int(args.addr, 0)
+        try:
+            addr = int(args.addr, 0)
+        except ValueError:
+            print(f"[err] 非法函数地址: {args.addr}", file=sys.stderr)
+            bv.file.close()
+            return 2
         f = bv.get_function_at(addr)
         if f is None:
             print(f"[err] 0x{addr:x} 处没有函数", file=sys.stderr)
@@ -185,6 +213,7 @@ def main():
         funcs = [f]
 
     out_handle = sys.stdout if not args.out else open(args.out, "w")
+    failed = False
     try:
         for i, f in enumerate(funcs):
             if f is None:
@@ -193,6 +222,7 @@ def main():
                 result = emit_one(bv, f, args.mode, args.before)
             except Exception as e:
                 print(f"// {f.name} ERR: {e}", file=out_handle)
+                failed = True
                 continue
             if i > 0:
                 print("\n" + "=" * 70 + "\n", file=out_handle)
@@ -207,7 +237,8 @@ def main():
         if args.out:
             out_handle.close()
         bv.file.close()
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

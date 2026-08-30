@@ -1,41 +1,77 @@
 from binaryninja import AnalysisContext
 
-from .passes.low.spiltIfPass import pass_spilt_if_block
-from .passes.low.copyCommonBlockPass import pass_copy_common_block
-from .passes.low.inlineIfCondPass import pass_inline_if_cond
-from .passes.mid.deflatHardPass import pass_deflate_hard
-from .passes.mid.clearPass import pass_clear
-from .passes.mid.movStateDefine import pass_mov_state_define
-from .passes.mid.synthesizeSwitchPass import pass_synthesize_switch
-from .utils import log_info
+from .passes.mid.deflatHardPass import (
+    _commit_detached_candidate,
+    build_verified_deflate_candidate,
+    pass_deflate_hard,
+)
+from .passes.mid.synthesizeSwitchPass import (
+    build_verified_switch_candidate,
+    pass_synthesize_switch,
+)
+from .utils import log_info, log_warn
+
+
+def _reachable_complexity(mlil):
+    """Parameter-free structural cost of the candidate's reachable CFG.
+
+    Lexicographic order avoids arbitrary weights: first minimize decision points,
+    then reachable blocks, then reachable instructions. Detached unreachable copies
+    do not influence the choice because BN's later structurer follows the entry CFG.
+    """
+
+    blocks = list(mlil.basic_blocks)
+    if not blocks:
+        raise ValueError("candidate contains no basic blocks")
+    by_start = {block.start: block for block in blocks}
+    entry = mlil.get_basic_block_at(0)
+    if entry is None:
+        entry = blocks[0]
+    reachable = set()
+    pending = [entry.start]
+    while pending:
+        start = pending.pop()
+        if start in reachable:
+            continue
+        block = by_start.get(start)
+        if block is None:
+            raise ValueError(f"candidate edge targets missing block {start}")
+        reachable.add(start)
+        pending.extend(edge.target.start for edge in block.outgoing_edges)
+    decisions = sum(
+        len(by_start[start].outgoing_edges) > 1 for start in reachable
+    )
+    instructions = sum(by_start[start].length for start in reachable)
+    return decisions, len(reachable), instructions
 
 
 def workflow_patch_llil(analysis_context: AnalysisContext):
-    if analysis_context.function.llil is None:
+    """Legacy LLIL normalizers.
+
+    The verified MLIL pipeline does not depend on block copying or condition
+    normalization.  This activity remains available for manual experiments, but is
+    disabled by default at registration time because it has no local equivalence
+    certificate.
+    """
+    if analysis_context.llil is None:
         return
-    # pass_copy_common_block 内部已加 LLIL 层 CFF 嗅探 (_llil_function_likely_cff)
-    # + 单块大小阈值 + 总块数额度上限三重保险，正常函数通常不会被它影响
+    # Keep optional NetworkX-based legacy tooling out of the verified default
+    # pipeline and its import-time dependency surface.
+    from .passes.low.copyCommonBlockPass import pass_copy_common_block
+    from .passes.low.inlineIfCondPass import pass_inline_if_cond
+    from .passes.low.spiltIfPass import pass_spilt_if_block
+
     pass_copy_common_block(analysis_context)
     pass_inline_if_cond(analysis_context)
     pass_spilt_if_block(analysis_context)
 
 
 def workflow_patch_mlil(analysis_context: AnalysisContext):
-    if analysis_context.function.mlil is None:
+    if analysis_context.mlil is None:
         return
-    # 1) clear: 折叠常量 if、连续 goto，规整图结构
-    # 2) mov_state_define: 把状态常量赋值移到块尾，方便前向模拟
-    # 3) deflate_hard: 前向符号执行，把状态机分发短路成直接 goto
-    # 第一遍 deflate 之后再 clear+mov+deflate 一次：第一遍会把外层
-    # 状态机短路掉，结构变化后内层状态机的 define 位置 / 形态变化，
-    # 第二遍能够吃到剩余的转移。
-    pass_clear(analysis_context)
-    pass_mov_state_define(analysis_context)
+    # The certificate planner reads state writes in their original order, so unsafe
+    # pre-normalization and a fixed number of repeated passes are unnecessary.
     pass_deflate_hard(analysis_context)
-    pass_clear(analysis_context)
-    pass_mov_state_define(analysis_context)
-    pass_deflate_hard(analysis_context)
-    pass_clear(analysis_context)
 
 
 def workflow_patch_mlil_switch(analysis_context: AnalysisContext):
@@ -45,52 +81,53 @@ def workflow_patch_mlil_switch(analysis_context: AnalysisContext):
     与 workflow_patch_mlil 互斥：用户只应启用其中一个 (UI 里的 eligibility
     切换)。
     """
-    if analysis_context.function.mlil is None:
+    if analysis_context.mlil is None:
         return
-    pass_clear(analysis_context)
-    pass_mov_state_define(analysis_context)
     pass_synthesize_switch(analysis_context)
-    pass_clear(analysis_context)
 
 
 def workflow_patch_mlil_auto(analysis_context: AnalysisContext):
-    """统一的"先 B 后 A"自动 fallback 路径。
-
-    工程考量：
-      - 用户当前必须手动选 path A 或 path B，每个函数适用范围又不一样
-        (B 适合干净的 OLLVM 标准 CFF；A 在 B 拒绝时仍能短路真实块)
-      - 自动模式：先跑 B (synthesize_switch)，B 没改动则 fallback 到 A
-        (deflate_hard)
-      - B 改动过的函数不再跑 A —— 此时原 cmp-tree 已被 P1 替换或被 P2
-        重定向，再跑 A 会以 guard block 为 dispatcher 错配
-
-    对外暴露为单一开关，UI 默认启用这个，老的 workflow_patch_mlil /
-    workflow_patch_mlil_switch 留作进阶用户手动单独启用。
-    """
-    if analysis_context.function.mlil is None:
+    """Build both verified paths and commit the structurally simplest candidate."""
+    if analysis_context.mlil is None:
         return
 
     fname = analysis_context.function.name
-    # 共用 prelude
-    pass_clear(analysis_context)
-    pass_mov_state_define(analysis_context)
+    original = analysis_context.mlil
+    choices = []
+    for kind, builder in (
+        ("switch", build_verified_switch_candidate),
+        ("deflate", build_verified_deflate_candidate),
+    ):
+        try:
+            planned = builder(original)
+            if planned is None:
+                continue
+            candidate, certified_edges = planned
+            choices.append(
+                (
+                    _reachable_complexity(candidate),
+                    kind,
+                    candidate,
+                    certified_edges,
+                )
+            )
+        except Exception as error:
+            log_warn(f"[auto] {fname}: {kind} candidate rejected: {error}")
+    if not choices:
+        log_info(f"[auto] {fname}: no certificate-backed candidate")
+        return
 
-    # 优先 B
-    transformed = pass_synthesize_switch(analysis_context)
-
-    if not transformed:
-        # B 没动函数 —— 通常意味着函数不符合 B 的合成守卫 (无完整 case_values
-        # 或 forward_resolve 解析率太低)。试 A 兜底，A 的 deflate_hard 即使
-        # 在 B 拒绝时也常能短路 state SetVar 链
-        log_info(f"[auto] {fname}: B 拒绝，fallback 到 A (deflate_hard)")
-        pass_deflate_hard(analysis_context)
-        pass_clear(analysis_context)
-        pass_mov_state_define(analysis_context)
-        pass_deflate_hard(analysis_context)
-    else:
-        log_info(f"[auto] {fname}: B 成功，跳过 A")
-
-    pass_clear(analysis_context)
+    # Exact ties prefer switch only as a presentation choice; no numeric weight or
+    # empirical threshold participates in the ordering.
+    complexity, kind, candidate, certified_edges = min(
+        choices,
+        key=lambda choice: (choice[0], choice[1] != "switch"),
+    )
+    if _commit_detached_candidate(analysis_context, candidate):
+        log_info(
+            f"[auto] {fname}: committed {kind}, reachable complexity="
+            f"{complexity}, certified_edges={certified_edges}"
+        )
 
 
 def workflow_patch_hlil(analysis_context: AnalysisContext):

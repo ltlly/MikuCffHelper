@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "license": "0BSD",
+  "artifact_directory": "tools/corpus/artifacts",
+  "manifest": "tools/corpus/manifest.json",
+  "build_metadata": "tools/corpus/build-metadata.json",
+  "index_inputs": [
+    "example",
+    "tools/corpus/artifacts"
+  ],
+  "baseline": "tools/baseline.json",
+  "metadata": "tools/corpus/existing-metadata.json",
+  "profiles": [
+    {
+      "id": "x86_64-gcc-o0-exe",
+      "description": "Native x86-64 ELF executable, unoptimized",
+      "mode": "executable",
+      "suffix": ".bin",
+      "flags": [
+        "-std=c11",
+        "-O0",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "-Wl,--build-id=none",
+        "-Wall",
+        "-Wextra",
+        "-Werror"
+      ],
+      "self_test": true
+    },
+    {
+      "id": "x86_64-gcc-o2-exe",
+      "description": "Native x86-64 ELF executable after compiler optimization",
+      "artifact_role": "optimizer-control",
+      "mode": "executable",
+      "suffix": ".bin",
+      "flags": [
+        "-std=c11",
+        "-O2",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "-Wl,--build-id=none",
+        "-Wall",
+        "-Wextra",
+        "-Werror"
+      ],
+      "self_test": true
+    },
+    {
+      "id": "i386-gcc-o0-object",
+      "description": "Freestanding i386 ELF relocatable object, unoptimized",
+      "mode": "object",
+      "suffix": ".o",
+      "flags": [
+        "-m32",
+        "-std=c11",
+        "-O0",
+        "-fno-inline",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-c"
+      ],
+      "self_test": false
+    }
+  ],
+  "sources": [
+    {
+      "id": "single-switch",
+      "path": "tools/corpus/src/single_switch.c",
+      "role": "positive",
+      "variant": "single-state switch dispatcher with sparse 32-bit states",
+      "expected_functions": ["corpus_single_switch"]
+    },
+    {
+      "id": "if-chain",
+      "path": "tools/corpus/src/if_chain.c",
+      "role": "positive",
+      "variant": "single-state comparison-chain dispatcher",
+      "expected_functions": ["corpus_if_chain"]
+    },
+    {
+      "id": "nested",
+      "path": "tools/corpus/src/nested.c",
+      "role": "positive",
+      "variant": "nested outer switch and inner if-chain dispatchers",
+      "expected_functions": ["corpus_nested"]
+    },
+    {
+      "id": "multi-state",
+      "path": "tools/corpus/src/multi_state.c",
+      "role": "positive-adversarial",
+      "variant": "joint two-state dispatch with consecutive state writes",
+      "expected_functions": ["corpus_multi_state"]
+    },
+    {
+      "id": "encoded-alias",
+      "path": "tools/corpus/src/encoded_alias.c",
+      "role": "positive-adversarial",
+      "variant": "dispatcher compares an XOR-encoded state alias",
+      "expected_functions": ["corpus_encoded_alias"]
+    },
+    {
+      "id": "conditional-state",
+      "path": "tools/corpus/src/conditional_state.c",
+      "role": "positive-adversarial",
+      "variant": "conditional state assignments",
+      "expected_functions": ["corpus_conditional_state"]
+    },
+    {
+      "id": "side-effects",
+      "path": "tools/corpus/src/side_effects.c",
+      "role": "positive-safety",
+      "variant": "flattened handlers containing call and volatile stores",
+      "expected_functions": [
+        "corpus_side_effects",
+        "corpus_side_effect_helper"
+      ]
+    },
+    {
+      "id": "natural-control",
+      "path": "tools/corpus/src/natural_control.c",
+      "role": "negative",
+      "variant": "structured loop and natural switch without a dispatcher",
+      "expected_functions": ["corpus_natural_control"]
+    }
+  ]
+}

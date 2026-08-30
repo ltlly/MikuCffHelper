@@ -20,4 +20,6 @@ def get_basic_block_at(self, index: int) -> Optional["basicblock.BasicBlock"]:
     return None
 
 
-LowLevelILFunction.get_basic_block_at = get_basic_block_at
+# Feature-detect: do not overwrite the native implementation on current BN builds.
+if not hasattr(LowLevelILFunction, "get_basic_block_at"):
+    LowLevelILFunction.get_basic_block_at = get_basic_block_at

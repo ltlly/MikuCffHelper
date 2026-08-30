@@ -1,710 +1,388 @@
-"""把 CFF dispatcher 重构为 MLIL JUMP_TO，让 BN 4.1+ 的 HLIL restructurer
-显示成 switch-case 结构。
+"""Certificate-backed MLIL ``JUMP_TO`` synthesis.
 
-设计动机（参见根目录 readme.md 的路径 B 章节）：
-  当前 deflate_hard 把每个 state SetVar=const 直接 patch 成 goto target，
-  最终 HLIL 是一堆 goto 链，可读性中等。
-  HLIL Restructurer (https://binary.ninja/2024/06/19/...) 已经能把 jump
-  table 还原为 switch-case，但只针对编译器生成的合法 switch，不针对
-  OLLVM cmp-tree dispatcher。
+Unlike the legacy whole-dispatcher replacement, this pass never assumes that a set
+of observed constants is the complete runtime domain. It appends a fast-path switch
+and redirects only incoming edges whose exact state and dispatcher macro-step have
+already been certified. Unknown/default/conflicting edges still execute the original
+comparison tree, which is the semantic fallback.
 
-  本 pass 的思路：
-  1. 用 deflate_hard 同样的 SCC + 副作用筛选识别 dispatcher 子图与 state
-     变量
-  2. 对每个 state SetVar=const，前向模拟到对应的真实块入口，建立
-     {state_value → real_block_start} 映射
-  3. 把 dispatcher_entry 块的第一条指令替换为
-     `jump_to(state_var, {value: label})`，让 BN MLIL 把 dispatcher 看成
-     带 N 个目标的 switch
-  4. 同时 *保留* 真实块尾部的 `state = const; goto dispatcher` 不动，让
-     state 值能正确流到 jump_to 的 dest
-
-  这跟 deflate_hard 是 *互斥替代*：deflate 把 dispatcher 绕掉，本 pass 把
-  dispatcher 重构成 switch。用户可在 mikuWorkflow.py 选其中一个。
-
-形式化等价性：
-  jump_to(state_var, {V → handler_V}) 在语义上等价于原 dispatcher 的
-  if-tree 串联（已验证 _function_looks_like_cff 后我们知道每个 V 都对应
-  唯一 handler，dispatcher 的 if-tree 也是把 state 路由到唯一 handler）。
-  只要 forward-simulate 给出的 (V → handler) 映射正确，重构后的执行 trace
-  与原 trace 在副作用层面等价。
+The generated ``jump_to`` has no default because an unlisted value cannot reach it:
+only certificate-backed edges with a listed singleton value are redirected. Skipped
+dispatcher ``SetVar`` instructions are replayed before the handler target.
 """
 
-import time
-from typing import Dict, Optional, Set, Tuple
+from __future__ import annotations
+
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from binaryninja import (
     AnalysisContext,
     ILSourceLocation,
-    MediumLevelILBasicBlock,
-    MediumLevelILConst,
     MediumLevelILFunction,
     MediumLevelILGoto,
     MediumLevelILIf,
     MediumLevelILLabel,
-    MediumLevelILOperation,
     MediumLevelILSetVar,
-    MediumLevelILVar,
     Variable,
 )
 
 from .deflatHardPass import (
+    CertifiedEdge,
+    _base_variable,
+    _certify_dispatcher_edges,
     _collect_side_effect_signatures,
+    _copy_replay_expression,
     _collect_state_vars,
-    _detect_dispatcher_entry,
-    _forward_resolve,
-    _function_looks_like_cff,
+    _current_mlil,
+    _cyclic_component_index,
+    _commit_detached_candidate,
+    _deduplicate_certificates,
+    _detect_dispatcher_entries,
     _identify_dispatcher_subgraph,
+    _indirect_location,
+    _validate_detached_candidate,
     _mask,
+    _preserve_replacement_attributes,
+    _set_builder_address,
+    _validate_certified_edge,
     _verify_no_side_effect_loss,
+    _width,
 )
-from ...utils import log_info, log_warn  # noqa: E402
-
-_TIME_BUDGET_SECONDS = 15.0
-_MIN_TRANSITIONS = 2
-_MAX_SWITCH_ITERS = 8  # 嵌套 dispatcher 最多重构 8 层（实测 sub_407368 有 3+ 层）
+from ...utils import log_info, log_warn
 
 
-def _vars_aliased_to(
+ReplayKey = Tuple[Tuple[int, ...], int]
+
+
+@dataclass
+class SwitchPlan:
+    dispatcher_start: int
+    primary: Variable
+    width: int
+    value_to_replay: Dict[int, ReplayKey]
+    certificates: List[CertifiedEdge]
+
+
+def _variable_width(
     mlil: MediumLevelILFunction,
-    primary,
-    dispatcher_blocks,
-):
-    """收集所有通过 `alias = primary` 链传递的别名变量。
-
-    BN SSA 经常拆出 `x9_1 = x8_2; if (x9_1 == K)` 这种 rename，x9_1 不在
-    state_vars (没 const 赋值) 但实际承载 primary 的值。识别这种别名能让
-    case_values 收集到正确的比较。
-
-    扫描范围 *扩大到整个函数*，不限于 dispatcher_blocks。原因：
-    sub_408b94 上 `x21_1 = lr_1` SetVar 所在的块 0x1a 还含有 `x0 = x3`
-    这种寄存器赋值，被 _block_is_pure_dispatcher 严格判据排除在
-    dispatcher_blocks 之外。但 x21_1 之后在 dispatcher_blocks 内部被大量
-    用作 cmp 左操作数 (`if (x21_1 == K) goto handler`)，原本只看
-    dispatcher_blocks 找别名时漏了 x21_1 → case_values=0 → 整个函数被拒。
-
-    对应的安全保证：扩大 alias 搜集范围只影响 *case_values* 集合 (它
-    enumerate dispatcher_blocks 内 cmp 的 const)，不影响 dispatcher_blocks
-    本身的边界。dispatcher_blocks 仍然由 `_block_is_pure_dispatcher` 严格
-    判断，假阳性风险不变。
-    """
-    aliases = {primary}
-    # 不动点迭代：在整个函数中找 `new = existing_alias` 形式
-    changed = True
-    while changed:
-        changed = False
-        for instr in mlil.instructions:
-            if not isinstance(instr, MediumLevelILSetVar):
-                continue
-            if instr.dest in aliases:
-                continue
-            if (
-                isinstance(instr.src, MediumLevelILVar)
-                and instr.src.src in aliases
-            ):
-                aliases.add(instr.dest)
-                changed = True
-    return aliases
-
-
-def _collect_dispatcher_case_values(
-    mlil: MediumLevelILFunction,
-    dispatcher_blocks,
-    primary,
-):
-    """从 dispatcher 子图收集所有 (alias_of_primary {==,!=} const) 比较中的 const。
-
-    包含 primary 的 SSA 别名（BN var-rename 拆出的 x9_1=x8_2 类）。这避免
-    sub_4259f4 上 x8_2 的 case_values=0 漏判，又避免 var-agnostic 把内层
-    state machine 的 cmp 也算进来导致 sub_407368 误拒。
-
-    两阶段收集策略：
-      阶段 1: 只收集 CMP_E 值 (绝大多数 OLLVM CFF 用直接 == 分发)
-      阶段 2: 阶段 1 为空时，fallback 到 CMP_NE 值 (sub_45985c 类变种
-              dispatcher 全用 CMP_NE/CMP_SGT，BN 在 HLIL 渲染时反向显示
-              成 ==。CMP_NE 的 false 分支即 x == V 路径，V 同样是 case 值)
-
-    为什么不一律收集 CMP_NE：sub_407858 类混合 dispatcher (大量 CMP_E +
-    少量 CMP_NE) 上加 CMP_NE 会让 case_values 含过多未解析值，P2 label_map
-    多塞 fallback 入口让 HLIL +48% 膨胀。fallback 策略只在 CMP_E 完全缺失
-    (即真正的 CMP_NE-only dispatcher) 时启用，混合情况下不受影响。
-    """
-    aliases = _vars_aliased_to(mlil, primary, dispatcher_blocks)
-    values = set()
-    cmp_e_op = MediumLevelILOperation.MLIL_CMP_E
-    cmp_ne_op = MediumLevelILOperation.MLIL_CMP_NE
-
-    def _scan(target_op):
-        result = set()
-        for bb_start in dispatcher_blocks:
-            bb = mlil.get_basic_block_at(bb_start)
-            if bb is None:
-                continue
-            for idx in range(bb.start, bb.end):
-                instr = mlil[idx]
-                if not isinstance(instr, MediumLevelILIf):
-                    continue
-                cond = instr.condition
-                if cond.operation != target_op:
-                    continue
-                if not (hasattr(cond, "left") and hasattr(cond, "right")):
-                    continue
-                if not isinstance(cond.right, MediumLevelILConst):
-                    continue
-                left = cond.left
-                if not (hasattr(left, "src") and left.src in aliases):
-                    continue
-                size = left.size if hasattr(left, "size") else 4
-                result.add(cond.right.constant & _mask(size or 4))
-        return result
-
-    values = _scan(cmp_e_op)
-    if not values:
-        # CMP_E 完全没有 → 这是 CMP_NE-only dispatcher (sub_45985c 类)
-        values = _scan(cmp_ne_op)
-    return values
-
-
-def _candidate_state_vars_ranked(
-    mlil: MediumLevelILFunction,
-    state_vars,
-):
-    """返回按 unique 常量赋值数排序的状态变量列表 (从多到少)。允许调用方
-    依次尝试每一个，避免单一启发式失败时整个 pass 放弃。
-    """
-    if not state_vars:
-        return []
-    unique_vals: Dict = {var: set() for var in state_vars}
-    for instr in mlil.instructions:
-        if (
-            isinstance(instr, MediumLevelILSetVar)
-            and instr.dest in state_vars
-            and isinstance(instr.src, MediumLevelILConst)
-        ):
-            unique_vals[instr.dest].add(
-                instr.src.constant & _mask(instr.size or 4)
-            )
-    return sorted(
-        [v for v, s in unique_vals.items() if len(s) >= 2],
-        key=lambda v: -len(unique_vals[v]),
-    )
-
-
-def _collect_transitions_for_var(
-    mlil: MediumLevelILFunction,
-    primary,
-    state_vars,
-    dispatcher_blocks,
-    dispatcher_entry_start: int,
-    deadline: float,
-):
-    """收集 primary state var 的 (state_value → target instr_index) 映射。
-
-    返回 (transitions, all_assigned_values, fully_resolved):
-      - transitions: 成功解析的 value → target
-      - all_assigned_values: 函数中所有 `primary = const` 赋值的 const 值集合
-      - fully_resolved: 所有 const 都有一个 SUCCESS 结果
-    """
-    transitions: Dict[int, int] = {}
-    all_assigned = set()  # type: Set[int]
-    failed_values = set()  # type: Set[int]
-    for instr in mlil.instructions:
-        if time.time() > deadline:
-            break
-        if (
-            not isinstance(instr, MediumLevelILSetVar)
-            or instr.dest != primary
-            or not isinstance(instr.src, MediumLevelILConst)
-        ):
-            continue
-        value = instr.src.constant & _mask(instr.size or 4)
-        all_assigned.add(value)
-        target = _forward_resolve(mlil, instr, state_vars, dispatcher_blocks)
-        if target is None:
-            failed_values.add(value)
-            continue
-        if target == dispatcher_entry_start:
-            failed_values.add(value)
-            continue
-        target_bb = mlil.get_basic_block_at(target)
-        if target_bb is None or target != target_bb.start:
-            failed_values.add(value)
-            continue
-        if target_bb.start in dispatcher_blocks:
-            failed_values.add(value)
-            continue
-        transitions.setdefault(value, target)
-    # 一个值即使在某个位置失败，只要在另一个位置成功 (transitions 里有)，
-    # 就视为已解析 —— 同 value 不同位置假设产出同 target (CFF 保证)
-    fully_resolved = (failed_values - set(transitions.keys())) == set()
-    return transitions, all_assigned, fully_resolved
-
-
-def _redirect_edges_to_dispatcher(
-    mlil: MediumLevelILFunction,
-    dispatcher_entry: MediumLevelILBasicBlock,
-    dispatcher_blocks: Set[int],
-    guard_label: MediumLevelILLabel,
-) -> int:
-    """把 *real block* (不在 dispatcher_blocks 内) 末尾的 goto/if 中指向
-    dispatcher_entry 的边重定向到 guard_label。
-
-    这是 guarded jump_to 模式的关键步骤：让所有 handler 完成后流入新的
-    guard，而不是原 dispatcher 的 cmp-tree 入口。原 cmp-tree 仍存在，但
-    只能从 guard 的 fallback 路径到达。
-
-    返回成功重定向的边数 (供调用方判断是否有意义重写)。
-    """
-    target_idx = dispatcher_entry.start
-    guard_idx = guard_label.operand
-    redirected = 0
-
-    for b in list(mlil.basic_blocks):
-        if b.start in dispatcher_blocks:
-            # 不要碰 dispatcher 内部 (cmp-tree)，否则未解析 case 的兜底链
-            # 会被破坏
-            continue
-        if b.length == 0:
-            continue
-        last = mlil[b.end - 1]
-        loc = ILSourceLocation.from_instruction(last)
-        try:
-            if isinstance(last, MediumLevelILGoto):
-                if last.dest != target_idx:
-                    continue
-                new_label = MediumLevelILLabel()
-                new_label.operand = guard_idx
-                mlil.replace_expr(
-                    last.expr_index,
-                    mlil.goto(new_label, loc),
-                )
-                redirected += 1
-            elif isinstance(last, MediumLevelILIf):
-                true_dst = last.true
-                false_dst = last.false
-                if true_dst != target_idx and false_dst != target_idx:
-                    continue
-                new_true = MediumLevelILLabel()
-                new_true.operand = guard_idx if true_dst == target_idx else true_dst
-                new_false = MediumLevelILLabel()
-                new_false.operand = guard_idx if false_dst == target_idx else false_dst
-                cond_copy = mlil.copy_expr(last.condition)
-                new_if = mlil.if_expr(cond_copy, new_true, new_false, loc)
-                mlil.replace_expr(last.expr_index, new_if)
-                redirected += 1
-        except Exception:
-            continue
-    return redirected
-
-
-def _install_guarded_jump_to(
-    mlil: MediumLevelILFunction,
-    primary: Variable,
-    transitions: Dict[int, int],
-    case_values: Set[int],
-    all_assigned: Set[int],
-    dispatcher_entry: MediumLevelILBasicBlock,
-    dispatcher_blocks: Set[int],
+    variable: Variable,
 ) -> Optional[int]:
-    """在 MLIL 末尾追加 jump_to guard，然后重定向 real block 的回流边。
+    """Obtain width from BN type/IL facts; never assume 32 or 64 bits."""
 
-    方案:
-      guard_label:
-          jump_to(primary, {V_i → T_i  for V_i in transitions,
-                            V_j → dispatcher_entry.start  for V_j unresolved})
-
-    未解析 case 直接落到原 dispatcher_entry，cmp-tree 兜底处理。原 cmp-tree
-    block 内容完全不变。所有 real block 末尾 *指向 dispatcher_entry* 的
-    goto/if 被重写指向 guard_label。dispatcher_entry 仍然可达 —— 通过
-    jump_to 的 unresolved labels。
-
-    保留原 cmp-tree 兜底未解析的 case，安全恢复 fully_resolved 失败时的
-    覆盖率。BN HLIL Restructurer 把 jump_to 渲染为 switch-case，所以
-    即便部分 case 走 unresolved 也呈现为 switch + default。
-
-    一处坑：每个 label_map entry 必须用 *独立* MediumLevelILLabel 实例；
-    多个 key 共享同一个 Label 对象会让 BN 内部 add_label_map 注册多次同
-    handle，后续操作 segfault (sub_407368 实测)。
-
-    成功条件：
-      - resolved transitions 非空
-      - 至少有一条边被重定向 (否则 guard 永远不被执行，等于 no-op)
-
-    返回 guard_label.operand (供调用方加入 already_rewritten，避免 iter 2+
-    把 guard 自身误识别为新的 dispatcher_entry —— guard 包含 jump_to，本
-    身就是个状态分发结构，detect 看到它会误判)。失败时返回 None。
-    """
-    if not transitions:
-        return None
-    anchor = mlil[dispatcher_entry.start]
-    loc = ILSourceLocation.from_instruction(anchor)
-    primary_size = primary.type.width if primary.type else 4
-
-    try:
-        guard_label = MediumLevelILLabel()
-
-        # 1. mark_label guard at end-of-MLIL append point
-        mlil.mark_label(guard_label)
-
-        # 2. Build label_map:
-        #    - resolved: V → 独立 label, .operand = T
-        #    - unresolved: V → 独立 label, .operand = dispatcher_entry.start
-        #      (即直接跳回原 cmp-tree 入口；BN 在该 entry 处仍有 cmp-tree 指令)
-        #
-        # 每个 entry 用独立 MediumLevelILLabel 实例。共享同一个 Label 对象
-        # 会让 add_label_map 把同一 C handle 多次入表，后续 mark_label
-        # 触发 segfault (实测 sub_407368)
-        label_map: Dict[int, MediumLevelILLabel] = {}
-        for value, target_idx in transitions.items():
-            lbl = MediumLevelILLabel()
-            lbl.operand = target_idx
-            label_map[value] = lbl
-        unresolved = (case_values | all_assigned) - set(transitions.keys())
-        for value in unresolved:
-            alias = MediumLevelILLabel()
-            alias.operand = dispatcher_entry.start
-            label_map[value] = alias
-
-        if not label_map:
-            return None
-
-        dest_expr = mlil.var(primary_size, primary, loc)
-        jump_to_expr = mlil.jump_to(dest_expr, label_map, loc)
-        mlil.append(jump_to_expr, loc)
-
-        # 3. 重定向 real block → dispatcher_entry 的所有边到 guard_label
-        # 注意：dispatcher_entry 在 jump_to 的 unresolved label 中也是目标，
-        # 所以 dispatcher_entry 仍然可达 (通过 guard 的 unresolved 路径)。
-        # 这就是兜底机制。
-        n_redirected = _redirect_edges_to_dispatcher(
-            mlil, dispatcher_entry, dispatcher_blocks, guard_label
-        )
-        if n_redirected == 0:
-            return None
-    except Exception:
-        return None
-    return int(guard_label.operand)
+    var_type = getattr(variable, "type", None)
+    width = getattr(var_type, "width", 0)
+    if isinstance(width, int) and width > 0:
+        return width
+    for instruction in mlil.instructions:
+        if not isinstance(instruction, MediumLevelILSetVar):
+            continue
+        if _base_variable(instruction.dest) != variable:
+            continue
+        width = _width(instruction)
+        if width is not None:
+            return width
+    return None
 
 
-def _shortcircuit_state_writes(
+def _plan_for_primary(
     mlil: MediumLevelILFunction,
+    dispatcher_start: int,
     primary: Variable,
-    transitions: Dict[int, int],
-    aggressive: bool = False,
-) -> Tuple[int, Set[int]]:
-    """对每个已解析 (V, T)，把函数中所有 `primary = V` SetVar 短路成
-    `goto T`。
+    certificates: Sequence[CertifiedEdge],
+) -> Optional[SwitchPlan]:
+    width = _variable_width(mlil, primary)
+    if width is None:
+        return None
+    mask = _mask(width)
+    relation: Dict[int, Set[ReplayKey]] = defaultdict(set)
+    for certificate in certificates:
+        value = certificate.value_for(primary)
+        if value is not None:
+            relation[value & mask].add(certificate.replay_key)
 
-    动机：路径 B 安装 jump_to/guard 后，真实块仍然 `state=V; goto dispatcher`
-    绕一圈到 jump_to/guard 才到 handler。BN HLIL Restructurer 看到的是
-    "真实块 → dispatcher → switch → handler"，没法把它看作自然 CFG。
-    短路后真实块直接 `goto handler`，restructurer 看到 "真实块 → handler"
-    的干净 CFG，能尝试识别 loop/if 结构。
+    # A value is eligible only when the collected relation is a mathematical
+    # function. Conflicts are not resolved by first/last-wins ordering.
+    value_to_replay = {
+        value: next(iter(outcomes))
+        for value, outcomes in relation.items()
+        if len(outcomes) == 1
+    }
+    selected = [
+        certificate
+        for certificate in certificates
+        if (
+            (value := certificate.value_for(primary)) is not None
+            and value_to_replay.get(value & mask) == certificate.replay_key
+        )
+    ]
 
-    aggressive=False (默认，mini-block 形态):
-      原 SetVar → `goto mini_block`，mini = `[SetVar 副本; goto T]`
-      state 写入在 mini-block 里执行，dispatcher 仍能正常分发 (P2 模式
-      下未解析 case 走 dispatcher 兜底，需要 state 真值)
-      => 安全适用 P1 / P2，但 HLIL 仍能看到 state 变量
-
-    aggressive=True (P1 fully_resolved 时启用):
-      原 SetVar → `goto T` 直接，state SetVar 被 *删除*
-      state 完全不被写，dispatcher 只在函数初始进入一次后失去入边，
-      BN 自动 dead-code 整个 dispatcher，state 变量从 HLIL 消失
-      => 仅 P1 fully_resolved 安全 (此时 dispatcher 不再被需要；
-         P2 下还有 unresolved case 需要 dispatcher 兜底，删 SetVar
-         会破坏 unresolved 路径的 state 真值传递)
-
-    安全性: state 变量本身不在 _SIDE_EFFECT_OPS 里 (它不是 call/store/ret/
-    intrinsic)，删除不丢副作用。OLLVM CFF 中 state 仅供 dispatcher 分发
-    用，handler 不读 state，所以 handler 内部副作用语义不受影响。
-    5 角度 verifier (MLIL SE / HLIL call/store/ret) 把关。
-
-    返回 (短路 patch 数, 新建 mini-block 标签 operand 集合)。aggressive
-    模式下不创建 mini-block，集合为空。
-    """
-    if not transitions:
-        return 0, set()
-    patches = []
-    for instr in list(mlil.instructions):
-        if not isinstance(instr, MediumLevelILSetVar):
-            continue
-        if instr.dest != primary or not isinstance(instr.src, MediumLevelILConst):
-            continue
-        v = instr.src.constant & _mask(instr.size or 4)
-        if v not in transitions:
-            continue
-        patches.append((instr, v, transitions[v]))
-
-    n = 0
-    if aggressive:
-        # aggressive: 原 SetVar → 直接 goto T，无 mini-block
-        for instr, v, target_idx in patches:
-            try:
-                loc = ILSourceLocation.from_instruction(instr)
-                target_label = MediumLevelILLabel()
-                target_label.operand = target_idx
-                mlil.replace_expr(
-                    instr.expr_index,
-                    mlil.goto(target_label, loc),
-                )
-                n += 1
-            except Exception:
-                continue
-        return n, set()
-
-    # conservative (mini-block 形态)
-    cache: Dict[Tuple[int, int, int], MediumLevelILLabel] = {}
-    mini_label_ops: Set[int] = set()
-    for instr, v, target_idx in patches:
-        try:
-            key = (instr.dest.identifier, v, target_idx)
-            cached_label = cache.get(key)
-            loc = ILSourceLocation.from_instruction(instr)
-            if cached_label is None:
-                target_label = MediumLevelILLabel()
-                target_label.operand = target_idx
-                new_block_label = MediumLevelILLabel()
-                mlil.mark_label(new_block_label)
-                mlil.append(mlil.copy_expr(instr), loc)
-                mlil.append(mlil.goto(target_label, loc), loc)
-                cached_label = new_block_label
-                cache[key] = cached_label
-                mini_label_ops.add(int(new_block_label.operand))
-            mlil.replace_expr(
-                instr.expr_index,
-                mlil.goto(cached_label, loc),
-            )
-            n += 1
-        except Exception:
-            continue
-    return n, mini_label_ops
+    # ``jump_to`` is useful only for an actual branch relation. These are structural
+    # arity requirements, not empirical coverage thresholds.
+    if len(value_to_replay) <= 1:
+        return None
+    if len(set(value_to_replay.values())) <= 1:
+        return None
+    return SwitchPlan(
+        dispatcher_start=dispatcher_start,
+        primary=primary,
+        width=width,
+        value_to_replay=value_to_replay,
+        certificates=selected,
+    )
 
 
-_NESTED_FLATTENING_SCORE_THRESHOLD = 0.10
-"""嵌套 dispatcher 的 flattening_score 阈值。
-
-iter 1 用默认 0.3 (严格的 CFF 门控)。iter 2+ 已确认是 CFF 函数，再用 0.3
-会漏掉内层 dispatcher (它在外层 case body 内，支配子树相对总块数小)，
-所以放宽到 0.10。仍要求至少支配 3 个块 + 有 back-edge，假阳性风险可控。
-"""
-
-
-def _try_synthesize_one_dispatcher(
+def _choose_switch_plan(
     mlil: MediumLevelILFunction,
-    deadline: float,
-    already_rewritten: set,
-    threshold: Optional[float] = None,
-) -> Optional[str]:
-    """识别一个 dispatcher 并把它重构。
+    dispatcher_start: int,
+    state_vars: Set[Variable],
+    certificates: Sequence[CertifiedEdge],
+) -> Optional[SwitchPlan]:
+    """Choose by program-derived coverage; the choice cannot affect soundness."""
 
-    返回值:
-      - None: 没有可处理的 dispatcher (终止外层 loop)
-      - "clean": P1 路径成功 (整 dispatcher_entry 被替换)，可继续 detect
-        嵌套 dispatcher
-      - "guarded": P2 路径成功 (guard chain 追加，原 cmp-tree 保留)；
-        嵌套不再处理，因为再叠 guard 会让同一个原 dispatcher 多次重写，
-        实测引入 BN 内部状态不一致 (segfault)
-      - "fail": 找到 dispatcher 但所有候选都失败 (终止外层 loop 防 spin)
-
-    通过 already_rewritten 集合跳过本次 pass 已经重构过的 dispatcher
-    (按 dispatcher_entry.start 标识)。
-
-    multi-候选策略：依次尝试 unique 常量赋值数最多的 state var 作为 dispatch
-    primary，第一个能给出 ≥_MIN_TRANSITIONS 个 distinct target 的就用它。
-    """
-    fname = mlil.source_function.name
-    dispatcher_entry = _detect_dispatcher_entry(
-        mlil, exclude=already_rewritten, threshold=threshold,
-    )
-    if dispatcher_entry is None:
-        return None
-    state_vars = _collect_state_vars(mlil, dispatcher_entry)
-    if not state_vars:
-        log_info(f"[synth] {fname}: no state vars found at dispatcher 0x{dispatcher_entry.start:x}")
-        return None
-    # _function_looks_like_cff 是函数级 CFF 判定，用来排除 Rust match /
-    # C++ stdlib 假阳性。仅在 iter 1 (threshold=None，外层 dispatcher) 必要。
-    # iter 2+ 已知是 CFF 函数；内层嵌套 dispatcher 的 state 值数量经常小于
-    # 4 个 (内层只是个小循环)，再跑这个 filter 会漏内层 dispatcher
-    if threshold is None and not _function_looks_like_cff(mlil, state_vars):
-        log_info(f"[synth] {fname}: failed CFF heuristic (rust/c++ false positive guard)")
-        return None
-    dispatcher_blocks = _identify_dispatcher_subgraph(
-        mlil, dispatcher_entry, state_vars
-    )
-    if not dispatcher_blocks:
-        log_info(f"[synth] {fname}: SCC ∩ pure-dispatcher empty")
-        return None
-
-    # 依次尝试每个候选 state var。一个候选合格当且仅当：
-    #   1) ≥ _MIN_TRANSITIONS 个 case
-    #   2) ≥ 2 个 distinct target
-    #   3) candidate 是 *实际* dispatch 变量 (dispatcher 内有 (candidate 或
-    #      其别名) == const 的比较，否则像 sub_408b94 上 lr_1 误选)
-    #
-    # 选定后，根据 fully_resolved + (case_values ⊆ transitions) 选择路径：
-    #   - 路径 P1 (fully_resolved 且 case 完整覆盖)：替换 dispatcher_entry
-    #     首指令为 jump_to，原 cmp-tree 被吃掉，HLIL 最干净
-    #   - 路径 P2 (其它)：在 MLIL 末尾追加 guarded jump_to，未解析 case 直
-    #     接 jump 到 dispatcher_entry，原 cmp-tree 兜底。已解析 case
-    #     fast-path，覆盖率显著提升 (实测 5/39 → 34/39 函数显示 switch)
-    primary = None
-    transitions: Dict[int, int] = {}
-    case_values: Set[int] = set()
-    all_assigned_for_primary: Set[int] = set()
-    fully_resolved_for_primary = False
-    for candidate in _candidate_state_vars_ranked(mlil, state_vars):
-        if time.time() > deadline:
-            break
-        cand_trans, cand_assigned, cand_full = _collect_transitions_for_var(
-            mlil, candidate, state_vars, dispatcher_blocks,
-            dispatcher_entry.start, deadline,
+    plans = [
+        plan
+        for variable in state_vars
+        if (
+            plan := _plan_for_primary(
+                mlil, dispatcher_start, variable, certificates
+            )
         )
-        if len(cand_trans) < _MIN_TRANSITIONS:
-            continue
-        if len(set(cand_trans.values())) < 2:
-            continue
-        cand_case_values = _collect_dispatcher_case_values(
-            mlil, dispatcher_blocks, candidate
-        )
-        if not cand_case_values:
-            continue
-        primary = candidate
-        transitions = cand_trans
-        case_values = cand_case_values
-        all_assigned_for_primary = cand_assigned
-        fully_resolved_for_primary = cand_full
-        break
-
-    if primary is None:
-        log_info(
-            f"[synth] {fname}: no qualifying state var at dispatcher "
-            f"0x{dispatcher_entry.start:x} (state_vars={len(state_vars)})"
-        )
-        return "fail"
-
-    use_clean_path = (
-        fully_resolved_for_primary
-        and case_values <= set(transitions.keys())
+        is not None
+    ]
+    if not plans:
+        return None
+    return max(
+        plans,
+        key=lambda plan: (
+            len(plan.certificates),
+            len(plan.value_to_replay),
+            len(set(plan.value_to_replay.values())),
+            -plan.primary.identifier,
+        ),
     )
-    unresolved_count = len((case_values | all_assigned_for_primary) - set(transitions.keys()))
+
+
+def _select_nonoverlapping_plans(
+    mlil: MediumLevelILFunction,
+    initial_plans: Sequence[SwitchPlan],
+) -> List[SwitchPlan]:
+    selected: List[SwitchPlan] = []
+    used_edges: Set[Tuple[int, str, int]] = set()
+    for initial in initial_plans:
+        remaining = [
+            certificate
+            for certificate in initial.certificates
+            if certificate.edge_key not in used_edges
+        ]
+        plan = _plan_for_primary(
+            mlil,
+            initial.dispatcher_start,
+            initial.primary,
+            remaining,
+        )
+        if plan is None:
+            continue
+        selected.append(plan)
+        used_edges.update(
+            certificate.edge_key for certificate in plan.certificates
+        )
+    return selected
+
+
+def _build_detached_switch_candidate(
+    original: MediumLevelILFunction,
+    plans: Sequence[SwitchPlan],
+) -> Optional[MediumLevelILFunction]:
+    """Build every replay/guard/edit on an isolated copy, then validate it."""
+
+    if not plans or not hasattr(original, "translate"):
+        return None
+    guard_labels = {
+        plan.dispatcher_start: MediumLevelILLabel() for plan in plans
+    }
+    replay_labels = {
+        certificate.replay_key: MediumLevelILLabel()
+        for plan in plans
+        for certificate in plan.certificates
+        if certificate.replay_exprs
+    }
+    by_expr: Dict[int, List[Tuple[CertifiedEdge, MediumLevelILLabel]]] = defaultdict(list)
+    for plan in plans:
+        guard = guard_labels[plan.dispatcher_start]
+        for certificate in plan.certificates:
+            by_expr[certificate.terminator_expr].append((certificate, guard))
+
+    def transform(new_function, _old_block, old_instruction):
+        replacements = by_expr.get(old_instruction.expr_index)
+        if not replacements:
+            return old_instruction.copy_to(new_function)
+        location = ILSourceLocation.from_instruction(old_instruction)
+        if isinstance(old_instruction, MediumLevelILGoto):
+            certificate, guard = replacements[0]
+            if certificate.arm != "goto":
+                raise ValueError("goto certificate arm mismatch")
+            replacement = new_function.goto(guard, location)
+            return _preserve_replacement_attributes(
+                new_function, replacement, old_instruction
+            )
+        if not isinstance(old_instruction, MediumLevelILIf):
+            raise ValueError("certificate does not point at a branch terminator")
+        true_label = new_function.get_label_for_source_instruction(
+            old_instruction.true
+        )
+        false_label = new_function.get_label_for_source_instruction(
+            old_instruction.false
+        )
+        if true_label is None or false_label is None:
+            raise ValueError("original if target has no copied label")
+        for certificate, guard in replacements:
+            if certificate.arm == "true":
+                true_label = guard
+            elif certificate.arm == "false":
+                false_label = guard
+        replacement = new_function.if_expr(
+            old_instruction.condition.copy_to(new_function),
+            true_label,
+            false_label,
+            location,
+        )
+        return _preserve_replacement_attributes(
+            new_function, replacement, old_instruction
+        )
 
     try:
-        guard_label_op: Optional[int] = None
-        if use_clean_path:
-            # P1: 完整 jump_to 替换 dispatcher_entry
-            label_map: Dict[int, MediumLevelILLabel] = {}
-            for value, target_idx in transitions.items():
-                label = MediumLevelILLabel()
-                label.operand = target_idx
-                label_map[value] = label
+        candidate = original.translate(transform)
 
-            first_instr = mlil[dispatcher_entry.start]
-            size = primary.type.width if primary.type else 4
-            dest_expr = mlil.var(
-                size,
-                primary,
-                ILSourceLocation.from_instruction(first_instr),
-            )
-            jump_to_expr = mlil.jump_to(
-                dest_expr,
-                label_map,
-                ILSourceLocation.from_instruction(first_instr),
-            )
-            mlil.replace_expr(first_instr.expr_index, jump_to_expr)
-            mode = "clean"
-        else:
-            # P2: guarded jump_to fallback
-            guard_label_op = _install_guarded_jump_to(
-                mlil, primary, transitions, case_values,
-                all_assigned_for_primary, dispatcher_entry, dispatcher_blocks,
-            )
-            if guard_label_op is None:
-                log_info(
-                    f"[synth] {fname}: P2 install failed (no edges to redirect "
-                    f"or label_map empty) at 0x{dispatcher_entry.start:x}"
+        # Replay every skipped state write in original order before its handler.
+        for replay_key, label in replay_labels.items():
+            replay_exprs, handler = replay_key
+            originals = [original.get_expr(index) for index in replay_exprs]
+            if not originals or not all(
+                isinstance(item, MediumLevelILSetVar) for item in originals
+            ):
+                return None
+            candidate.mark_label(label)
+            for item in originals:
+                _set_builder_address(candidate, item)
+                location = _indirect_location(item)
+                candidate.append(
+                    _copy_replay_expression(candidate, item),
+                    location,
                 )
-                return "fail"
-            mode = "guarded"
+            target = candidate.get_label_for_source_instruction(handler)
+            if target is None:
+                return None
+            tail = originals[-1]
+            _set_builder_address(candidate, tail)
+            location = _indirect_location(tail)
+            candidate.append(candidate.goto(target, location), location)
 
-        # 短路：把 real_block 末尾 `primary = V; goto dispatcher` 替换成
-        # `goto mini_block` (mini-block 形态) 或 `goto T` (aggressive)。
-        #
-        # aggressive 安全条件: all_assigned ⊆ transitions
-        # 即函数中每个 `primary = const` 赋值都有 forward_resolve 出来的
-        # transition 目标。此时所有 real_block 都能被短路，dispatcher 失去
-        # 真实流入边被 BN 自动 dead-code，state 变量从 HLIL 消失。
-        # 若 all_assigned ⊄ transitions，存在 V_u 没有 transition，real_block
-        # `primary = V_u` 不被短路，仍然 goto dispatcher，需要 SetVar 真值
-        # 让 dispatcher 路由到正确 fallback handler，必须 mini-block 保 SetVar。
-        aggressive_safe = (
-            all_assigned_for_primary <= set(transitions.keys())
-        )
-        n_short, mini_ops = _shortcircuit_state_writes(
-            mlil, primary, transitions, aggressive=aggressive_safe,
-        )
+        # Each guard lists exactly the singleton values of its redirected edges.
+        for plan in plans:
+            guard = guard_labels[plan.dispatcher_start]
+            candidate.mark_label(guard)
+            labels: Dict[int, MediumLevelILLabel] = {}
+            for value, replay_key in plan.value_to_replay.items():
+                destination = replay_labels.get(replay_key)
+                if destination is None:
+                    destination = candidate.get_label_for_source_instruction(
+                        replay_key[1]
+                    )
+                if destination is None:
+                    return None
+                labels[value] = destination
+            if len(labels) <= 1:
+                return None
+            anchor = original.get_expr(plan.certificates[0].terminator_expr)
+            _set_builder_address(candidate, anchor)
+            location = _indirect_location(anchor)
+            candidate.append(
+                candidate.jump_to(
+                    candidate.var(plan.width, plan.primary, location),
+                    labels,
+                    location,
+                ),
+                location,
+            )
+        candidate.finalize()
+        candidate.generate_ssa_form()
+    except Exception as error:
+        log_warn(f"[verified-switch] detached copy failed: {error}")
+        return None
+    return candidate if _validate_detached_candidate(original, candidate) else None
 
-        # 把所有新生成的 dispatcher-like 块 (P2 guard、所有 mini-block) 加入
-        # already_rewritten。否则 iter 2+ 的 _detect_dispatcher_entry 会把
-        # 它们误识别为新的 dispatcher，导致内层真正的 dispatcher 被漏掉
-        already_rewritten.add(dispatcher_entry.start)
-        if guard_label_op is not None:
-            already_rewritten.add(guard_label_op)
-        already_rewritten.update(mini_ops)
-        mlil.finalize()
-        mlil.generate_ssa_form()
-        log_info(
-            f"[synth] {fname}: {'P1' if mode == 'clean' else 'P2'} at "
-            f"0x{dispatcher_entry.start:x} transitions={len(transitions)} "
-            f"shortcircuited={n_short}"
-            + (f" unresolved={unresolved_count}" if mode == "guarded" else "")
+
+def _collect_plans(mlil: MediumLevelILFunction) -> List[SwitchPlan]:
+    plans: List[SwitchPlan] = []
+    components = _cyclic_component_index(mlil)
+    for entry in _detect_dispatcher_entries(mlil):
+        component = set(components.get(entry.start, ()))
+        state_vars = _collect_state_vars(mlil, entry, component)
+        if not state_vars:
+            continue
+        dispatcher_blocks = _identify_dispatcher_subgraph(
+            mlil,
+            entry,
+            state_vars,
+            component,
         )
-        return mode
-    except Exception as e:
-        log_warn(f"[synth] {fname}: exception during rewrite: {e}")
-        return "fail"
+        if not dispatcher_blocks:
+            continue
+        certificates = _deduplicate_certificates(
+            _certify_dispatcher_edges(
+                mlil, entry, state_vars, dispatcher_blocks
+            )
+        )
+        certificates = [
+            certificate
+            for certificate in certificates
+            if _validate_certified_edge(mlil, certificate)
+        ]
+        plan = _choose_switch_plan(
+            mlil, entry.start, state_vars, certificates
+        )
+        if plan is not None:
+            plans.append(plan)
+    return plans
+
+
+def build_verified_switch_candidate(
+    mlil: MediumLevelILFunction,
+) -> Optional[Tuple[MediumLevelILFunction, int]]:
+    """Return a validated detached switch candidate and certified edge count."""
+
+    plans = _select_nonoverlapping_plans(mlil, _collect_plans(mlil))
+    candidate = _build_detached_switch_candidate(mlil, plans)
+    if candidate is None:
+        return None
+    return candidate, sum(len(plan.certificates) for plan in plans)
 
 
 def pass_synthesize_switch(analysis_context: AnalysisContext) -> bool:
-    """多迭代 synthesize_switch：每次重构一个 dispatcher。第一遍通常是最
-    外层 dispatcher，重构后内层（嵌套）dispatcher 成为新的 detect 候选，
-    第二遍处理内层，依此类推。最多 _MAX_SWITCH_ITERS 层。
+    """Install partial, certificate-backed switch fast paths."""
 
-    对应 sub_407368 这种"外层 switch x8, case 内含内层 switch i"的多层
-    OLLVM CFF。
-
-    返回是否对函数做了 *任何* 重构。auto-fallback workflow 用这个判断
-    是否需要兜底跑 path A (deflate_hard)。
-    """
-    function = analysis_context.function
-    mlil = function.mlil
+    mlil = _current_mlil(analysis_context)
+    function = getattr(analysis_context, "function", None)
     if mlil is None:
         return False
+    function_name = getattr(function, "name", "<unknown>")
+    effects_before = _collect_side_effect_signatures(mlil)
 
-    side_effects_before = _collect_side_effect_signatures(mlil)
-    function_name = function.name
+    plans = _select_nonoverlapping_plans(mlil, _collect_plans(mlil))
+    candidate = _build_detached_switch_candidate(mlil, plans)
+    if candidate is None or not _commit_detached_candidate(
+        analysis_context, candidate
+    ):
+        _verify_no_side_effect_loss(effects_before, effects_before, function_name)
+        return False
 
-    deadline = time.time() + _TIME_BUDGET_SECONDS
-    already_rewritten: set = set()
-    transformed = False
-
-    for iter_idx in range(_MAX_SWITCH_ITERS):
-        if time.time() > deadline:
-            break
-        # iter 1 用默认 0.3 严格阈值 (CFF 门控)；iter 2+ 用 0.10 拾内层 dispatcher
-        thr = None if iter_idx == 0 else _NESTED_FLATTENING_SCORE_THRESHOLD
-        result = _try_synthesize_one_dispatcher(
-            mlil, deadline, already_rewritten, threshold=thr,
+    transformed_edges = sum(len(plan.certificates) for plan in plans)
+    for plan in plans:
+        log_info(
+            f"[verified-switch] {function_name}: dispatcher "
+            f"0x{plan.dispatcher_start:x}, {len(plan.value_to_replay)} "
+            f"singleton value(s), {len(plan.certificates)} certified edge(s)"
         )
-        if result is None or result == "fail":
-            break
-        transformed = True
-        # 注：早期版本在 P2 后强制 break (嵌套 P2 mark_label(fallback_label)
-        # 会 segfault)。当前 P2 简化为只 mark_label(guard_label) 一次，
-        # 未解析 case 直接路由到 dispatcher_entry —— 没有第二个 mark_label，
-        # 嵌套不再 segfault，可继续迭代尝试嵌套 dispatcher。
-
-    side_effects_after = _collect_side_effect_signatures(mlil)
-    _verify_no_side_effect_loss(side_effects_before, side_effects_after, function_name)
-    return transformed
+    return transformed_edges > 0

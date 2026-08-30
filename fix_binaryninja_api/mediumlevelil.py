@@ -20,4 +20,7 @@ def get_basic_block_at(self, index: int) -> Optional["basicblock.BasicBlock"]:
     return None
 
 
-MediumLevelILFunction.get_basic_block_at = get_basic_block_at
+# Binary Ninja 6.x provides a native core-backed lookup.  Keep this compatibility
+# shim only for older builds instead of replacing the faster/authoritative API.
+if not hasattr(MediumLevelILFunction, "get_basic_block_at"):
+    MediumLevelILFunction.get_basic_block_at = get_basic_block_at

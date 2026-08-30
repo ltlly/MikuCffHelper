@@ -1,429 +1,307 @@
 # MikuCffHelper
 
-针对 OLLVM 风格控制流平坦化 (Control Flow Flattening, CFF) 的 Binary
-Ninja 去混淆插件。
+Binary Ninja 的控制流平坦化（Control-Flow Flattening, CFF）去混淆插件。
 
-## 1. 简介
+当前默认实现不是“猜中 dispatcher 就改写”，而是一个 **sound-but-incomplete、
+fail-closed** 的局部 translation-validation 流程：先在 detached MLIL 上构造
+候选，再验证本次改写；任何状态、算术、别名、副作用或 CFG 关系无法证明时，
+保留原始 dispatcher。
 
-OLLVM `-fla` 把函数变成「dispatcher + 真实块」状态机。本插件用静态分析
-识别 dispatcher 子图、前向模拟状态变量，把 CFF 还原成两种可读形态：
+研究、实现和冻结实测最后更新：**2026-08-30**。
 
-- **路径 B (synthesize_switch，推荐)**：保留 dispatcher，把它的 if-tree
-  替换为 `MLIL_JUMP_TO`，BN 4.1+ 的 HLIL Restructurer 自动渲染为
-  `switch-case`，最贴近源码原貌
-- **路径 A (deflate_hard)**：把 dispatcher 整体绕掉，每个 `state = const`
-  直接接到对应真实块，输出 goto 链；块数最少
-- **路径 auto (推荐入口)**：先尝试 B，B 拒绝时自动 fallback 到 A，用户
-  无需手动判断函数类型
+## 1. 能保证什么，不能保证什么
 
-实测 39 个 OLLVM CFF 函数 (arm64-v8a / libkste / libSeQing)：
+对任意二进制同时要求“完整通用去混淆、总能判定语义等价、始终低复杂度”是不
+可能的。一般程序等价是不可判定问题；工程上可实现的边界是：
 
-- **半数以上函数 HLIL 行数下降 20-59%** (短路真实块到 handler 后 BN
-  HLIL Restructurer 能识别 if/while)
-- 0 副作用丢失，0 孤立跳转
+- 发现阶段尽量宽，不用样本经验阈值排除候选；
+- 接受阶段严格，只改写具有局部证书的边；
+- 不认识的表达式返回 `Unknown`，而不是猜测；
+- 超时或资源不足只会少改，不会放宽正确性条件；
+- 允许有些函数保持不变，以换取可审计的安全边界。
 
-## 2. 安装
+当前证书证明的是受支持 MLIL 子集中的局部边等价：在精确入口 bit-vector 状态
+下，原路径只穿过已认证的纯 dispatcher，并到达与新边相同的真实块；被跳过的
+状态写按原顺序 replay。它还验证 CFG 闭合、源映射和 MLIL 可观察副作用集合。
+这比回归测试强，但仍不是 Coq/SMT 对完整 Binary Ninja MLIL 语义的机器证明；
+测试通过也不应被描述为任意程序的完整等价证明。
 
-把整个 `MikuCffHelper` 文件夹放到 Binary Ninja 的 `plugins` 目录下。
+理论依据包括 [Rice 定理](https://doi.org/10.1090/S0002-9947-1953-0053041-6)、
+[抽象解释](https://doi.org/10.1145/512950.512973) 和
+[translation validation](https://doi.org/10.1007/BFb0054170)。
 
-```
-~/.binaryninja/plugins/MikuCffHelper/
-```
+## 2. 默认算法
 
-依赖：Binary Ninja 4.1 或更高 (HLIL Restructurer 把 jump_to 渲染为 switch
-依赖此版本)。
+### 2.1 参数无关的候选发现
 
-## 3. 使用
+1. 对函数 CFG 计算 SCC、支配关系和循环分量。
+2. 从 SCC 分支谓词做完整 backward slice，得到实际影响分发的状态变量。
+3. 只把满足下列条件的块纳入 dispatcher 证明域：
+   - 整数表达式的位宽来自 MLIL/类型事实；
+   - 仅含已实现的精确 bit-vector 运算；
+   - 只允许可 replay 的 `SetVar` 与终结 `If/Goto`；
+   - 遇到 call、load、store、return、intrinsic、syscall、trap 等立即拒绝该路径。
 
-### 3.1 在 BN UI 中
+这里没有 flattening score、最少常量数、常量跨度、固定轮数、固定 `k`、访问
+次数阈值或算法内 timeout。`>= 2` 个分支结果只是“分支”的结构定义，不是从
+样本拟合的参数。
 
-打开二进制后，右键想去混淆的函数 → `Function Analysis`，选其中一个 activity
-启用 (互斥)：
+### 2.2 精确状态解释与边证书
 
-| activity | 行为 | 推荐场景 |
-|----------|------|----------|
-| `workflow_patch_mlil_auto` | **首选**：先 B，B 不动则 A 兜底 | 不确定函数特征时直接选这个 |
-| `workflow_patch_mlil_switch` | 只跑 B (synthesize_switch) | 只想要 switch 形态、能接受部分函数无变换 |
-| `workflow_patch_mlil` | 只跑 A (deflate_hard) | 函数已知不适合 switch、要最大压缩块数 |
+状态解释器使用 MLIL 指定宽度的有限 bit-vector 语义。每个上下文由
+`(dispatcher block, exact state tuple)` 唯一标识；同一上下文只求值一次，并在
+所有入边之间共享 memo。语法中出现的状态原子和 dispatcher 块数共同给出有限
+状态域，达到域边界、遇环、除零、非法移位或未支持表达式时返回 `Unknown`。
 
-启用后 BN 会自动重分析。HLIL 视图刷新后能看到 switch 或 goto 链形态。
+每条 `CertifiedEdge` 记录：
 
-### 3.2 命令行 (推荐用于批量 / 脚本化)
+- 被改写源块和终结器分支；
+- 原 dispatcher 入口；
+- 精确入口状态元组；
+- 唯一真实块目标；
+- 沿原路径发生的有序状态写。
 
-`tools/deflate_cli.py` 不需要打开 BN UI，直接对二进制跑工作流并输出 HLIL：
+同一源边得到冲突目标或冲突 replay 序列时，整条边拒绝改写。状态写不会被
+删除：短接前会在新边上按原顺序 replay，保留 dispatcher 外部可能观察到的值。
+
+### 2.3 两个候选与 auto 选择
+
+- `deflate`：把已认证边直接短接到真实块，通常得到较简洁的
+  `if/while/goto`。
+- `switch`：仅对具有精确单例状态的入边增加 guarded `MLIL_JUMP_TO`；未知值
+  继续走原比较树，不假设观察到的 case 已经穷尽。
+- `auto`（默认）：独立构造并验证两个候选，按可达 CFG 的
+  `(decision blocks, blocks, instructions)` 字典序选择更简单者。没有权重；完全
+  相同时仅为显示效果优先 `switch`。
+
+### 2.4 Detached MLIL 提交
+
+默认路径遵守 Binary Ninja 当前 Workflow/IL 生命周期：
+
+1. 从 `AnalysisContext.mlil` 读取本轮最新 IL；
+2. `translate` 到 detached `MediumLevelILFunction`；
+3. 使用已创建并正确 `mark_label` 的标签构造控制流；
+4. synthetic 指令使用 indirect `ILSourceLocation`，原指令保持唯一 direct 映射；
+5. `finalize()`，再 `generate_ssa_form()`；
+6. 验证 CFG 目标、源映射、候选证书和可观察副作用；
+7. 全部成功后，唯一一次写入 `AnalysisContext.set_mlil_function`。
+
+构造或验证失败时 detached candidate 被丢弃，原 IL 不受影响。实现依据见 Binary
+Ninja 官方的 [Modifying ILs](https://docs.binary.ninja/dev/bnil-modifying.html)
+与 [Workflows](https://docs.binary.ninja/dev/workflows.html)。当前实测环境为 Binary
+Ninja 6.1；兼容层采用 feature detection，不覆盖新版原生 API。
+
+## 3. 复杂度
+
+记函数 CFG 为 `V` 个块、`E` 条边、`I` 条指令；dispatcher 有 `D` 个块，语法
+状态原子数为 `A`。当前实现的保守上界为：
+
+| 阶段 | 复杂度轮廓 |
+| --- | --- |
+| SCC、CFG 邻接、工作表 backward slice | `O(V + E + I)` |
+| 支配查询 | 预计算后区间查询；取决于 BN 的 dominator 实现 |
+| 精确上下文解释 | `C <= D(A + 1)` 个程序派生上下文，每个至多求值一次 |
+| 候选复制与验证 | 对候选 IL/CFG 线性扫描 |
+| `auto` | 至多构造两个候选，常数倍开销 |
+
+因此核心恢复不会出现固定 `k` 上下文的 `A^k` 爆炸；代价是条件状态、未知内存
+或过于复杂的多状态关系会被保守拒绝。外部 `--timeout`、`--max-blocks` 只是用户
+可配置的资源预算，绝不参与“是否语义安全”的判断。
+
+## 4. 安装与使用
+
+将仓库放入 Binary Ninja 插件目录，或创建指向仓库的符号链接，然后重启 BN。
+默认注册 `MikuCffHelper_workflow`，并只自动启用
+`analysis.plugins.workflow_patch_mlil_auto`。旧 LLIL normalizer、显式
+`deflate/switch` 和 HLIL 状态变量命名 helper 默认关闭。
+
+UI 中可在 Workflow Activity 配置里选择：
+
+- `workflow_patch_mlil_auto`：推荐；只提交已验证且结构成本最小的候选；
+- `workflow_patch_mlil`：只尝试 `deflate`；
+- `workflow_patch_mlil_switch`：只尝试 guarded `switch`。
+
+不要同时启用 auto 与显式模式。
+
+无头 CLI：
 
 ```bash
-# 单函数 (auto 模式，B 优先 / A 兜底)
+# 单函数，默认 auto
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4
 
-# 二进制内所有 CFF 候选 (按 Blazytko 启发式自动找)
-python tools/deflate_cli.py example/arm64-v8a.so --all-cff
-
-# 指定路径模式
+# 显式候选类型
+python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --mode deflate
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --mode switch
 
-# 输出到文件
-python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --out /tmp/out.c
+# 枚举存在局部可证边的函数；不使用样本阈值
+python tools/deflate_cli.py example/arm64-v8a.so --all-cff
 
-# 输出去混淆前 HLIL (对照参考)
-python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --before
+# 可选的人为资源预算；达到预算只会跳过
+python tools/deflate_cli.py example/arm64-v8a.so --all-cff --max-blocks 500
 ```
 
-环境变量 `BN_PYTHON` 指向 BN 的 python 包目录 (默认
-`/home/ltlly/tools/binaryninja/python`)。
-
-### 3.3 嵌入式脚本
-
-```python
-import binaryninja as bn
-
-bv = bn.load("/path/to/binary.so", update_analysis=True)
-func = bv.get_function_at(0x4259f4)
-
-settings = bn.Settings()
-settings.set_string(
-    "analysis.workflows.functionWorkflow", "MikuCffHelper_workflow", func
-)
-wf = bn.Workflow("MikuCffHelper_workflow", object_handle=func.handle)
-wf._machine.override_set("analysis.plugins.workflow_patch_mlil_auto", True)
-bv.reanalyze()
-bv.update_analysis_and_wait()
-
-# 输出去混淆后的 HLIL
-for instr in func.hlil.instructions:
-    print(instr)
-```
-
-## 4. 整体 Pipeline
-
-### 4.1 LLIL 层 (低级 IL)
-
-| Pass | 作用 |
-|------|------|
-| `pass_copy_common_block` | 把多前驱的公共后继块复制成各自独占的块 (避免后续 SSA 拆分让状态变量丢失) |
-| `pass_inline_if_cond` | LLIL flag 条件内联到 if 中，消除 flag 中转 |
-| `pass_spilt_if_block` | 让 if 指令独占基本块，方便后续识别 dispatcher |
-
-### 4.2 MLIL 层 (核心)
-
-| Pass | 作用 |
-|------|------|
-| `pass_clear` | 折叠常量 if、串联 goto、合并块 |
-| `pass_mov_state_define` | 把状态常量赋值挪到块尾，方便从 define 处直接走 dispatcher |
-| `pass_deflate_hard` | **路径 A 核心**：基于支配树识别 + 前向符号执行的去平坦化 |
-| `pass_synthesize_switch` | **路径 B 核心**：识别 dispatcher 后写入 jump_to 让 HLIL 渲染为 switch |
-
-### 4.3 HLIL 层
-
-`suggest_stateVar` 命令辅助分析时手动标记状态变量。
-
-## 5. 路径 B：synthesize_switch (双路径合成)
-
-### 5.1 共享前置：dispatcher 识别
-
-1. **CFF 检测 (Blazytko 支配树法)**：找 `flattening_score(D) ≥ 0.3` 且
-   有 back-edge 的块 D 作为 dispatcher 候选；不满足判为非 CFF 函数直接跳过
-2. **状态变量识别**：从 D 后继 BFS 收集"常量比较"的左操作数变量；要求
-   每个变量被赋予 ≥ 2 个 unique 常量 (过滤 SSA 拆解假阳性)
-3. **函数级 CFF 启发式**：所有状态变量的 unique 常量数 ≥ 4 且值域跨度
-   ≥ `0x10000000` (避免 Rust match / C++ stdlib 的小常量分发被误判)
-4. **dispatcher 子图识别 (Tarjan SCC + 副作用筛选)**：含 D 的最大 SCC 中
-   过滤出"纯 dispatcher"块（指令副作用仅限状态变量；禁止 call / store /
-   ret / intrinsic）
-5. **多级别名链跟踪 (`_vars_aliased_to`)**：从 primary 出发不动点迭代，
-   在 *整个函数* 范围内追 `alias = primary_or_alias` 链。范围扩大到全函数
-   是因为 OLLVM CFF 经常用 dispatcher SCC 之外的 alias 拷贝
-   (典型 sub_408b94 `x21_1 = lr_1` 在 dispatcher 块外部被设置，但
-   dispatcher 内大量 `if (x21_1 == K)` 比较)。这一步不影响 dispatcher_blocks
-   边界 (后者仍由严格 pure_dispatcher 判据决定)，只让 case_values 收集
-   到完整的 cmp 数据
-6. **前向模拟 (整数解释器)**：从每个 `state = const` 出发，在 dispatcher
-   子图内逐块模拟到真实块入口，构建 `{state_value → real_block_start}`
-   映射
-
-### 5.2 P1 (干净 jump_to 替换)
-
-P1 必须 *全部* 满足：
-
-1. `transitions ≥ 2` 个，distinct targets ≥ 2
-2. **fully_resolved**：函数里所有 `primary = const` 赋值都至少解析出一个
-   target
-3. **case_values ⊆ transitions**：dispatcher 内每一个 `(primary == const)`
-   比较的 const 都被覆盖。任一未覆盖意味着该 state 值进 jump_to 时
-   undefined，BN restructurer 会清掉对应 handler，函数语义被破坏
-4. **case_values 非空**：candidate 必须实际是 dispatch 变量
-   (避免 sub_408b94 上 lr_1 被误选)
-
-满足 P1 时，dispatcher_entry 首指令直接被 `jump_to(state, label_map)`
-替换，原 cmp-tree 被吃掉，HLIL 最干净。
-
-### 5.3 P2 (guarded jump_to 兜底)
-
-P1 失败时启用：
-
-- 在 MLIL 末尾追加 guard block：
-  `jump_to(primary, {V_resolved: T_resolved, V_unresolved: dispatcher_entry})`
-- 所有 *real block* 末尾指向 dispatcher_entry 的 goto/if 重定向到 guard
-- 原 cmp-tree 完整保留，未解析 case 通过 `jump_to → dispatcher_entry → cmp-tree`
-  路径兜底
-- HLIL 渲染为 switch + default
-
-### 5.4 嵌套 dispatcher 检测：iter 2+ 放宽阈值
-
-`pass_synthesize_switch` 多迭代识别嵌套 dispatcher。OLLVM CFF 经常分多层
-平坦化 (内层每个 case body 又是一个状态机)。
-
-iter 1 用默认 `_FLATTENING_SCORE_THRESHOLD = 0.3` (Blazytko 经验阈值)
-作为 CFF 门控，iter 2+ 用 `_NESTED_FLATTENING_SCORE_THRESHOLD = 0.10`：
-
-- 内层 dispatcher 在外层 case body 内，支配子树占函数总块数比例自然小
-- 0.30 阈值会漏掉所有内层；0.10 阈值能识别内层 (实测 sub_407368 内层
-  state machine 在 iter 1 后被识别处理)
-- iter 2+ 已知函数是 CFF (iter 1 已确认)，跳过 `_function_looks_like_cff`
-  防止内层只有 3-4 个 state 值时被假阳性过滤
-
-新建 dispatcher-like 块 (P2 guard、所有 mini-block) 自动加入
-`already_rewritten`，否则 iter 2+ 的 detect 会把它们误识别为嵌套 dispatcher
-导致漏检真正的内层。
-
-### 5.5 短路 state SetVar (让真实块脱离 dispatcher)
-
-P1/P2 安装完后立即跑 `_shortcircuit_state_writes`：对每个已解析 (V, T)，
-把函数中所有 `primary = V` SetVar 替换为 `goto mini_block`，mini-block 内
-是 `[primary = V; goto T]` (path A 风格 mini-block)。
-
-**为什么需要这一步**：
-
-- 单纯安装 jump_to / guard 后，真实块仍然 `state = V; goto dispatcher`
-  绕一圈到 jump_to / guard 才到 handler
-- BN HLIL Restructurer 看到的是「真实块 → dispatcher → switch → handler」，
-  没法把它看作自然 CFG，最终输出仍是状态机形态的 switch
-- 短路后真实块直接 `goto handler`，dispatcher 几乎只在初始 state 设置
-  后被入口跳一次，restructurer 看到的是「真实块 → handler」干净 CFG，
-  能识别出 if / while / for 等结构，**输出更接近 OLLVM 平坦化前的源码**
-
-**实测效果**: 39 个测试函数中多数 HLIL 行数下降 20-59%。典型例子 sub_407368 的内层
-状态机被还原为：
-
-```c
-// 短路前 (只有 switch + 状态值切换)
-case 0xad2b5e0d:
-    int32_t i = 0x3288bce9
-    while (true)
-        if (i == 0xdbb0e92f) ...
-        i = -0x214b583
-        ...
-
-// 短路后 (BN 识别出 do-while + 嵌套 while)
-case 0xad2b5e0d:
-    int64_t x8_3 = *var_70
-    int32_t i = 0x3288bce9
-    while (i != 0xdbb0e92f)        // 自然 while 循环
-        if (i == 0x3288bce9)
-            i = -0x214b583
-        if (i == 0xfdeb4a7d)
-            int32_t x8_4 = 0x73b2f1f1
-            while (true)            // 嵌套循环
-                if (x8_4 == 0xde27171) break
-                if (x8_4 == 0xdd08aef8)
-                    int32_t j = -0x1e9ba5f2
-                    while (j != 0xc0835fbf)   // 三层嵌套，原是状态机
-                        if (j == 0x59207abb)
-                            free(x8_3)        // 关键 call 完整保留
-                            ...
-```
-
-保留原 SetVar 副本到 mini-block，state 变量的写入语义不丢失。
-
-### 5.6 形式化等价性
-
-参照 Chisel (OOPSLA 2024) 的 Control-Flow Extension (CFE) 形式化：去混淆
-trace 是混淆 trace 的子序列，保留所有副作用，删去状态机内部状态写入与
-分发判断。
-
-具体到本插件：
-
-- **真实块体未改** → call / store / return 完整保留
-- **真实块之间的转移**由整型模拟给出，与原状态机分发的具体执行结果一致
-- **状态写入**仍在 P1 (jump_to 之后) / P2 (guard 之前) 里执行 → 状态变量
-  在外部读取时数值正确
-- **删去的只是 dispatcher 内部的状态比较跳转** → T' 是 T 的子序列
-
-∴ 对外可见副作用集合等价 (CFE 反向)。
-
-### 5.7 多角度等价性 verifier
-
-为了保证「任何场景下变换等价」，从 5 个独立角度检查：
-
-| 角度 | 实现 | 位置 |
-|------|------|------|
-| MLIL 副作用集合 ⊇ | `_collect_side_effect_signatures` 收集 `(op_id, address)`；`_verify_no_side_effect_loss` 比对 | pass 内嵌 (`pass_synthesize_switch`、`pass_deflate_hard` 末尾)，发现丢失 `log_error` |
-| HLIL call 集合 ⊇ | `_collect_hlil_side_effects` 用 `traverse()` 递归收集所有 call (含内联在 expression 里的) | `tools/regression_test.py`，回归测试时 fresh BV snapshot |
-| HLIL store 集合 ⊇ | 同上，识别 `*p = v` 与 `arr[i] = v` 形式的 HLIL_ASSIGN | 同上 |
-| HLIL return 集合 ⊇ | 同上，HLIL_RET / HLIL_NORET | 同上 |
-| 无 ORPHAN 跳转 | HLIL 里搜 `jump(0x` 子串 (BN 把目标不在块入口的间接跳渲染成这个形式) | 同上 |
-
-为什么需要 HLIL 层 verifier：MLIL 层只看「指令是否物理存在」(op_id+address)，
-但 BN HLIL Restructurer 偶尔在 jump_to / dispatcher 复杂度过高时把某些 call
-从 HLIL 视图剔除 (MLIL 还在，HLIL 看不到)。HLIL 是 *用户看到的输出层级*，
-所以这层验证才是真正"等价性"的最后一道关卡。
-
-`_SIDE_EFFECT_OPS` 覆盖 23 种 MLIL 操作 (call / store / ret / intrinsic /
-trap / syscall 等)。
-
-实测 39 函数全部通过 5 个角度的检查：0 MLIL SE_LOST、0 HLIL call_lost、
-0 HLIL store_lost、0 HLIL ret_lost、0 ORPHAN。
-
-## 6. 路径 A：deflate_hard (块数最少)
-
-### 6.1 算法步骤
-
-```
-1. CFF 门控 (与 5.1 步骤 1-3 共享)
-
-2. dispatcher 子图识别 (与 5.1 步骤 4 共享)
-
-3. 块级前向模拟:
-   _walk_block_tail: 走完 define 所在块剩余指令 (要求只含 state SetVar/goto/if)
-   进入 dispatcher 后逐基本块走 _walk_dispatcher_block，
-   直到落到一个真实块入口
-
-4. 安全约束:
-   走出 dispatcher 时落点必须 == basic_block.start，
-   否则放弃 patch (避免跳到块中段产生 jump(addr) 间接跳转)
-
-5. Patch 形式:
-   把 state SetVar 替换为 [原赋值副本; goto target_real_block_start]
-   保留赋值副本以维持外部可见副作用
-   相同 (state_var, value, target) 的 patch 共享同一个 mini-block
-```
-
-### 6.2 实现要点
-
-- **整型解释器**：覆盖 const / var / add / sub / mul / and / or / xor /
-  shift / zx / sx 与全部 10 种比较，完全不依赖 z3
-- **单 pass 时间预算 30 秒**：超出停止保留已 patch 部分
-- **复杂度**：O(defines × dispatcher_depth)，外层迭代上限 6
-
-### 6.3 真实块转移图诊断 API
-
-`build_real_block_transition_graph` 返回 `{R: set(R')}`，对每个真实块 R
-枚举它内部的状态赋值，forward_resolve 找出对应的下一个真实块 R'。
-
-```python
-from MikuCffHelper.passes.mid.deflatHardPass import build_real_block_transition_graph
-g = build_real_block_transition_graph(func.mlil)
-```
-
-类似 Chisel 的 Control-Flow Skeleton (CFS) 概念，可作为：
-
-- **失败诊断**：哪些真实块之间的转移没被 patch
-- **未来 synthesis 基础**：在此骨架上做 program synthesis 直接生成新函数
-
-## 7. 路径 auto (B 优先 / A 兜底)
-
-```
-clear → mov_state_define
-     → synthesize_switch (返回 bool 是否变换)
-     → 若 B 没变换：deflate_hard ×2
-     → clear
-```
-
-实测 39 函数 (含短路 + 全函数 alias 跟踪)：
-
-- **30** 函数 HLIL 含 `switch` 关键字
-- **7** 函数 BN 把 switch 进一步还原为纯 if/while/goto 链 (因短路后真实块
-  脱离 dispatcher，自然 CFG 结构被识别出来)
-- **2** 函数仍无 switch / 无显著块数下降 (`sub_42a21c` multi-state 跨函数
-  引用 dispatcher；`sub_45985c` dispatcher 全用 CMP_NE/CMP_SGT 没 CMP_E)
-- 总变换率 **37/39 (95%)**
-- 0 MLIL SE_LOST，0 HLIL call/store/ret 丢失，0 ORPHAN
-
-## 8. 回归测试
-
-`tools/regression_test.py` 把当前快照与 `tools/baseline.json` 对比，发现
-回归非 0 退出：
+CLI 默认禁用用户目录中的其他 BN 插件，显式加载当前工作区，并验证实际模块
+路径，避免回归时误用旧安装。
+
+环境变量：
+
+- `BN_PYTHON`：Binary Ninja Python 包目录，默认
+  `/home/ltlly/tools/binaryninja/python`；
+- `SAMPLE_DIR`：严格回归样本目录，默认 `example/`。
+
+## 5. 验证与实测
+
+### 5.1 固定真实样本门禁
+
+`tools/baseline.json` 固定 3 个样本的 SHA-256 和 39 个函数地址。缺样本、哈希
+变化、函数缺失、unknown、异常、超时、orphan jump、MLIL/HLIL 副作用丢失，
+以及 MLIL 副作用新增都会硬失败。报告同时保存完整 before/after JSON 和 CSV。
+
+2026-08-30 在 Binary Ninja 6.1 的冻结实现上：
+
+| 指标 | 结果 |
+| --- | ---: |
+| 正常完成 | 39 / 39 |
+| 已认证变换 | 34 / 39（87.2%） |
+| MLIL observable effects | 289 → 289，lost 0，added 0 |
+| orphan jump | 0 |
+| MLIL blocks / edges / instructions | 1430 → 1330 / 2044 → 1859 / 4280 → 4214 |
+| HLIL blocks / edges / instructions | 1385 → 1315 / 1979 → 1836 / 2669 → 2567 |
+| 总 wall time / 单函数中位数 | 140.741 s / 2.659 s |
+| peak RSS | 约 2.74 GiB |
+
+HLIL restructurer 仍会在结构视图中重复显示 5 个 `ret` 和 2 个 `store`；对应
+MLIL 没有新增，故记录为诊断而不是执行语义变化。39 函数中 16 个的报告线性
+列举顺序变化，但 observable-effect multiset 完全一致；这不是完整 trace proof，
+也是后续接入 CF-GKAT 类控制流证书的动机。
 
 ```bash
-# 与 baseline 对比 (默认)
 python tools/regression_test.py
-
-# 改 heuristic 后确认改进无误，更新 baseline
-python tools/regression_test.py --update-baseline
-
-# 只跑某个 binary
 python tools/regression_test.py --only arm64-v8a.so
-
-# 单函数调试
 python tools/regression_test.py --func 0x4259f4 --bin arm64-v8a.so
+
+# 只有完整 manifest 且绝对安全门禁全通过时才会更新
+python tools/regression_test.py --update-baseline
 ```
 
-详见 `tools/README.md`。
+### 5.2 独立可再生成语料
 
-## 9. 诊断日志
+`tools/corpus/` 包含 8 个 0BSD C fixture：单 switch、if-chain、嵌套 CFF、
+多状态/连续写、XOR alias、条件状态、副作用以及普通控制流负样本。构建器生成
+24 个 artifact：x86-64 GCC O0/O2 可执行文件和 i386 O0 relocatable object；
+16 个可执行 artifact 均运行 self-test。
 
-所有关键决策点会输出到 BN Logger (channel `MikuCffHelper`)：
+固定地址 benchmark 对 24 个 artifact 的 27 个函数逐一新建 BinaryView，不靠
+detector 选择“成功样本”。结果为 27/27 成功，7 个有证书的 CFF 被改写，20 个
+保守不变；三个普通控制流负样本全部不变，MLIL call/store/ret 计数变化均为 0。
+总 MLIL blocks `-26`、HLIL instructions `-62`；变换中位数 0.012 s，最大
+0.035 s（小型合成函数数据，不能外推到大函数）。
 
-- `[synth]` synthesize_switch 的 P1/P2 选择、拒绝原因、transitions 计数
-- `[deflate]` deflate_hard 的 dispatcher 检测、forward_resolve 解析失败
-- `[auto]` auto workflow 的 B 成功 / fallback 到 A 的决策
+```bash
+python tools/corpus/build_corpus.py
+python -m unittest \
+  tools.tests.test_regression_gate \
+  tools.corpus.tests.test_benchmark \
+  tools.corpus.tests.test_index_samples
 
-UI 中 Log 面板按这些 prefix 过滤可快速定位 pass 行为。
+python tools/corpus/benchmark.py \
+  --manifest tools/corpus/manifest.json --root . --plugin-root . \
+  --json /tmp/miku-corpus.json --csv /tmp/miku-corpus.csv
+```
 
-## 10. 已知限制
+语料的来源、许可、编译命令、SHA-256、符号地址和 loader image base 均记录在
+`tools/corpus/manifest.json`。现有外部二进制来源未知，manifest 明确标为
+`UNKNOWN/nonredistributable`；仓库自建 fixture 为 0BSD。
 
-- **状态变量识别启发式**：依赖"被赋予 ≥ 2 unique 常量"，对于使用单一加密
-  函数生成状态值的变种可能失效
-- **未实现条件状态赋值的精确处理**：`if (cond) state = A else state = B`
-  目前为各 SetVar 独立 patch，没有把分支条件直接落到原 if 上
-- **整型解释器局限**：状态转移含浮点 / 内存读 / 不支持的运算时会保守跳过
-- **多 state 联合分发**：dispatcher 用多个 state 变量联合分发时，只会选
-  unique 常量数最多的一个 primary，其余靠 BN 后续分析消化
-- **跨函数 CFF**：state 经全局 / 参数跨函数传递的样本不处理
-- **极大函数 (>800 块)**：dispatcher 检测开销 + 多次外层迭代可能超过 BN
-  默认 60 秒单函数分析时间限制；可调高 `analysis.limits.maxFunctionAnalysisTime`
+## 6. 已知限制
 
-## 11. 设计参考的前沿工作
+- 未建模的 load、内存别名、call 结果、浮点/向量表达式会使路径变为
+  `Unknown`；
+- 条件状态写只有在入口环境能唯一决定时才可短接；
+- 多状态联合分发可能使程序派生状态域很大，达到域边界即不变换；
+- 当前是函数内分析，不恢复跨函数 dispatcher；
+- switch 候选只做 guarded partial rewrite，不宣称 case 集完备；
+- Binary Ninja HLIL 是重构后的表示层，不应单独作为执行语义证书；
+- 当前局部证书尚未实现完整 MLIL trace equivalence 或内存模型证明。
 
-| 工作 | 关键贡献 | 我们的采纳 |
-|------|----------|------------|
-| **Chisel** (Mariano et al., OOPSLA 2024) [\[1\]](https://dl.acm.org/doi/10.1145/3689789) | Trace-informed compositional program synthesis；把 Control-Flow Extension (CFE) 形式化为"原 trace 是混淆 trace 的子序列" | 采纳 CFE 形式化作为等价性论证依据；因为没有 trace，改用支配树 + 状态变量 unique-value 启发式 |
-| **Blazytko 自动检测 flattening** (synthesis.to, 2021) [\[2\]](https://synthesis.to/2021/03/03/flattening_detection.html) | flattening_score = #{被 D 支配的块} / #{总块数}；要求被 D 支配的块跳回 D | 直接作为 dispatcher 入口检测 + 函数级 CFF 门控 |
-| **D810** (eshard 博客) [\[3\]](https://eshard.com/posts/D810-a-journey-into-control-flow-unflattening) | 基于 Hex-Rays microcode；MopTracker 反向追状态变量；多值时块复制 | 参考"状态变量反向追踪"思路 |
-| **CaDeCFF** (Internetware 2022) [\[4\]](https://dl.acm.org/doi/10.1145/3545258.3545269) | forward DFA 找 useful blocks；selective symbolic execution 恢复 CFG | 启发"识别真实块"方向 |
-| **FlowSight** (IEEE SEAI 2025) [\[5\]](https://ieeexplore.ieee.org/document/11108802) | data-flow-aware 的 OO Block 概念 | 借用"区分 dispatcher 块与真实块"的二分思路 |
-| **DEBRA** (Workshop on SURE 2025) [\[6\]](https://dl.acm.org/doi/10.1145/3733822.3764674) | 真实世界去混淆方法的 benchmark | 评测方法论参考 |
-| **ollvm-unflattener** [\[7\]](https://github.com/cdong1012/ollvm-unflattener) | 开源工具，~83% 通过率 | 对比基线 |
-| **Zerotistic CFF Remover** [\[8\]](https://zerotistic.blog/posts/cff-remover/) | dispatcher 的 weighted scoring；3 阶段状态变量识别 | 参考多阶段验证 |
+## 7. 研究结论与工程决策
 
-### 参考文献
+### 7.1 总结论
 
-[1] Mariano, B., Wang, Z., Pailoor, S., Collberg, C., & Dillig, I. (2024).
-Control-Flow Deobfuscation Using Trace-Informed Compositional Program
-Synthesis. *Proc. ACM Program. Lang.* 8, OOPSLA2, Article 349.
+研究结论不是寻找一个“万能识别阈值”，而是改变正确性契约：
 
-[2] Blazytko, T. (2021). Automated Detection of Control-flow Flattening.
-*synthesis.to* blog.
+> 对明确建模的 CFF/CFE 子类做 sound-but-incomplete、fail-closed 的恢复；发现
+> 可以宽，提交必须有证书。Unknown、超时、别名不明或调用语义不明时保持原 IL。
 
-[3] eshard. D810: A journey into control flow unflattening.
+原因是一般图灵完备程序上，以下三项不能同时实现：
 
-[4] CaDeCFF: Compiler-Agnostic Deobfuscator of Control Flow Flattening.
-*Proceedings of the 13th Asia-Pacific Symposium on Internetware*, 2022.
+1. 对任意混淆都通用；
+2. 总能完整判定变换前后语义等价；
+3. 始终保持低复杂度。
 
-[5] FlowSight: A Data Flow-Aware Control Flow Flattening Deobfuscation
-Approach. *IEEE 5th International Conference on Software Engineering and
-Artificial Intelligence (SEAI)*, 2025.
+[Rice 定理](https://doi.org/10.1090/S0002-9947-1953-0053041-6) 给出第一、二项
+无法同时满足的理论边界。因此，“保证等价性”必须限定为受支持语义子集内的
+sound 证书，而“通用性”体现为宽发现和不依赖某个混淆器模板，并允许安全漏报。
 
-[6] DEBRA: A Real-World Benchmark For Evaluating Deobfuscation Methods.
-*2025 Workshop on Software Understanding and Reverse Engineering*.
+### 7.2 一手研究的可用结论
 
-## 12. 后续 TODO
+| 工作 | 已核验事实 | 对本项目的结论 |
+| --- | --- | --- |
+| [Cousot & Cousot 1977：抽象解释](https://doi.org/10.1145/512950.512973) | 用抽象域和不动点安全近似具体语义，但允许不精确 | 状态传播必须有 `Unknown/Top`；只有唯一精确 bit-vector 才能短接 |
+| [Pnueli 等 1998：Translation Validation](https://doi.org/10.1007/BFb0054170) | 每次验证本次变换的 refinement，而非先假设整个变换器永远正确 | detached candidate 验证通过后才提交；rewriter 本身不应成为唯一可信边界 |
+| [CaDeCFF 2022](https://doi.org/10.1145/3545258.3545269) | 组合状态数据流、选择性符号执行和代码重建以适应编译器差异 | 数据流用于宽发现，昂贵推理只用于待改写 dispatcher 片段 |
+| [Chisel 2024](https://doi.org/10.1145/3689789) | 用 trace-subsequence 描述 CFE，并以动态 trace 和组合式合成恢复多类 CFE | trace 投影是合适规格；动态覆盖与测试不能替代全路径等价证书 |
+| [Alive2 2021](https://doi.org/10.1145/3453483.3454030) | 对 LLVM IR 做 bounded translation validation，资源限制会带来漏检边界 | SMT 适合局部 terminator/DAG refinement；不能直接拿 LLVM 语义证明 BN MLIL |
+| [Baek & Lee 2026：DeFFai](https://doi.org/10.1109/TSE.2026.3659437) | 用抽象解释和 `k-switch context sensitivity` 静态恢复 CFF | 模式无关抽象解释方向成立，但公开原型的固定 `k` 与 loop threshold 不满足本项目要求 |
+| [CF-GKAT 2025](https://doi.org/10.1145/3704857) | 对有限 indicator 的受限 goto/break/return 语言可 sound、complete 判定 trace equivalence；固定测试集合时接近线性 | 是最适合的下一层低成本控制流证书，但仍需审计 MLIL 编码并另证数据/内存语义 |
 
-- 把 `if (cond) state = A else state = B` 模式直接 rewrite 成
-  `if (cond) goto T_A else goto T_B`
-- 跨函数 CFF：识别 state 变量的全局 / struct 偏移，跨调用图传递
-  forward_resolve 的环境
-- 动态等价性 fuzzer：随机输入跑前后两个版本，比 trace (call sequence +
-  内存写 + 返回值)，比静态副作用签名更可靠
-- 多 state primary 联合分发：把 N 个 state var 合成 (N×bitwidth) 虚拟
-  var，jump_to 用合成 key
+DeFFai 的参数限制不是推测：作者
+[CLI](https://github.com/cnu-ants/DeFFai/blob/395e66a50a7e414c4ab7873e58a2b4307c90f342/README.md#L15-L17)
+明确要求 `k` 和 loop-count threshold；其
+[context 实现](https://github.com/cnu-ants/DeFFai/blob/395e66a50a7e414c4ab7873e58a2b4307c90f342/transformer/flaCtxt2.ml#L103-L173)
+保存最近至多 `k` 次 switch 选择。若 outcome 字母表规模为 `A`，上下文数量由
+实现结构可推得最坏为 `O(A^k)`。这是源码导出的复杂度结论，不是论文声称的正式
+定理；本项目因此没有照搬固定 `k`。
+
+CFG 廉价前置采用 [Tarjan SCC](https://doi.org/10.1137/0201010) 和支配关系；
+支配算法复杂度参考
+[Lengauer–Tarjan](https://doi.org/10.1145/357062.357071)。这些结构算法适合生成
+候选，但 flattening score 之类结构分数不能成为语义安全证明。
+
+### 7.3 落到当前实现的六条决策
+
+1. **发现与授权分离**：SCC、支配、回边和 backward slice 只发现候选；只有
+   `CertifiedEdge` 可以授权改写。
+2. **精确值而非固定深度**：上下文是 `(block, exact state tuple)`，容量由当前
+   程序的 dispatcher 块和语法状态原子推导；不保存固定长度历史。
+3. **副作用全部可观察**：call/store/return/intrinsic/syscall/trap 不能被投影
+   删除；状态写无法证明私有时必须 replay。
+4. **局部验证而非全函数符号执行**：只解释纯 dispatcher 与被改写终结器，避免
+   默认全路径 SMT 的复杂度和内存爆炸。
+5. **资源预算不参与正确性**：timeout、内存或用户 `--max-blocks` 触发时唯一结果
+   是拒绝/跳过，不会用近似结果继续提交。
+6. **先验证后提交**：candidate 在 detached MLIL 中完成 label、source map、
+   finalize、SSA、CFG/effect/certificate 验证，最后才替换 `AnalysisContext.mlil`。
+
+### 7.4 当前保证分层
+
+| 层级 | 当前状态 | 含义 |
+| --- | --- | --- |
+| 局部 bit-vector/边证书 | 已实现 | 对受支持表达式和精确入口状态证明 dispatcher macro-step 的唯一目标，并 replay 状态写 |
+| detached 结构与 effect validation | 已实现 | CFG 闭合、source mapping 可用，MLIL observable-effect multiset 不增不减 |
+| 固定真实样本与独立语料 | 已实现 | 防止已知回归、样本漂移、负样本误改和只挑成功样本 |
+| 完整控制流 trace equivalence | 未实现 | 后续可用 CF-GKAT 风格 action/indicator 编码补强 |
+| 完整 MLIL 内存/异常/跨函数形式语义证明 | 未实现 | 需要正式 MLIL 语义、内存模型和可信编码，不能用测试结果替代 |
+
+因此当前可以严谨地声称“已提交的边满足本项目建模子集内的局部等价证书，并通过
+严格结构/副作用门禁”，不能声称“已经形式化证明任意二进制完整语义等价”。
+
+### 7.5 后续优先级
+
+1. 实现 MLIL CFG → CF-GKAT 风格 action/indicator 的可审计编码，证明源 trace
+   投影掉纯 dispatcher action 后与 candidate trace 相等。
+2. 对局部 bit-vector terminator 加可选 SMT refinement；unsupported 或 timeout
+   仍然 fail-closed。
+3. 建模异常边和状态变量可观察性，只有证明私有的 dispatcher 写才允许投影。
+4. 扩充不同混淆器、架构、优化级别和联合状态语料，但不得由语料反向产生正确性
+   阈值。

@@ -1,15 +1,6 @@
-"""MikuCffHelper工具模块
-包含控制流分析、状态机分析、指令分析等工具类
-"""
+"""Shared utilities with lazy loading for optional legacy dependencies."""
 
-from .cfg_analyzer import CFGAnalyzer
-from .state_machine import StateMachine
-from .instruction_analyzer import (
-    InstructionAnalyzer,
-    unsigned_to_signed_32bit,
-)
-from .instr_vistor import SimpleVisitor
-from .mikuPlugin import suggest_stateVar, log_info, log_warn, log_error
+from .mikuPlugin import log_error, log_info, log_warn, suggest_stateVar
 
 __all__ = [
     "CFGAnalyzer",
@@ -22,3 +13,29 @@ __all__ = [
     "log_warn",
     "log_error",
 ]
+
+
+def __getattr__(name):
+    if name == "CFGAnalyzer":
+        from .cfg_analyzer import CFGAnalyzer
+
+        return CFGAnalyzer
+    if name == "StateMachine":
+        from .state_machine import StateMachine
+
+        return StateMachine
+    if name in {"InstructionAnalyzer", "unsigned_to_signed_32bit"}:
+        from .instruction_analyzer import (
+            InstructionAnalyzer,
+            unsigned_to_signed_32bit,
+        )
+
+        return {
+            "InstructionAnalyzer": InstructionAnalyzer,
+            "unsigned_to_signed_32bit": unsigned_to_signed_32bit,
+        }[name]
+    if name == "SimpleVisitor":
+        from .instr_vistor import SimpleVisitor
+
+        return SimpleVisitor
+    raise AttributeError(name)

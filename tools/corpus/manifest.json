@@ -1,0 +1,1613 @@
+{
+  "entries": [
+    {
+      "architecture": "x86-64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [],
+      "file_description": "PE32+ executable for MS Windows 10.00 (native), x86-64, 5 sections",
+      "format": "PE",
+      "license": "UNKNOWN",
+      "object_type": "executable-image",
+      "path": "example/6fe4c921d95d0fd139d07e5de03ceee28dcabc8db93bf3b6ebb0f0207bc09648",
+      "provenance": "Pre-existing repository sample; original source is undocumented",
+      "redistributable": false,
+      "role": "unclassified",
+      "sha256": "6fe4c921d95d0fd139d07e5de03ceee28dcabc8db93bf3b6ebb0f0207bc09648",
+      "size": 178520,
+      "variant": "unknown"
+    },
+    {
+      "architecture": "AArch64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x406c0c",
+          "name": "sub_406c0c",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x407368",
+          "name": "sub_407368",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x4075a0",
+          "name": "sub_4075a0",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x407858",
+          "name": "sub_407858",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x407994",
+          "name": "sub_407994",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x407ba0",
+          "name": "sub_407ba0",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x407d8c",
+          "name": "sub_407d8c",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x407f1c",
+          "name": "sub_407f1c",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x40831c",
+          "name": "sub_40831c",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x408804",
+          "name": "sub_408804",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x4089c4",
+          "name": "sub_4089c4",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x408b94",
+          "name": "sub_408b94",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x409208",
+          "name": "sub_409208",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x409488",
+          "name": "sub_409488",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x409604",
+          "name": "sub_409604",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, for Android 27, built by NDK r26b (10909125), BuildID[sha1]=54782b8d59a61421c9739d72d3c04f85c48dc809, stripped",
+      "format": "ELF",
+      "license": "UNKNOWN",
+      "object_type": "shared-object",
+      "path": "example/arm64-v8a.so",
+      "provenance": "Pre-existing repository sample; original source is undocumented",
+      "redistributable": false,
+      "role": "positive-existing",
+      "sha256": "dfb93f8b1f48ffd1f9f44956b1dbea1781bb7913e9ace47fbb8aaf2f5542125a",
+      "size": 1051416,
+      "variant": "AArch64 OLLVM-style CFF; expected functions come from tools/baseline.json"
+    },
+    {
+      "architecture": "AArch64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x698",
+          "address_source": "nm",
+          "loader_image_base": "0x0",
+          "name": "target_function",
+          "source": "ELF symbol table",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /system/bin/linker64, BuildID[sha1]=6ca6473e94fa969dac797da3d9e1f312f1acc267, with debug_info, not stripped",
+      "format": "ELF",
+      "license": "UNKNOWN",
+      "object_type": "shared-object",
+      "path": "example/cff-arm64-v8a.elf",
+      "provenance": "Pre-existing repository sample; original source is undocumented",
+      "redistributable": false,
+      "role": "positive-existing",
+      "sha256": "66333961cb76b06c058a83c3fb08a94e29f3a8a9038648564b2e167f7e47ba4e",
+      "size": 26304,
+      "variant": "AArch64 CFF fixture with symbols"
+    },
+    {
+      "architecture": "AArch64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x45985c",
+          "name": "sub_45985c",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x459a40",
+          "name": "sub_459a40",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x459ed8",
+          "name": "sub_459ed8",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x45a1ec",
+          "name": "sub_45a1ec",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x45a3b8",
+          "name": "sub_45a3b8",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x45a620",
+          "name": "sub_45a620",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x45a864",
+          "name": "sub_45a864",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x45aa54",
+          "name": "sub_45aa54",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x45abfc",
+          "name": "sub_45abfc",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x45adc0",
+          "name": "sub_45adc0",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x45b0b4",
+          "name": "sub_45b0b4",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x45b450",
+          "name": "sub_45b450",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x45b71c",
+          "name": "sub_45b71c",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x45ba24",
+          "name": "sub_45ba24",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x45ce58",
+          "name": "sub_45ce58",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x45d11c",
+          "name": "sub_45d11c",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x45d2ec",
+          "name": "sub_45d2ec",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x45d87c",
+          "name": "sub_45d87c",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x45daa8",
+          "name": "sub_45daa8",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x45dc94",
+          "name": "sub_45dc94",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, for Android 21, built by NDK r23c (8568313), BuildID[sha1]=64a26f23629bd0c09379120624dc87384d941449, stripped",
+      "format": "ELF",
+      "license": "UNKNOWN",
+      "object_type": "shared-object",
+      "path": "example/libSeQing.so",
+      "provenance": "Pre-existing repository sample; original source is undocumented",
+      "redistributable": false,
+      "role": "positive-existing",
+      "sha256": "ecf3793e1a8e0cc23249d0fdf48c21ecdc8795142da300beb0bec3ce03630166",
+      "size": 2522520,
+      "variant": "AArch64 OLLVM-style CFF; expected functions come from tools/baseline.json"
+    },
+    {
+      "architecture": "AArch64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x429c7c",
+          "name": "sub_429c7c",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x42a21c",
+          "name": "sub_42a21c",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x42a690",
+          "name": "sub_42a690",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        },
+        {
+          "address": "0x4365cc",
+          "name": "sub_4365cc",
+          "source": "tools/baseline.json",
+          "symbol_status": "not-present-or-stripped"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, BuildID[sha1]=1e993ffeeeb9e30308c63ad3a0770075ce0e9c72, for Android 21, built by NDK r20b (5948944), stripped",
+      "format": "ELF",
+      "license": "UNKNOWN",
+      "object_type": "shared-object",
+      "path": "example/libkste.so",
+      "provenance": "Pre-existing repository sample; original source is undocumented",
+      "redistributable": false,
+      "role": "positive-existing",
+      "sha256": "b7685b48449c305d5d8399dbfa5094f8432b6612351b226a1efa92b0086c0e5f",
+      "size": 260144,
+      "variant": "AArch64 OLLVM-style CFF; expected functions come from tools/baseline.json"
+    },
+    {
+      "architecture": "x86-64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x401140",
+          "name": "main",
+          "source": "ELF symbol table",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 3.2.0, not stripped",
+      "format": "ELF",
+      "license": "UNKNOWN",
+      "object_type": "executable",
+      "path": "example/source.out",
+      "provenance": "Pre-existing repository sample; original source is undocumented",
+      "redistributable": false,
+      "role": "unclassified",
+      "sha256": "bbaba4ef51a70aff518d8d724c9caabecb9ee7e380a645b5de0734e5683c626e",
+      "size": 20648,
+      "variant": "x86-64 executable, likely local source fixture"
+    },
+    {
+      "architecture": "i386",
+      "bits": 32,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x0",
+          "address_source": "nm",
+          "loader_image_base": "0x0",
+          "name": "corpus_conditional_state",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 32-bit LSB relocatable, Intel i386, version 1 (SYSV), not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-m32",
+          "-std=c11",
+          "-O0",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "-c",
+          "tools/corpus/src/conditional_state.c",
+          "-o",
+          "tools/corpus/artifacts/conditional-state--i386-gcc-o0-object.o"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "i386-gcc-o0-object"
+      },
+      "license": "0BSD",
+      "object_type": "relocatable",
+      "path": "tools/corpus/artifacts/conditional-state--i386-gcc-o0-object.o",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "positive-adversarial",
+      "sha256": "8a13a871ebba2e3b3d785eb0c51f2c633dda004e7469184b0f836935ae75e2da",
+      "size": 1472,
+      "source": "tools/corpus/src/conditional_state.c",
+      "source_id": "conditional-state",
+      "source_role": "positive-adversarial",
+      "validation": {
+        "self_test": "not-applicable"
+      },
+      "variant": "conditional state assignments; Freestanding i386 ELF relocatable object, unoptimized"
+    },
+    {
+      "architecture": "x86-64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x401116",
+          "address_source": "nm",
+          "name": "corpus_conditional_state",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 4.4.0, not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-std=c11",
+          "-O0",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-no-pie",
+          "-Wl,--build-id=none",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "tools/corpus/src/conditional_state.c",
+          "-o",
+          "tools/corpus/artifacts/conditional-state--x86_64-gcc-o0-exe.bin"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "x86_64-gcc-o0-exe"
+      },
+      "license": "0BSD",
+      "object_type": "executable",
+      "path": "tools/corpus/artifacts/conditional-state--x86_64-gcc-o0-exe.bin",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "positive-adversarial",
+      "sha256": "cc1692af1f1537d1cf4fea47602064e4f5be129ebb45299f61680469dfe156b0",
+      "size": 15856,
+      "source": "tools/corpus/src/conditional_state.c",
+      "source_id": "conditional-state",
+      "source_role": "positive-adversarial",
+      "validation": {
+        "self_test": "passed"
+      },
+      "variant": "conditional state assignments; Native x86-64 ELF executable, unoptimized"
+    },
+    {
+      "architecture": "x86-64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x401190",
+          "address_source": "nm",
+          "name": "corpus_conditional_state",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 4.4.0, not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-std=c11",
+          "-O2",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-no-pie",
+          "-Wl,--build-id=none",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "tools/corpus/src/conditional_state.c",
+          "-o",
+          "tools/corpus/artifacts/conditional-state--x86_64-gcc-o2-exe.bin"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "x86_64-gcc-o2-exe"
+      },
+      "license": "0BSD",
+      "object_type": "executable",
+      "path": "tools/corpus/artifacts/conditional-state--x86_64-gcc-o2-exe.bin",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "optimizer-control",
+      "sha256": "86c62d88110f20a8d78d9a74dea59cc0d2c02972a1ef77ae20f9a03c7a15046e",
+      "size": 15856,
+      "source": "tools/corpus/src/conditional_state.c",
+      "source_id": "conditional-state",
+      "source_role": "positive-adversarial",
+      "validation": {
+        "self_test": "passed"
+      },
+      "variant": "conditional state assignments; Native x86-64 ELF executable after compiler optimization"
+    },
+    {
+      "architecture": "i386",
+      "bits": 32,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x0",
+          "address_source": "nm",
+          "loader_image_base": "0x0",
+          "name": "corpus_encoded_alias",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 32-bit LSB relocatable, Intel i386, version 1 (SYSV), not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-m32",
+          "-std=c11",
+          "-O0",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "-c",
+          "tools/corpus/src/encoded_alias.c",
+          "-o",
+          "tools/corpus/artifacts/encoded-alias--i386-gcc-o0-object.o"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "i386-gcc-o0-object"
+      },
+      "license": "0BSD",
+      "object_type": "relocatable",
+      "path": "tools/corpus/artifacts/encoded-alias--i386-gcc-o0-object.o",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "positive-adversarial",
+      "sha256": "75da5195fb400a1eb664a37e11ad0d0e6cd2d98616b05f5feaf18d409edea182",
+      "size": 1384,
+      "source": "tools/corpus/src/encoded_alias.c",
+      "source_id": "encoded-alias",
+      "source_role": "positive-adversarial",
+      "validation": {
+        "self_test": "not-applicable"
+      },
+      "variant": "dispatcher compares an XOR-encoded state alias; Freestanding i386 ELF relocatable object, unoptimized"
+    },
+    {
+      "architecture": "x86-64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x401116",
+          "address_source": "nm",
+          "name": "corpus_encoded_alias",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 4.4.0, not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-std=c11",
+          "-O0",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-no-pie",
+          "-Wl,--build-id=none",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "tools/corpus/src/encoded_alias.c",
+          "-o",
+          "tools/corpus/artifacts/encoded-alias--x86_64-gcc-o0-exe.bin"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "x86_64-gcc-o0-exe"
+      },
+      "license": "0BSD",
+      "object_type": "executable",
+      "path": "tools/corpus/artifacts/encoded-alias--x86_64-gcc-o0-exe.bin",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "positive-adversarial",
+      "sha256": "e32dc618a9a0be2c7deb83b8ed66cfc202fcf03ae2aaefa5546f7cbf223c719d",
+      "size": 15848,
+      "source": "tools/corpus/src/encoded_alias.c",
+      "source_id": "encoded-alias",
+      "source_role": "positive-adversarial",
+      "validation": {
+        "self_test": "passed"
+      },
+      "variant": "dispatcher compares an XOR-encoded state alias; Native x86-64 ELF executable, unoptimized"
+    },
+    {
+      "architecture": "x86-64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x4011a0",
+          "address_source": "nm",
+          "name": "corpus_encoded_alias",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 4.4.0, not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-std=c11",
+          "-O2",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-no-pie",
+          "-Wl,--build-id=none",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "tools/corpus/src/encoded_alias.c",
+          "-o",
+          "tools/corpus/artifacts/encoded-alias--x86_64-gcc-o2-exe.bin"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "x86_64-gcc-o2-exe"
+      },
+      "license": "0BSD",
+      "object_type": "executable",
+      "path": "tools/corpus/artifacts/encoded-alias--x86_64-gcc-o2-exe.bin",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "optimizer-control",
+      "sha256": "e2af628face16cae652ca37181704496757ba56687fe9cad11807898f74daf14",
+      "size": 15848,
+      "source": "tools/corpus/src/encoded_alias.c",
+      "source_id": "encoded-alias",
+      "source_role": "positive-adversarial",
+      "validation": {
+        "self_test": "passed"
+      },
+      "variant": "dispatcher compares an XOR-encoded state alias; Native x86-64 ELF executable after compiler optimization"
+    },
+    {
+      "architecture": "i386",
+      "bits": 32,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x0",
+          "address_source": "nm",
+          "loader_image_base": "0x0",
+          "name": "corpus_if_chain",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 32-bit LSB relocatable, Intel i386, version 1 (SYSV), not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-m32",
+          "-std=c11",
+          "-O0",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "-c",
+          "tools/corpus/src/if_chain.c",
+          "-o",
+          "tools/corpus/artifacts/if-chain--i386-gcc-o0-object.o"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "i386-gcc-o0-object"
+      },
+      "license": "0BSD",
+      "object_type": "relocatable",
+      "path": "tools/corpus/artifacts/if-chain--i386-gcc-o0-object.o",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "positive",
+      "sha256": "84a4dba8bee8f22f6afd4d9257dfc18362301999aa60e96f8d5c416043116b7e",
+      "size": 1468,
+      "source": "tools/corpus/src/if_chain.c",
+      "source_id": "if-chain",
+      "source_role": "positive",
+      "validation": {
+        "self_test": "not-applicable"
+      },
+      "variant": "single-state comparison-chain dispatcher; Freestanding i386 ELF relocatable object, unoptimized"
+    },
+    {
+      "architecture": "x86-64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x401116",
+          "address_source": "nm",
+          "name": "corpus_if_chain",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 4.4.0, not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-std=c11",
+          "-O0",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-no-pie",
+          "-Wl,--build-id=none",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "tools/corpus/src/if_chain.c",
+          "-o",
+          "tools/corpus/artifacts/if-chain--x86_64-gcc-o0-exe.bin"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "x86_64-gcc-o0-exe"
+      },
+      "license": "0BSD",
+      "object_type": "executable",
+      "path": "tools/corpus/artifacts/if-chain--x86_64-gcc-o0-exe.bin",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "positive",
+      "sha256": "553bad64c7c858aa1a08d506ca3474f92014eaf036de37c016ff9a1635b2f15a",
+      "size": 15832,
+      "source": "tools/corpus/src/if_chain.c",
+      "source_id": "if-chain",
+      "source_role": "positive",
+      "validation": {
+        "self_test": "passed"
+      },
+      "variant": "single-state comparison-chain dispatcher; Native x86-64 ELF executable, unoptimized"
+    },
+    {
+      "architecture": "x86-64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x401190",
+          "address_source": "nm",
+          "name": "corpus_if_chain",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 4.4.0, not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-std=c11",
+          "-O2",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-no-pie",
+          "-Wl,--build-id=none",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "tools/corpus/src/if_chain.c",
+          "-o",
+          "tools/corpus/artifacts/if-chain--x86_64-gcc-o2-exe.bin"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "x86_64-gcc-o2-exe"
+      },
+      "license": "0BSD",
+      "object_type": "executable",
+      "path": "tools/corpus/artifacts/if-chain--x86_64-gcc-o2-exe.bin",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "optimizer-control",
+      "sha256": "dff714b1f41604ac62be97d0099ac8527a327e14616a7e6c1ef83e9eff30ae6f",
+      "size": 15832,
+      "source": "tools/corpus/src/if_chain.c",
+      "source_id": "if-chain",
+      "source_role": "positive",
+      "validation": {
+        "self_test": "passed"
+      },
+      "variant": "single-state comparison-chain dispatcher; Native x86-64 ELF executable after compiler optimization"
+    },
+    {
+      "architecture": "i386",
+      "bits": 32,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x0",
+          "address_source": "nm",
+          "loader_image_base": "0x0",
+          "name": "corpus_multi_state",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 32-bit LSB relocatable, Intel i386, version 1 (SYSV), not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-m32",
+          "-std=c11",
+          "-O0",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "-c",
+          "tools/corpus/src/multi_state.c",
+          "-o",
+          "tools/corpus/artifacts/multi-state--i386-gcc-o0-object.o"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "i386-gcc-o0-object"
+      },
+      "license": "0BSD",
+      "object_type": "relocatable",
+      "path": "tools/corpus/artifacts/multi-state--i386-gcc-o0-object.o",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "positive-adversarial",
+      "sha256": "01747b658c146ec0012bf928e203776ee75db711de306d252551c2c62dce2930",
+      "size": 1468,
+      "source": "tools/corpus/src/multi_state.c",
+      "source_id": "multi-state",
+      "source_role": "positive-adversarial",
+      "validation": {
+        "self_test": "not-applicable"
+      },
+      "variant": "joint two-state dispatch with consecutive state writes; Freestanding i386 ELF relocatable object, unoptimized"
+    },
+    {
+      "architecture": "x86-64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x401116",
+          "address_source": "nm",
+          "name": "corpus_multi_state",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 4.4.0, not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-std=c11",
+          "-O0",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-no-pie",
+          "-Wl,--build-id=none",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "tools/corpus/src/multi_state.c",
+          "-o",
+          "tools/corpus/artifacts/multi-state--x86_64-gcc-o0-exe.bin"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "x86_64-gcc-o0-exe"
+      },
+      "license": "0BSD",
+      "object_type": "executable",
+      "path": "tools/corpus/artifacts/multi-state--x86_64-gcc-o0-exe.bin",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "positive-adversarial",
+      "sha256": "536ef3a97c2994b1617d9f7893de5ff253a5d57a950c577981ac848cfd055a59",
+      "size": 15840,
+      "source": "tools/corpus/src/multi_state.c",
+      "source_id": "multi-state",
+      "source_role": "positive-adversarial",
+      "validation": {
+        "self_test": "passed"
+      },
+      "variant": "joint two-state dispatch with consecutive state writes; Native x86-64 ELF executable, unoptimized"
+    },
+    {
+      "architecture": "x86-64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x401190",
+          "address_source": "nm",
+          "name": "corpus_multi_state",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 4.4.0, not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-std=c11",
+          "-O2",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-no-pie",
+          "-Wl,--build-id=none",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "tools/corpus/src/multi_state.c",
+          "-o",
+          "tools/corpus/artifacts/multi-state--x86_64-gcc-o2-exe.bin"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "x86_64-gcc-o2-exe"
+      },
+      "license": "0BSD",
+      "object_type": "executable",
+      "path": "tools/corpus/artifacts/multi-state--x86_64-gcc-o2-exe.bin",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "optimizer-control",
+      "sha256": "b4a5d3182f5f887e985ae2004f6e8fa94059ac4ce178e59f035f846e6efa6e7c",
+      "size": 15840,
+      "source": "tools/corpus/src/multi_state.c",
+      "source_id": "multi-state",
+      "source_role": "positive-adversarial",
+      "validation": {
+        "self_test": "passed"
+      },
+      "variant": "joint two-state dispatch with consecutive state writes; Native x86-64 ELF executable after compiler optimization"
+    },
+    {
+      "architecture": "i386",
+      "bits": 32,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x0",
+          "address_source": "nm",
+          "loader_image_base": "0x0",
+          "name": "corpus_natural_control",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 32-bit LSB relocatable, Intel i386, version 1 (SYSV), not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-m32",
+          "-std=c11",
+          "-O0",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "-c",
+          "tools/corpus/src/natural_control.c",
+          "-o",
+          "tools/corpus/artifacts/natural-control--i386-gcc-o0-object.o"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "i386-gcc-o0-object"
+      },
+      "license": "0BSD",
+      "object_type": "relocatable",
+      "path": "tools/corpus/artifacts/natural-control--i386-gcc-o0-object.o",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "negative",
+      "sha256": "8275dd01a9d9c07eb4eb0bef2940d61be22e86f10b5b2f0d5c56e72ed41be353",
+      "size": 1168,
+      "source": "tools/corpus/src/natural_control.c",
+      "source_id": "natural-control",
+      "source_role": "negative",
+      "validation": {
+        "self_test": "not-applicable"
+      },
+      "variant": "structured loop and natural switch without a dispatcher; Freestanding i386 ELF relocatable object, unoptimized"
+    },
+    {
+      "architecture": "x86-64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x401116",
+          "address_source": "nm",
+          "name": "corpus_natural_control",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 4.4.0, not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-std=c11",
+          "-O0",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-no-pie",
+          "-Wl,--build-id=none",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "tools/corpus/src/natural_control.c",
+          "-o",
+          "tools/corpus/artifacts/natural-control--x86_64-gcc-o0-exe.bin"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "x86_64-gcc-o0-exe"
+      },
+      "license": "0BSD",
+      "object_type": "executable",
+      "path": "tools/corpus/artifacts/natural-control--x86_64-gcc-o0-exe.bin",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "negative",
+      "sha256": "7587c1f903285213ffe0eb5804afe9fde73f700e6c45f1ea58bdd5ef29a94963",
+      "size": 15800,
+      "source": "tools/corpus/src/natural_control.c",
+      "source_id": "natural-control",
+      "source_role": "negative",
+      "validation": {
+        "self_test": "passed"
+      },
+      "variant": "structured loop and natural switch without a dispatcher; Native x86-64 ELF executable, unoptimized"
+    },
+    {
+      "architecture": "x86-64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x401150",
+          "address_source": "nm",
+          "name": "corpus_natural_control",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 4.4.0, not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-std=c11",
+          "-O2",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-no-pie",
+          "-Wl,--build-id=none",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "tools/corpus/src/natural_control.c",
+          "-o",
+          "tools/corpus/artifacts/natural-control--x86_64-gcc-o2-exe.bin"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "x86_64-gcc-o2-exe"
+      },
+      "license": "0BSD",
+      "object_type": "executable",
+      "path": "tools/corpus/artifacts/natural-control--x86_64-gcc-o2-exe.bin",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "optimizer-control",
+      "sha256": "f36bfb403911aa5dbc7fee095edd9b0744ac2b55fef63511cf24e1d784ec215f",
+      "size": 15800,
+      "source": "tools/corpus/src/natural_control.c",
+      "source_id": "natural-control",
+      "source_role": "negative",
+      "validation": {
+        "self_test": "passed"
+      },
+      "variant": "structured loop and natural switch without a dispatcher; Native x86-64 ELF executable after compiler optimization"
+    },
+    {
+      "architecture": "i386",
+      "bits": 32,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x0",
+          "address_source": "nm",
+          "loader_image_base": "0x0",
+          "name": "corpus_nested",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 32-bit LSB relocatable, Intel i386, version 1 (SYSV), not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-m32",
+          "-std=c11",
+          "-O0",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "-c",
+          "tools/corpus/src/nested.c",
+          "-o",
+          "tools/corpus/artifacts/nested--i386-gcc-o0-object.o"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "i386-gcc-o0-object"
+      },
+      "license": "0BSD",
+      "object_type": "relocatable",
+      "path": "tools/corpus/artifacts/nested--i386-gcc-o0-object.o",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "positive",
+      "sha256": "fe3fe77b10a0b0abff1b2737177a625babbce895bc80b0400c0579900b357d4f",
+      "size": 1436,
+      "source": "tools/corpus/src/nested.c",
+      "source_id": "nested",
+      "source_role": "positive",
+      "validation": {
+        "self_test": "not-applicable"
+      },
+      "variant": "nested outer switch and inner if-chain dispatchers; Freestanding i386 ELF relocatable object, unoptimized"
+    },
+    {
+      "architecture": "x86-64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x401116",
+          "address_source": "nm",
+          "name": "corpus_nested",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 4.4.0, not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-std=c11",
+          "-O0",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-no-pie",
+          "-Wl,--build-id=none",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "tools/corpus/src/nested.c",
+          "-o",
+          "tools/corpus/artifacts/nested--x86_64-gcc-o0-exe.bin"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "x86_64-gcc-o0-exe"
+      },
+      "license": "0BSD",
+      "object_type": "executable",
+      "path": "tools/corpus/artifacts/nested--x86_64-gcc-o0-exe.bin",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "positive",
+      "sha256": "f90cc6ef56426ac37db3d5572120a6517e6bc5737df6fe90cdb4c296d837c72c",
+      "size": 15824,
+      "source": "tools/corpus/src/nested.c",
+      "source_id": "nested",
+      "source_role": "positive",
+      "validation": {
+        "self_test": "passed"
+      },
+      "variant": "nested outer switch and inner if-chain dispatchers; Native x86-64 ELF executable, unoptimized"
+    },
+    {
+      "architecture": "x86-64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x4011a0",
+          "address_source": "nm",
+          "name": "corpus_nested",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 4.4.0, not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-std=c11",
+          "-O2",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-no-pie",
+          "-Wl,--build-id=none",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "tools/corpus/src/nested.c",
+          "-o",
+          "tools/corpus/artifacts/nested--x86_64-gcc-o2-exe.bin"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "x86_64-gcc-o2-exe"
+      },
+      "license": "0BSD",
+      "object_type": "executable",
+      "path": "tools/corpus/artifacts/nested--x86_64-gcc-o2-exe.bin",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "optimizer-control",
+      "sha256": "ef53c5a64f2b740f33ec08ca181ef10b9d33fa1e95f589ff98c6cd2987badf70",
+      "size": 15824,
+      "source": "tools/corpus/src/nested.c",
+      "source_id": "nested",
+      "source_role": "positive",
+      "validation": {
+        "self_test": "passed"
+      },
+      "variant": "nested outer switch and inner if-chain dispatchers; Native x86-64 ELF executable after compiler optimization"
+    },
+    {
+      "architecture": "i386",
+      "bits": 32,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x1d",
+          "address_source": "nm",
+          "loader_image_base": "0x0",
+          "name": "corpus_side_effects",
+          "symbol_status": "present"
+        },
+        {
+          "address": "0x0",
+          "address_source": "nm",
+          "loader_image_base": "0x0",
+          "name": "corpus_side_effect_helper",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 32-bit LSB relocatable, Intel i386, version 1 (SYSV), not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-m32",
+          "-std=c11",
+          "-O0",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "-c",
+          "tools/corpus/src/side_effects.c",
+          "-o",
+          "tools/corpus/artifacts/side-effects--i386-gcc-o0-object.o"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "i386-gcc-o0-object"
+      },
+      "license": "0BSD",
+      "object_type": "relocatable",
+      "path": "tools/corpus/artifacts/side-effects--i386-gcc-o0-object.o",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "positive-safety",
+      "sha256": "3bc63ddd60b53fd7d7a3bab599f1564059cd5b0478a9fea22477c4f2ad96cbcd",
+      "size": 1864,
+      "source": "tools/corpus/src/side_effects.c",
+      "source_id": "side-effects",
+      "source_role": "positive-safety",
+      "validation": {
+        "self_test": "not-applicable"
+      },
+      "variant": "flattened handlers containing call and volatile stores; Freestanding i386 ELF relocatable object, unoptimized"
+    },
+    {
+      "architecture": "x86-64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x401138",
+          "address_source": "nm",
+          "name": "corpus_side_effects",
+          "symbol_status": "present"
+        },
+        {
+          "address": "0x401116",
+          "address_source": "nm",
+          "name": "corpus_side_effect_helper",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 4.4.0, not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-std=c11",
+          "-O0",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-no-pie",
+          "-Wl,--build-id=none",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "tools/corpus/src/side_effects.c",
+          "-o",
+          "tools/corpus/artifacts/side-effects--x86_64-gcc-o0-exe.bin"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "x86_64-gcc-o0-exe"
+      },
+      "license": "0BSD",
+      "object_type": "executable",
+      "path": "tools/corpus/artifacts/side-effects--x86_64-gcc-o0-exe.bin",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "positive-safety",
+      "sha256": "83594b88e79a3c1e6adbe42793f473d3edcdf229eff5251e555a7b459c535ae4",
+      "size": 15984,
+      "source": "tools/corpus/src/side_effects.c",
+      "source_id": "side-effects",
+      "source_role": "positive-safety",
+      "validation": {
+        "self_test": "passed"
+      },
+      "variant": "flattened handlers containing call and volatile stores; Native x86-64 ELF executable, unoptimized"
+    },
+    {
+      "architecture": "x86-64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x401180",
+          "address_source": "nm",
+          "name": "corpus_side_effects",
+          "symbol_status": "present"
+        },
+        {
+          "address": "0x401150",
+          "address_source": "nm",
+          "name": "corpus_side_effect_helper",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 4.4.0, not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-std=c11",
+          "-O2",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-no-pie",
+          "-Wl,--build-id=none",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "tools/corpus/src/side_effects.c",
+          "-o",
+          "tools/corpus/artifacts/side-effects--x86_64-gcc-o2-exe.bin"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "x86_64-gcc-o2-exe"
+      },
+      "license": "0BSD",
+      "object_type": "executable",
+      "path": "tools/corpus/artifacts/side-effects--x86_64-gcc-o2-exe.bin",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "optimizer-control",
+      "sha256": "a120ad655f874e0da15382a12a0ad721b4964493b134e7973b2db3b4383e8dc5",
+      "size": 15984,
+      "source": "tools/corpus/src/side_effects.c",
+      "source_id": "side-effects",
+      "source_role": "positive-safety",
+      "validation": {
+        "self_test": "passed"
+      },
+      "variant": "flattened handlers containing call and volatile stores; Native x86-64 ELF executable after compiler optimization"
+    },
+    {
+      "architecture": "i386",
+      "bits": 32,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x0",
+          "address_source": "nm",
+          "loader_image_base": "0x0",
+          "name": "corpus_single_switch",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 32-bit LSB relocatable, Intel i386, version 1 (SYSV), not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-m32",
+          "-std=c11",
+          "-O0",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "-c",
+          "tools/corpus/src/single_switch.c",
+          "-o",
+          "tools/corpus/artifacts/single-switch--i386-gcc-o0-object.o"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "i386-gcc-o0-object"
+      },
+      "license": "0BSD",
+      "object_type": "relocatable",
+      "path": "tools/corpus/artifacts/single-switch--i386-gcc-o0-object.o",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "positive",
+      "sha256": "47dd0680d7ef7c3d54205f94c0f7ac7ddc8ea5b9d7b11f6869abac5feb035d04",
+      "size": 1548,
+      "source": "tools/corpus/src/single_switch.c",
+      "source_id": "single-switch",
+      "source_role": "positive",
+      "validation": {
+        "self_test": "not-applicable"
+      },
+      "variant": "single-state switch dispatcher with sparse 32-bit states; Freestanding i386 ELF relocatable object, unoptimized"
+    },
+    {
+      "architecture": "x86-64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x401116",
+          "address_source": "nm",
+          "name": "corpus_single_switch",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 4.4.0, not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-std=c11",
+          "-O0",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-no-pie",
+          "-Wl,--build-id=none",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "tools/corpus/src/single_switch.c",
+          "-o",
+          "tools/corpus/artifacts/single-switch--x86_64-gcc-o0-exe.bin"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "x86_64-gcc-o0-exe"
+      },
+      "license": "0BSD",
+      "object_type": "executable",
+      "path": "tools/corpus/artifacts/single-switch--x86_64-gcc-o0-exe.bin",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "positive",
+      "sha256": "e6cd78e2ca8752440eab96d3fe49042302f06025872eff9418ff5af8f25056bb",
+      "size": 15848,
+      "source": "tools/corpus/src/single_switch.c",
+      "source_id": "single-switch",
+      "source_role": "positive",
+      "validation": {
+        "self_test": "passed"
+      },
+      "variant": "single-state switch dispatcher with sparse 32-bit states; Native x86-64 ELF executable, unoptimized"
+    },
+    {
+      "architecture": "x86-64",
+      "bits": 64,
+      "endianness": "little",
+      "expected_functions": [
+        {
+          "address": "0x401190",
+          "address_source": "nm",
+          "name": "corpus_single_switch",
+          "symbol_status": "present"
+        }
+      ],
+      "file_description": "ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 4.4.0, not stripped",
+      "format": "ELF",
+      "generator": {
+        "command": [
+          "/usr/bin/cc",
+          "-std=c11",
+          "-O2",
+          "-fno-inline",
+          "-fno-omit-frame-pointer",
+          "-fno-pie",
+          "-no-pie",
+          "-Wl,--build-id=none",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "tools/corpus/src/single_switch.c",
+          "-o",
+          "tools/corpus/artifacts/single-switch--x86_64-gcc-o2-exe.bin"
+        ],
+        "compiler": "/usr/bin/cc",
+        "compiler_version": "cc (GCC) 16.2.1 20260810",
+        "profile": "x86_64-gcc-o2-exe"
+      },
+      "license": "0BSD",
+      "object_type": "executable",
+      "path": "tools/corpus/artifacts/single-switch--x86_64-gcc-o2-exe.bin",
+      "provenance": "Repository-authored deterministic synthetic fixture",
+      "redistributable": true,
+      "role": "optimizer-control",
+      "sha256": "bdbda914113a9814f35a613baeea922c8c8d385ca6fff6959a0093cd2e52d5e4",
+      "size": 15848,
+      "source": "tools/corpus/src/single_switch.c",
+      "source_id": "single-switch",
+      "source_role": "positive",
+      "validation": {
+        "self_test": "passed"
+      },
+      "variant": "single-state switch dispatcher with sparse 32-bit states; Native x86-64 ELF executable after compiler optimization"
+    }
+  ],
+  "identity": "sha256",
+  "schema_version": 1,
+  "selection_policy": "declared corpus entries only; no CFF detection heuristic"
+}

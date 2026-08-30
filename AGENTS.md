@@ -1,158 +1,172 @@
 # AGENTS.md
 
-本文档面向后续参与本仓库开发的 AI / 开发者，用于快速理解项目、遵守约定、
-避免破坏语义等价性。
+本文是本仓库的开发约束。用户行为以 `readme.md` 为准；修改核心 pass 后必须同步
+更新二者，并运行本文件列出的门禁。
 
-## 1. 项目定位
+## 1. 项目与默认路径
 
-`MikuCffHelper` 是 Binary Ninja 插件，用于还原 OLLVM 风格控制流平坦化
-(Control Flow Flattening, CFF)。
+`MikuCffHelper` 是 Binary Ninja CFF 去混淆插件。默认 Activity 是
+`workflow_patch_mlil_auto`：在原 MLIL 不变的前提下独立构造、验证 `switch` 与
+`deflate` detached candidates，再按可达 CFG 的
+`(decision blocks, blocks, instructions)` 字典序选择一个提交。
 
-核心思路：
+默认策略是 **sound-but-incomplete / fail-closed**：只有局部证书成立才改写；
+Unknown、冲突、未支持语义、验证失败或资源耗尽都必须保留原 IL。不要把回归测试
+或副作用计数描述成完整程序等价证明。
 
-- 识别 `dispatcher + 真实块` 状态机。
-- 通过支配树、SCC、副作用筛选和前向整型模拟，找出 `state 值 → 真实块入口`
-  的映射。
-- 提供两条变换路径：
-  - **路径 A (`deflate_hard`)**：绕过 dispatcher，把 `state = const` 直接
-    短接到真实块，输出最简 goto/if/while 形态。
-  - **路径 B (`synthesize_switch`)**：把 dispatcher 的 cmp-tree 改写为
-    `MLIL_JUMP_TO`，让 BN HLIL Restructurer 渲染成 `switch-case`。
-  - **路径 auto**：先 B，B 拒绝时自动 fallback 到 A，是推荐入口。
+旧 LLIL normalizer、显式 `switch/deflate` 和 HLIL 状态命名 helper 默认关闭。
+未经独立等价证书，不得接入默认 pipeline。
 
-## 2. 目录结构
+## 2. 目录
 
 ```text
-__init__.py                  # 注册 Workflow / Activity / 插件命令
-mikuWorkflow.py              # 各 workflow 的 pass 编排
-passes/
-  low/                       # LLIL 层预处理
-    copyCommonBlockPass.py   # 复制多前驱公共块，避免状态变量丢失
-    inlineIfCondPass.py      # flag 条件内联到 if
-    spiltIfPass.py           # if 单独成块
-  mid/                       # MLIL 层核心
-    clearPass.py             # 常量 if / goto / merge / swap / SSA const 清理
-    movStateDefine.py        # 状态常量赋值移到块尾
-    deflatHardPass.py        # 路径 A：前向模拟 + 短路 state SetVar
-    synthesizeSwitchPass.py  # 路径 B：生成 jump_to / guard
-    reverseIfPass.py         # 备用/未接入 workflow 的反向 if pass
-utils/                       # 公共工具
-  state_machine.py           # 状态变量收集 / 启发式
-  cfg_analyzer.py            # CFG 图分析
-  instruction_analyzer.py    # 指令/表达式分析
-  mikuPlugin.py              # UI 命令、日志
-  instr_vistor.py            # 简易 visitor
-fix_binaryninja_api/         # BN API 兼容层
-tools/
-  deflate_cli.py             # 无头命令行去混淆
-  regression_test.py         # 回归测试 + baseline 对比
-  README.md                  # 工具说明
-tests/                       # 历史/脚本类测试，非 pytest 套件
-readme.md                    # 用户手册（对外）
-AGENTS.md                    # 本文档（开发/AI 指南）
+__init__.py                     # Workflow/Activity 与 UI 命令注册
+mikuWorkflow.py                 # verified auto 与显式模式
+passes/mid/deflatHardPass.py    # 发现、bit-vector 解释、边证书、detached 验证
+passes/mid/synthesizeSwitchPass.py # guarded partial JUMP_TO candidate
+passes/low/                     # legacy LLIL pass，默认关闭
+fix_binaryninja_api/            # 仅放 BN API 兼容处理
+utils/                          # 日志与 legacy 工具；可选依赖必须 lazy import
+tools/deflate_cli.py            # 无头 CLI
+tools/regression_test.py        # 固定 manifest 的严格回归门禁
+tools/baseline.json             # 3 个 SHA-256 样本、39 个固定函数与结果
+tools/corpus/                   # 0BSD fixture、构建器、manifest、benchmark
+tools/tests/                    # 回归门禁单元测试
+readme.md                       # 用户手册、保证边界、实测与研究依据
 ```
 
-## 3. 核心概念与不变量
+## 3. 证书模型与安全红线
 
-### 3.1 状态变量识别
+### 3.1 发现不能授权改写
 
-- 状态变量通常满足：出现在常量赋值中，且被赋予 **≥ 2 个 unique 常量**。
-- 函数级 CFF 启发式：unique 常量数 ≥ 4 且值域跨度 ≥ `0x10000000`，避免把
-  Rust match / C++ stdlib 的小常量分发误判为 CFF。
-- 别名链 `_vars_aliased_to` 会在 **整个函数** 范围内追踪 `alias = primary`
-  拷贝，确保 `case_values` 收集完整。
+SCC、支配、回边和 backward slice 只能产生候选。不得使用以下经验量决定语义
+安全：
 
-### 3.2 dispatcher 识别
+- flattening score 或嵌套 dispatcher 的不同阈值；
+- 最少常量数、常量跨度、随机常量外观；
+- 固定 pass/step/loop 次数、固定 context `k`；
+- 内置 timeout 或函数大小阈值；
+- 从现有 39 个样本拟合的权重。
 
-- 使用 Blazytko 支配树法：`flattening_score(D) >= 0.3` 且有 back-edge。
-- 嵌套 dispatcher 在 iter 2+ 使用更低阈值 `0.10`。
-- dispatcher 子图用 Tarjan SCC + 副作用筛选：只允许状态变量副作用，禁止
-  call / store / ret / intrinsic。
+结构 arity、MLIL 位宽和由程序语法推导的有限域不是经验参数。CLI/测试的用户
+资源预算可以存在，但达到预算只能“不变换/失败”，不能降低证书要求。
 
-### 3.3 等价性安全红线
+### 3.2 状态与 dispatcher
 
-任何改动都必须保持：
+- 状态变量来自 SCC 分支谓词的完整 backward slice，不来自名称或常量数量。
+- 整数求值必须使用 MLIL/类型给出的精确位宽；不得默认 32/64 位。
+- 每个分析上下文是 `(block, exact state fingerprint)`；跨入边共享 memo。
+- 上下文容量由 dispatcher 块与显式语法状态原子推导；容量、环、除零、非法
+  移位、未知表达式均返回 Unknown。
+- 已认证 dispatcher 只允许支持的纯整数表达式、可 replay `SetVar` 和终结
+  `If/Goto`。call/load/store/ret/intrinsic/syscall/trap 等禁止穿越。
 
-1. **不丢失副作用**：call / store / return / intrinsic / syscall 等必须保留。
-2. **不产生 orphan 跳转**：不能出现 `jump(0x...)` 形式的悬空间接跳转。
-3. **保留状态写入语义**：P1 / P2 / mini-block 中仍执行 `state = const`，
-   保证外部读取状态变量时数值正确。
-4. **CFE 子序列**：去混淆后的 trace 应是原 trace 的子序列，只删除 dispatcher
-   内部的状态比较与分发。
+### 3.3 `CertifiedEdge`
 
-现有验证手段：
+证书至少绑定源终结器分支、原 dispatcher 目标、精确入口状态、唯一真实目标和
+有序 replay 写。必须满足：
 
-- pass 内嵌 MLIL 副作用集合比对。
-- `tools/regression_test.py` 在 HLIL 层检查 call / store / ret 是否丢失、
-  是否出现 orphan jump。
-- 修改后必须跑回归测试；确有改进时再更新 `tools/baseline.json`。
+1. 同一源边没有目标或 replay 冲突；
+2. 原路径上的 dispatcher 块均通过纯度检查；
+3. 所有被跳过的状态写按原顺序执行；
+4. 未认证边继续走原 dispatcher；
+5. 不产生指向 CFG 外部的 orphan target；
+6. call/store/return/intrinsic/syscall/trap 等可观察作用既不丢失也不新增。
 
-## 4. 开发 / 修改指南
+不要删除状态写，即使它看似只服务 dispatcher；区域外可能观察该变量。
 
-### 4.1 日常命令
+### 3.4 Switch 只能 partial + guarded
+
+`synthesizeSwitchPass` 不得假设观察到的 case 集完备。只有精确单例状态入边可进
+`MLIL_JUMP_TO` guard；unknown/default 必须保留原比较树。状态值到真实目标必须
+是数学函数，否则拒绝候选。
+
+## 4. Binary Ninja IL/API 约束
+
+当前实测 Binary Ninja 6.1，遵守官方 `Modifying ILs` 约定：
+
+1. Workflow 中读取 `AnalysisContext.mlil`，不要读取可能滞后的 `Function.mlil`；
+2. 先 `original.translate(transform)` 构造 detached candidate；
+3. 新 CFG 使用同一个已正确创建、resolve/mark 的 label 对象；
+4. synthetic replay/guard 使用 `ILSourceLocation(..., il_direct=False)`；
+5. 每条旧 top-level instruction 保持唯一 direct mapping，instruction/expression
+   均不得出现多个 direct source；
+6. 保留原 instruction attributes 和 per-block architecture；
+7. 顺序必须是 `finalize()` → `generate_ssa_form()` → 验证 → 唯一一次
+   `AnalysisContext.set_mlil_function(candidate)`；
+8. 不直接修改 SSA；不在失败路径上触碰原 MLIL。
+
+兼容问题只放 `fix_binaryninja_api/`，先 feature-detect；不得覆盖 BN 新版本已有的
+原生方法。修改 `__init__.py` 时检查每次 Activity 注册、anchor `contains`、
+`insert` 和 Workflow `register` 的返回值。
+
+## 5. 复杂度约束
+
+保持快速路径为多项式：
+
+- Tarjan SCC、邻接构造和工作表 slice：`O(V+E+I)`；
+- dominator 信息每函数/候选复用，不在每条边重复构造；
+- 每个 exact block-state context 至多求值一次；当前程序派生容量
+  `C <= D(A+1)`；
+- detached copy、CFG/effect/source-map validator 对 IL 线性扫描；
+- auto 至多两个候选，是常数倍。
+
+若加入符号/SMT 后端，只用于局部 dispatcher DAG/terminator refinement；timeout
+必须拒绝候选。不要默认做全函数全路径符号执行。
+
+## 6. 修改流程与命令
 
 ```bash
-# 快速验证单个函数（auto 模式）
+# 快速真实样本
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4
-
-# 只跑路径 B / A
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --mode switch
 python tools/deflate_cli.py example/arm64-v8a.so --addr 0x4259f4 --mode deflate
 
-# 扫描所有 CFF 候选
-python tools/deflate_cli.py example/arm64-v8a.so --all-cff
+# 语法、静态与单元门禁
+python -m py_compile __init__.py mikuWorkflow.py passes/mid/*.py tools/*.py
+ruff check __init__.py mikuWorkflow.py fix_binaryninja_api passes tools utils
+python -m unittest \
+  tools.tests.test_regression_gate \
+  tools.corpus.tests.test_benchmark \
+  tools.corpus.tests.test_index_samples
+git diff --check
 
-# 回归测试（默认与 baseline 对比）
-python tools/regression_test.py
+# 可再生成跨架构/优化级别语料
+python tools/corpus/build_corpus.py
+python tools/corpus/benchmark.py \
+  --manifest tools/corpus/manifest.json --root . --plugin-root . \
+  --json /tmp/miku-corpus.json --csv /tmp/miku-corpus.csv
 
-# 确认改进后更新 baseline
-python tools/regression_test.py --update-baseline
+# 固定 39 函数严格门禁
+BN_DISABLE_USER_PLUGINS=1 python tools/regression_test.py
+
+# 仅在完整 manifest、样本哈希和全部绝对安全门禁通过后更新
+BN_DISABLE_USER_PLUGINS=1 python tools/regression_test.py --update-baseline
 ```
 
-环境变量：
+核心行为变化后依次：单函数 smoke → 21 个单元测试 → corpus → 39 函数门禁。
+更新 baseline 后重新运行 `build_corpus.py`，保持统一 manifest 索引。回归必须明确
+加载当前工作区插件；不要依赖用户目录中的旧副本。
 
-- `BN_PYTHON`：Binary Ninja python 包目录，默认
-  `/home/ltlly/tools/binaryninja/python`。
-- `SAMPLE_DIR`：回归测试样本目录，默认 `example/`。
+## 7. 当前冻结基线（2026-08-30）
 
-### 4.2 修改 pass 的流程
+- 39/39 正常，34 个有证书的变换，5 个保守不变；
+- MLIL observable effects `289→289`，lost 0、added 0；
+- call/store/ret loss 0，orphan 0；
+- MLIL blocks `1430→1330`，edges `2044→1859`，instructions `4280→4214`；
+- HLIL blocks `1385→1315`，edges `1979→1836`，instructions `2669→2567`；
+- wall 140.741 s，单函数中位 2.659 s，peak RSS 约 2.74 GiB。
 
-1. 先定位对应 pass 文件：
-   - LLIL 预处理在 `passes/low/`。
-   - MLIL 核心在 `passes/mid/`。
-2. 修改后先用 `deflate_cli.py` 对受影响样本做冒烟测试。
-3. 跑 `regression_test.py` 确认没有回归。
-4. 如果新逻辑是预期改进，更新 `tools/baseline.json` 并提交。
-5. 同步更新 `readme.md`（用户可见行为变化）和本文档（架构/约定变化）。
+独立语料：8 个 fixture、24 个 artifact、27 个固定函数，27/27 正常；7 个变换、
+20 个不变，普通控制流负样本全部不变，MLIL call/store/ret 计数变化为 0。
 
-### 4.3 注意
+HLIL restructurer 会产生诊断性的重复语法；当前冻结结果为额外 5 个 `ret`、2 个
+`store`，但 MLIL 没有对应新增。不要用 HLIL 文本计数替代 MLIL 执行层证书。
 
-- `pass_clear` 目前包含 `pass_swap_if` 和 `pass_clear_SSA_const_if`。历史文档
-  曾建议删除它们，但当前实现对嵌套 CFF 迭代收敛有帮助，**不要仅凭旧结论删除**。
-- `reverseIfPass.py` 未接入任何 workflow；若不需要可保留作参考，但不要把它
-  默认加入 pipeline。
-- 修改 `mikuWorkflow.py` 时注意 `workflow_patch_mlil_auto` 的 B→A fallback
-  顺序：B 成功后不要再跑 A，否则可能把 guard block 误当 dispatcher。
-- BN 版本相关 API 兼容问题放在 `fix_binaryninja_api/` 中处理，不要在核心
-  pass 里堆版本判断。
+## 8. 文档与研究边界
 
-## 5. 文档维护约定
-
-- `readme.md` 是面向用户的权威手册，保持与当前代码一致。
-- `AGENTS.md` 是面向 AI / 后续开发的项目内记忆，简洁、可执行。
-- 不再保留“一次性任务结论 / 历史评估 / 过期建议”类文档；如有必要，把仍有
-  价值的内容合并进 `readme.md` 或 `AGENTS.md`，不要重新创建 `docs/` 下的
-  任务式 md。
-- 更新算法或启发式后，同步更新 `readme.md` 中的“实测数据 / 已知限制”，
-  避免数字过时。
-
-## 6. 当前状态摘要
-
-- 默认入口：`workflow_patch_mlil_auto`。
-- 回归基线（`tools/baseline.json`）当前覆盖 39 个函数：
-  - 30 个输出含 `switch`；
-  - 7 个被进一步还原为纯 if/while/goto 链；
-  - 2 个未显著变换（`sub_42a21c`、`sub_45985c`）；
-  - 总变换率 37/39，0 副作用丢失，0 orphan jump。
-- 已知限制：条件状态赋值、多状态联合分发、跨函数 CFF、超大函数超时等，
-  详见 `readme.md` 第 10 节。
+- `readme.md` 是用户可见的权威说明，算法、保证范围、数字变化时同步更新。
+- 不创建一次性 `docs/*.md` 结论；仍有效内容合并到本文件或 `readme.md`。
+- 推荐研究方向是把真实块和副作用编码为不可删除 action，接入 CF-GKAT 类
+  trace-equivalence 证书；MLIL→证书语言的编码本身必须审计。
+- Alive2/LLVM、DeFFai、Chisel 等只能提供设计依据，不能直接证明 BN MLIL。

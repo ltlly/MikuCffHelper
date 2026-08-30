@@ -1,0 +1,57 @@
+{
+  "example/6fe4c921d95d0fd139d07e5de03ceee28dcabc8db93bf3b6ebb0f0207bc09648": {
+    "provenance": "Pre-existing repository sample; original source is undocumented",
+    "license": "UNKNOWN",
+    "redistributable": false,
+    "role": "unclassified",
+    "variant": "unknown"
+  },
+  "example/arm64-v8a.so": {
+    "provenance": "Pre-existing repository sample; original source is undocumented",
+    "license": "UNKNOWN",
+    "redistributable": false,
+    "role": "positive-existing",
+    "variant": "AArch64 OLLVM-style CFF; expected functions come from tools/baseline.json"
+  },
+  "example/cff-arm64-v8a.elf": {
+    "provenance": "Pre-existing repository sample; original source is undocumented",
+    "license": "UNKNOWN",
+    "redistributable": false,
+    "role": "positive-existing",
+    "variant": "AArch64 CFF fixture with symbols",
+    "expected_functions": [
+      {
+        "name": "target_function",
+        "source": "ELF symbol table"
+      }
+    ]
+  },
+  "example/libSeQing.so": {
+    "provenance": "Pre-existing repository sample; original source is undocumented",
+    "license": "UNKNOWN",
+    "redistributable": false,
+    "role": "positive-existing",
+    "variant": "AArch64 OLLVM-style CFF; expected functions come from tools/baseline.json"
+  },
+  "example/libkste.so": {
+    "provenance": "Pre-existing repository sample; original source is undocumented",
+    "license": "UNKNOWN",
+    "redistributable": false,
+    "role": "positive-existing",
+    "variant": "AArch64 OLLVM-style CFF; expected functions come from tools/baseline.json"
+  },
+  "example/source.out": {
+    "provenance": "Pre-existing repository sample; original source is undocumented",
+    "license": "UNKNOWN",
+    "redistributable": false,
+    "role": "unclassified",
+    "variant": "x86-64 executable, likely local source fixture",
+    "expected_functions": [
+      {
+        "name": "main",
+        "address": "0x401140",
+        "source": "ELF symbol table"
+      }
+    ]
+  }
+}
