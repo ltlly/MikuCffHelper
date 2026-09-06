@@ -108,6 +108,14 @@ Ninja 6.1；兼容层采用 feature detection，不覆盖新版原生 API。
 或过于复杂的多状态关系会被保守拒绝。外部 `--timeout`、`--max-blocks` 只是用户
 可配置的资源预算，绝不参与“是否语义安全”的判断。
 
+上述是分阶段轮廓，不是整个实现的线性时间/空间保证。`D(A+1)` 是程序规模
+派生的保守准入容量，不是任意算术或多变量精确状态空间的完备上界；到达容量
+只能返回 Unknown。每个 context 还承担表达式求值和状态 fingerprint 成本，多个
+dispatcher entry 会重复扫描区域。当前 replay memo 保存每个 context 的完整后缀：
+长度为 `n`、每块一条 replay 写的链会存储 `n(n+1)/2` 个 tuple 元素引用。
+候选构造的线性扫描也应以展开后的候选大小计费。后续应共享 replay 后缀节点，
+按实际生成的 IL 大小核算输出成本，不能把“每个 context 求值一次”写成整体线性。
+
 ## 4. 安装与使用
 
 将仓库放入 Binary Ninja 插件目录，或创建指向仓库的符号链接，然后重启 BN。
@@ -293,15 +301,150 @@ CFG 廉价前置采用 [Tarjan SCC](https://doi.org/10.1137/0201010) 和支配�
 | 完整控制流 trace equivalence | 未实现 | 后续可用 CF-GKAT 风格 action/indicator 编码补强 |
 | 完整 MLIL 内存/异常/跨函数形式语义证明 | 未实现 | 需要正式 MLIL 语义、内存模型和可信编码，不能用测试结果替代 |
 
-因此当前可以严谨地声称“已提交的边满足本项目建模子集内的局部等价证书，并通过
-严格结构/副作用门禁”，不能声称“已经形式化证明任意二进制完整语义等价”。
+当前证书依赖内部 planner、bit-vector 解释器和 builder 的共同正确性。
+`_validate_certified_edge` 只复查原终结器的分支锚点；detached validator 检查
+CFG、source mapping 和 effect multiset，并未独立重验入口状态、路径与 replay。
+因此不能把这些内部接口直接用作不可信 AI/外部插件提交证书的认证入口，也不能
+声称“已经形式化证明任意二进制完整语义等价”。
 
 ### 7.5 后续优先级
 
-1. 实现 MLIL CFG → CF-GKAT 风格 action/indicator 的可审计编码，证明源 trace
-   投影掉纯 dispatcher action 后与 candidate trace 相等。
-2. 对局部 bit-vector terminator 加可选 SMT refinement；unsupported 或 timeout
+1. 先实现独立于候选生成器的局部证书检查：绑定原 MLIL 快照、源边与候选，
+   重验入口条件、原路径、非陷阱性、唯一出口和有序 replay；保留未覆盖入边。
+   使用局部有限步模拟及全局组合论证，避免把真实块内部执行展开成全函数路径。
+2. 共享 replay 后缀、缓存每区域分析、按输入/上下文/证书/候选输出分别计费。
+   先消除已知二次分配，再扩大恢复覆盖率。
+3. 对局部 bit-vector terminator 加可选 SMT refinement；unsupported 或 timeout
    仍然 fail-closed。
-3. 建模异常边和状态变量可观察性，只有证明私有的 dispatcher 写才允许投影。
-4. 扩充不同混淆器、架构、优化级别和联合状态语料，但不得由语料反向产生正确性
+4. 实验性接入 CF-GKAT 风格验证；明确 indicator 私有性、谓词规模和无限执行
+   行为的语义契约，审计 MLIL 编码。建模异常边，只有证明不可观察的状态写才允许投影。
+5. 扩充不同混淆器、架构、优化级别和联合状态语料，但不得由语料反向产生正确性
    阈值。
+
+### 7.6 2026-09-06 复核与 AI 工具方向
+
+在 Binary Ninja `6.1.10530-dev` 上显式加载当前工作区，复核结果为：21 项单元
+门禁、语法与 Ruff 检查通过；固定回归 39/39 正常、34 个变换，MLIL effects
+`289→289`，lost/added/orphan 均为 0。此次 wall 为 133.673 s，单函数中位
+2.528 s，peak RSS 2,888,236 KiB。冻结 baseline 未更新。
+
+在临时目录重新构建 24 个 artifact，16 个可执行 fixture 的 self-test 通过；
+全部 27 个固定函数 benchmark 正常，7 个变换、20 个不变，三个普通控制流
+负样本均不变；MLIL blocks 合计 `-26`、HLIL instructions `-62`，MLIL
+call/store/ret 计数变化为 0。这里的 self-test 比较原始 C fixture 与参考实现，
+并没有执行改写后的 MLIL；benchmark 与回归也不是完整执行等价证明。
+
+另用真实样本 `sub_4259f4` 的内部证书构造 detached 候选：将入口状态清空，
+或将原有 4 条 replay 全部删除，分支锚点检查和 detached builder 仍可接受。
+候选未提交。这验证了上一节的信任边界缺口，不等于证明默认 planner 在该样本
+实际生成了错误证书。隔离生产 resolver 的链形适配器实验还验证了 replay
+后缀二次存储：1024/2048/4096 个 context 分别保存
+524800/2098176/8390656 个 tuple 元素引用。
+
+研究方向应补充两项限制：
+
+- [CF-GKAT 2025 原文 §2.3、§3.5](https://arxiv.org/html/2411.13220v2)
+  中的 indicator 不参与普通 action/test，最终值也不属于观察结果；不能把可在
+  区域外读取的 MLIL 状态变量直接编码成可删除 indicator。接近线性的前提包括
+  固定 primitive tests，indicator 域也产生额外成本。
+- [Outrunning Big KATs，2026-08-31 v3](https://arxiv.org/pdf/2601.09986v3)
+  用按需符号自动机与 SAT 改善实际性能，未给出计入全部谓词后的无条件多项式
+  时间保证。Remark 2.2 区分有限终止 trace 与 infinite-trace/bisimilarity：后者
+  才区分无限循环中不同的 action；论文性能评估未覆盖该变体。控制流验证不能
+  忽略不终止执行中的 call/store。
+
+增强 `bn-cli` 与保留本项目并不冲突。推荐由 `bn-cli` 提供结构化
+`snapshot → propose → verify → commit` 协议，本项目提供 CFF 候选生成器与
+可复用验证核心。AI 可提出区域、状态关系和受限改写，验证器必须从原程序导出
+或证明入口条件，不能接受模型自行声明的前提；结果使用
+`proved/disproved/unknown`，与“API 写入成功”分开。提交前校验原快照、候选 hash
+和验证器版本。汇编补丁还需要单独处理 lowering、flags、ABI、异常、布局与
+重定位，MLIL 分析层证书不能自动覆盖机器码。
+
+[LLMLift](https://arxiv.org/html/2406.03003v1) 的受限 IR、模型生成摘要/不变量、
+外部 oracle 验证架构可供参考，但其副作用自由 DSL 语义不是 BN MLIL。
+[LLM-Vectorizer](https://arxiv.org/html/2406.04693v1) 在 149 个用例中，checksum
+先拒绝 24 个，形式验证又拒绝 37 个；57 个通过结果仍受 loop-unrolling 边界
+限制，31 个不确定。这支持“AI 负责搜索，确定性检查负责授权”，不支持依赖
+模型置信度或测试通过率提交补丁。这里是架构建议，尚未实现新的 CLI 协议或
+独立证明后端。
+
+### 7.7 BN 上的 D810 类框架：项目方向与边界
+
+本项目的长期方向是可验证、可扩展的 BN 去混淆引擎，CFF 是首个使用该引擎的
+pass；`bn-cli` 提供面向人和 AI 的调用入口。先在当前仓库抽取通用模块，待第二类
+pass 成熟后再决定是否改名或拆包，避免在 CLI bridge 内重复实现优化器。
+
+D810 的可借鉴之处是表达式表示、规则编写/匹配、求值、规则配置与控制流修改
+组件，而不是一组固定混淆器模板。作者将指令级优化与基本块优化分开，并在 CFF
+恢复中复用 backward tracking、microcode emulation 和 CFG patching：
+
+- [eShard，D810 架构，2020-11-20](https://www.eshard.com/blog/d810-deobfuscation-ida-pro)
+- [eShard，D810 去平坦化，2021-10-21](https://www.eshard.com/blog/d810-a-journey-into-control-flow-unflattening)
+
+BN 实现应遵循自己的 Workflow Activity 和 detached IL 构造机制，不能机械移植
+IDA 的 microcode maturity、`optinsn_t` 或 `optblock_t` 回调。默认从 MLIL 开始；
+LLIL 的寄存器/flags 相关规则和 HLIL 表示层处理仍需各自明确的语义契约，未经
+证书的旧 LLIL normalizer 不因框架扩展而自动启用。
+
+| 能力 | 归属 |
+| --- | --- |
+| 精确位宽表达式表示、语义解释与规则验证 | 本项目的通用核心 |
+| 规则注册、匹配、规范化、调度、证据缓存 | 本项目的通用核心 |
+| CFF、MBA、条件/分支简化 | 本项目中各自模块化的 pass |
+| detached candidate、证书检查、唯一提交点 | 本项目的通用核心与 BN 适配层 |
+| BN Workflow 与 GUI 集成 | 本项目 |
+| 目标选择、后台任务、结构化输出与结果文件 | `bn-cli` |
+| 快照、规则提案、验证、应用、差异命令 | `bn-cli` 适配层，调用同一核心 |
+
+核心不得依赖 `bn-cli`；直接打开 BN 的用户也应能使用相同的规则和检查器。
+GUI 与 CLI 共享验证和提交实现，避免两个入口的正确性契约发生分歧。
+
+纯 bit-vector 规则与 CFG 改写分开认证。比如同位宽模 `2^w` 下
+`(x+y)-2*(x&y) == x^y` 中的 `2` 是恒等式的一部分，不是样本阈值。规则可按
+位宽、语义版本与前提验证并缓存，每处应用仍须检查类型、纯度和定义性。
+分支短接、CFF 和状态写删除需要逐候选证明路径及可观察行为；不能把规则级
+Z3 验证扩张成整个引擎的等价保证。
+
+规则调度也必须有独立的复杂度/终止论证。采用确定性规范化、共享表达式 DAG
+和受影响节点工作表，避免枚举交换律/结合律的全部排列。简化规则使用明确的
+良基下降度量；需要扩张的变换另做受限候选。单条规则正确不保证规则组合终止，
+不得靠固定轮数、经验阈值或无界 saturation 掩盖这一问题。结构候选选择应纳入
+原函数这一备选，避免为了产生变换而提交没有结构收益的候选；这是待实现要求。
+
+首版依次交付：独立局部 checker 与可靠改写事务；纯整数规则系统和 replay
+共享后缀；通过 `bn-cli` 暴露受限提案、验证、应用及差异。AI 可提出新规则、
+摘要和不变量，工具验证后再复用。通用内存推理、全函数符号执行与机器码重生成
+不作为首版验收条件；这些方向需要单独的证明与工程预算。
+
+### 7.8 bn-cli 集成前的实测缺口
+
+2026-09-06 在 `bn-cli` commit
+`14cc71738ceb292d4dc7c1c508b0e5c4528f0105` 上，完整 247 项单测通过，仍复现：
+
+- `patch assemble` parser 保存 `assembly`，handler 读取 `args.asm`，真实
+  parser/handler 调用在联系 bridge 前抛出 `AttributeError`；
+- patch dispatch 直接进入 `_patch_*`，不经过有 undo/preview/readback 的
+  `_mutation`。mock 注入 assembler 成功、`BinaryView.write` 返回 0 时，
+  `_patch_assemble` 仍返回汇编字节和长度的成功形状；此项不是实际 BV 写入实验；
+- `patch nop` 暴露 `--length`，handler 没有传递长度，bridge 只调用一次
+  `convert_to_nop`。
+
+上述记录是对特定版本的审计，不代表当前项目已修复它们。先补参数一致性、短写
+检查、回读、失败回滚、preview 和指令边界测试，再增加语义认证入口。
+`applied`、写入回读通过和 `semantic_proved` 必须区分；任意 Python 或原始字节
+补丁不因 API 调用成功获得语义认证。检查器还需在提交时确认快照未过期，并将
+原快照、候选和验证器版本绑定到验证记录。
+
+小型局部 SMT 实验另验证了可行的精化方向：对条件状态赋值后 XOR 编码的
+dispatcher，在 8/16/32/64 位下比较出口目标与最终状态，正确改写四次 UNSAT，
+交换 handler 和删除状态写的错误改写八次 SAT。单次 `solver.check()` 为约
+0.34–0.80 ms，不含编码和启动。此实验是总定义 bit-vector 合成模型，尚未验证
+BN 到公式的编码、内存、循环、异常或机器码 lowering，不能外推成整函数证明
+或性能承诺。
+
+[BinDeObfBench 2026 预印本](https://arxiv.org/html/2604.08083v1) 的 semantic
+preservation 使用 embedding cosine 与实体 Jaccard 的加权分数，不能作为执行
+等价率或安全门禁。[Chisel §5](https://www.cs.utexas.edu/~isil/chisel.pdf) 的实际
+实现仅对给定 trace 检查 reduction；理论算法对正确 oracle 的假设不能直接变成
+该原型的全输入保证。这些工作可帮助候选发现，不能取代独立检查器。
